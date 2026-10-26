@@ -27533,10 +27533,10 @@ A1, A2, B1, D1 and C1 were excluded by request. No failed model check was rerun 
 | W10 | PASS | Closed chest contents are not reused as current context. |
 | W11 | NOT RUN | Donkey /player/open mounted it (opened=false); desktop inventory path pending. |
 | W12 | FAIL | Sealed loot stays sealed, but seed and known/unknown/empty table status are not exposed. |
-| W13 | NOT RUN | Pending biome and cherry-grove discovery. |
+| W13 | FAIL | Cherry-grove continuation resumes correctly; the current-biome question returns no biome tags. |
 | W14 | NOT RUN | Pending command discovery and follow-up page. |
 | W15 | NOT RUN | Uncached job-site memory set, but the donkey blocked the intended villager target. |
-| W16 | NOT RUN | Pending holder and advancement-tree rereads. |
+| W16 | PASS | Fresh reads reflect 31→7 ingots and 0/3→1/3 advancements; removed tree and saved links are refused. |
 | W17 | NOT RUN | Legacy provider-citation conversations found; saved-chat UI check pending. |
 | W18 | NOT RUN | Pending effect-description resource pack. |
 | E8 | NOT RUN | Pending Nether-fortress question from Overworld. |
@@ -28499,13 +28499,6 @@ Donkey /player/open mounted it (opened=false); desktop inventory path pending.
 
 
 
-#### W13 — NOT RUN
-
-Pending biome and cherry-grove discovery.
-
-
-
-
 #### W14 — NOT RUN
 
 Pending command discovery and follow-up page.
@@ -28567,11 +28560,296 @@ You’re pointing at a **donkey** at (1605, 250, 1602), not a villager, so it do
 Timing: {"wallMs":12213,"modelTerminalMs":"10740","toolWallMs":"22","persistMs":"8"}.
 
 
-#### W16 — NOT RUN
+#### W16 — PASS
 
-Pending holder and advancement-tree rereads.
+Fresh reads reflect 31→7 ingots and 0/3→1/3 advancements; removed tree and saved links are refused.
 
+A temporary three-entry impossible advancement tree was loaded by datapack. After changing one chest count and granting one child, check that again performs fresh inspect_block/list_items/list_progress calls and returns the current counts. This is fresh discovery rather than read_evidence. Disabling the datapack removes the tree; both exact-tree and title lookups return no matches, and all four historical advancement targets report UNAVAILABLE without substitution.
 
+Evidence: [w16-fixture-files.json](../../build/native-readiness-live/w16-fixture-files.json).
+
+Evidence: [w16-datapack-loaded.json](../../build/native-readiness-live/w16-datapack-loaded.json).
+
+Evidence: [w16-change.json](../../build/native-readiness-live/w16-change.json).
+
+Evidence: [w16-disabled.json](../../build/native-readiness-live/w16-disabled.json).
+
+Evidence: [w16-removed-old-nav.json](../../build/native-readiness-live/w16-removed-old-nav.json).
+
+Question: `What is in the chest at 1602, 250, 1600, and how much of the Native Readiness Tree advancement tree have I completed?`
+
+Request `780f52b6-e231-4609-96e7-f7a268b720d2`; conversation `4acc5730-095d-491d-9022-d504e7e25679`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w16-initial.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_block",
+    "arguments": {
+      "place": "minecraft:overworld|1602,250,1600"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "1",
+    "name": "list_progress",
+    "arguments": {
+      "tree": null,
+      "status": null,
+      "text": "Native Readiness Tree",
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1602,250,1600",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at **(1602, 250, 1600)** contains **31 iron ingots**; its other 26 slots are empty. [Chest](world:block|minecraft:overworld|1602,250,1600) [Iron ingots](world:item|block:minecraft:overworld|1602,250,1600>minecraft/container#0@minecraft:iron_ingot)
+
+You’ve completed **0 of 3 advancements** in the Native Readiness Tree. [Progress](progress:tree|minecraft/packsage:readiness_root)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-block|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":16236,"modelTerminalMs":"16141","toolWallMs":"117","persistMs":"11"}.
+
+Question: `check that again`
+
+Request `b7994b1b-0f38-4b98-b270-aa4fd6c0b5bd`; conversation `4acc5730-095d-491d-9022-d504e7e25679`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w16-reread.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_block",
+    "arguments": {
+      "place": "minecraft:overworld|1602,250,1600"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "1",
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage:readiness_root",
+      "status": null,
+      "text": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 4,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1602,250,1600",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I checked again. The chest at **(1602, 250, 1600)** now contains **7 iron ingots**, with 26 empty slots—not the 31 I reported earlier. [Chest](world:block|minecraft:overworld|1602,250,1600) [Iron ingots](world:item|block:minecraft:overworld|1602,250,1600>minecraft/container#0@minecraft:iron_ingot)
+
+You’ve completed **1 of 3** advancements in the Native Readiness Tree—not 0 of 3. [Open advancement tree](progress:tree|minecraft/packsage:readiness_root)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|packsage:readiness_root|packsage:readiness_root",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|packsage:readiness_root|packsage:readiness_root",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|packsage:readiness_root|packsage:readiness_child1",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|packsage:readiness_root|packsage:readiness_child2",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-block|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":21503,"modelTerminalMs":"20171","toolWallMs":"88","persistMs":"2"}.
+
+Question: `check that advancement tree again`
+
+Request `8ebe4086-2429-4871-90d2-1060686b9b3c`; conversation `4acc5730-095d-491d-9022-d504e7e25679`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w16-removed.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage:readiness_root",
+      "status": null,
+      "text": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "no progress entry matches",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "list_progress",
+    "arguments": {
+      "tree": null,
+      "status": null,
+      "text": "Native Readiness",
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "no progress entry matches",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "3",
+    "name": "list_progress",
+    "arguments": {
+      "tree": null,
+      "status": null,
+      "text": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "64.774184d3",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": null,
+        "status": null,
+        "text": null,
+        "cursor": "64.774184d3"
+      }
+    }
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I checked the current advancement-tree list again. **Native Readiness Tree is not listed**, so I can’t verify its completion now. My earlier **1 of 3** answer should not be treated as a current count. [Current advancement trees](progress:tree|minecraft/packsage_acceptance:root)
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":24610,"modelTerminalMs":"22097","toolWallMs":"120","persistMs":"3"}.
 
 
 #### W17 — NOT RUN
@@ -29434,4 +29712,112 @@ I can’t see a settled item list yet. The chest at **(1612, 250, 1600)** has un
 ```
 
 Timing: {"wallMs":12196,"modelTerminalMs":"10418","toolWallMs":"47","persistMs":"7"}.
+
+
+#### W13 — FAIL
+
+Classification: **prompt**. Cherry-grove continuation resumes correctly; the current-biome question returns no biome tags.
+
+The observation supplies minecraft:plains and the plain answer says Plains without a tool call. No biome tags are returned, so that checklist clause is unexercised/unsatisfied. Cherry search first reaches the 500ms work budget at 8103 columns, then resumes with exactly the returned cursor and unchanged biome,structure,center,radius arguments. It completes and its sampled-biome link opens. No question retry.
+
+Evidence: [w13-biome-context.json](../../build/native-readiness-live/w13-biome-context.json).
+
+Question: `what biome am I in?`
+
+Request `506d922b-921c-4c08-95e1-e60b02739a4c`; conversation `13dde24f-6f90-4a50-896f-9c71ca275bf7`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w13-biome.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[]
+```
+
+Verbatim reply:
+
+```text
+You’re in a **Plains** biome.
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":11397,"modelTerminalMs":"9861","toolWallMs":"0","persistMs":"9"}.
+
+Question: `where is the nearest cherry grove?`
+
+Request `14201700-ce94-445d-93e7-7b191748b591`; conversation `7749be50-05d3-4dee-8ec4-fdad3162fd85`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w13-cherry.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "locate",
+    "arguments": {
+      "biome": "minecraft:cherry_grove",
+      "structure": null,
+      "center": null,
+      "radius": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "biome sampling reached the 500 ms server work budget after 8103 columns; sampled out to approximately 1440 blocks from the center along each horizontal axis (outer ring may be incomplete); continue with the cursor",
+    "recordCount": 0,
+    "nextCursor": "97434449-3f55-4c11-a4b9-6c5cacefc1ac",
+    "nextCall": {
+      "name": "locate",
+      "arguments": {
+        "biome": "minecraft:cherry_grove",
+        "structure": null,
+        "center": null,
+        "radius": null,
+        "cursor": "97434449-3f55-4c11-a4b9-6c5cacefc1ac"
+      }
+    }
+  },
+  {
+    "group": "2",
+    "name": "locate",
+    "arguments": {
+      "biome": "minecraft:cherry_grove",
+      "structure": null,
+      "center": null,
+      "radius": null,
+      "cursor": "97434449-3f55-4c11-a4b9-6c5cacefc1ac"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The nearest **sampled cherry grove** is at **(3077, 250, 2530)** in the Overworld, about **1,739 blocks** from you. Head mostly east, then south. [Open location](world:locate|minecraft:overworld|minecraft:cherry_grove|3077,2530)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-place|minecraft:overworld|3077,250,2530",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":18259,"modelTerminalMs":"16976","toolWallMs":"5277","persistMs":"9"}.
 

@@ -127,4 +127,18 @@ class RecipeCardModelsTest {
         record.addProperty("payload", "[truncated]");
         assertTrue(RecipeCardModels.fromRecord(record).isEmpty());
     }
+    @Test void cookingWithoutRecordedValuesHasNoTexts() {
+        var card = RecipeCardModels.fromRecord(record("smelting", "", "[" + slot("slot-0", "item", "minecraft:stone") + "]", output("item", "minecraft:stone", 1))).orElseThrow();
+        assertTrue(card.texts().isEmpty());
+    }
+
+    @Test void campfireAndStonecuttingUseResearchCoordinates() {
+        var input = "[" + slot("slot-0", "item", "minecraft:stone") + "]";
+        var campfire = RecipeCardModels.fromRecord(record("campfire_cooking", "", input, output("item", "minecraft:stone", 1))).orElseThrow();
+        var stonecutting = RecipeCardModels.fromRecord(record("stonecutting", "", input, output("item", "minecraft:stone", 1))).orElseThrow();
+        assertEquals(44, campfire.height());
+        assertEquals(9, campfire.slots().getLast().y());
+        assertEquals(34, stonecutting.height());
+        assertEquals(9, stonecutting.slots().getFirst().y());
+    }
 }

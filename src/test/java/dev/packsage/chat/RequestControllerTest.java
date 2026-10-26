@@ -1739,12 +1739,27 @@ class RequestControllerTest {
         assertEquals(arguments, controller.view().activities().stream()
                 .filter(step -> step.id().equals("tool:call-1")).findFirst().orElseThrow().serializedArguments());
 
-        response.complete(new ChatContracts.ToolResponse(new ModelBackend.ToolResult("call-1", "{\"ok\":true}", false),
+        response.complete(new ChatContracts.ToolResponse(new ModelBackend.ToolResult("call-1",
+                "{\"coverage\":\"PARTIAL\",\"records\":[{},{}],\"detail\":\"Reached the page limit\"}", false),
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
         ChatContracts.ActivityStep completed = controller.view().activities().stream()
                 .filter(step -> step.id().equals("tool:call-1")).findFirst().orElseThrow();
         assertEquals(ChatContracts.ActivityStatus.COMPLETED, completed.status());
         assertEquals(arguments, completed.serializedArguments());
+        assertEquals("lookup", completed.toolName());
+        assertTrue(completed.resultSummary().contains("PARTIAL"));
+        assertTrue(completed.resultSummary().contains("records: 2"));
+        assertTrue(completed.resultSummary().contains("Reached the page limit"));
+        assertTrue(completed.durationMillis() != null);
+        assertTrue(completed.durationMillis() >= 0);
+
+        backend.emit("activity-arguments", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                List.of(new ModelBackend.ToolCall("call-1", "packsage", "lookup", arguments),
+                        response.join().result()), null));
+        ChatContracts.Turn saved = controller.view().conversation().turns().getLast();
+        assertEquals(ChatContracts.OutcomeStatus.COMPLETED, saved.outcome().status());
+        assertTrue(saved.durationMillis() != null);
+        assertTrue(saved.durationMillis() >= completed.durationMillis());
     }
 
     @Test

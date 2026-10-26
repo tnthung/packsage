@@ -780,7 +780,7 @@ public final class RequestController {
             if (!List.of("remember", "update_note", "forget_note").contains(call.name())) {
                 String id = "tool:" + call.callId();
                 request.activities.put(id, new ChatContracts.ActivityStep(id, ActivityLabels.tool(call, request.toolCalls.size()),
-                        "", ChatContracts.ActivityStatus.RUNNING, call.serializedArguments()));
+                        "", ChatContracts.ActivityStatus.RUNNING, call.serializedArguments(), call.name(), null, null));
             }
             started = currentView();
         }
@@ -822,7 +822,8 @@ public final class RequestController {
                         toolActivity.title(), response.result().error()
                         ? ActivityLabels.toolError(response.result().serializedResult()) : "Completed",
                         response.result().error() ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED,
-                        toolActivity.serializedArguments()));
+                        toolActivity.serializedArguments(), call.name(), ActivityLabels.toolSummary(response.result().serializedResult()),
+                        (System.nanoTime() - request.toolReceivedAtNanos.get(call.callId())) / 1_000_000));
                 List<Evidence.Source> mergedSources = new ArrayList<>(request.evidence.sources());
                 response.evidence().sources().forEach(source -> {
                     if (!mergedSources.contains(source)) mergedSources.add(source);
@@ -911,18 +912,19 @@ public final class RequestController {
                 request.answer.toString(), replay, captured.context(), request.evidence.sources(),
                 request.evidence.navigationTargets(),
                 new ChatContracts.Outcome(status, detail), 0, request.sentAt, List.copyOf(request.activities.values()),
-                List.copyOf(request.steeringMessages));
+                List.copyOf(request.steeringMessages), (terminalAtNanos - request.acceptedAtNanos) / 1_000_000);
         ChatContracts.Turn turn;
         try {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(), untokened.navigationTargets(), untokened.outcome(),
-                    tokenCounter.apply(untokened), untokened.sentAt(), untokened.activities(), untokened.steeringMessages());
+                    tokenCounter.apply(untokened), untokened.sentAt(), untokened.activities(), untokened.steeringMessages(),
+                    untokened.durationMillis());
         } catch (RuntimeException exception) {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(),
                     untokened.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, failureMessage(exception)), 0,
-                    untokened.sentAt(), untokened.activities(), untokened.steeringMessages());
+                    untokened.sentAt(), untokened.activities(), untokened.steeringMessages(), untokened.durationMillis());
         }
         if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
         else publish();
@@ -1039,7 +1041,7 @@ public final class RequestController {
                         new ChatContracts.Context(turn.context().serializedGameplayContext(), null, turn.context().scope()),
                         turn.sources(), turn.navigationTargets(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED,
                         "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount(), turn.sentAt(), turn.activities(),
-                        turn.steeringMessages());
+                        turn.steeringMessages(), turn.durationMillis());
                 if (request.submission.replacing() == null) updateVisibleTurn(request, target, persistedTurn);
                 publishPersistenceFailure(request, target, mediaFailure);
             }

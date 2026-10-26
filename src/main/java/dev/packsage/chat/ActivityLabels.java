@@ -70,6 +70,32 @@ final class ActivityLabels {
         return code == null || code.isEmpty() ? detail : detail + " (" + code + ")";
     }
 
+    static String toolSummary(String serializedResult) {
+        try {
+            JsonElement parsed = JsonParser.parseString(serializedResult);
+            if (!parsed.isJsonObject()) return null;
+            var result = parsed.getAsJsonObject();
+            StringBuilder summary = new StringBuilder();
+            if (result.has("coverage") && result.get("coverage").isJsonPrimitive()) {
+                summary.append("Coverage: ").append(result.get("coverage").getAsString());
+            }
+            if (result.has("records") && result.get("records").isJsonArray()) {
+                if (!summary.isEmpty()) summary.append("; ");
+                summary.append("records: ").append(result.getAsJsonArray("records").size());
+            }
+            if (result.has("detail") && result.get("detail").isJsonPrimitive()) {
+                String detail = result.get("detail").getAsString().replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();
+                if (!detail.isEmpty()) {
+                    if (!summary.isEmpty()) summary.append('\n');
+                    summary.append(detail.length() > 240 ? detail.substring(0, 240) + "..." : detail);
+                }
+            }
+            return summary.isEmpty() ? null : summary.toString();
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
     private static String withArgument(String verb, ModelBackend.ToolCall call, String key) {
         String value = argument(call.serializedArguments(), key);
         return value == null ? verb : verb + ": " + value;

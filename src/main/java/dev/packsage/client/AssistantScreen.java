@@ -258,6 +258,9 @@ public final class AssistantScreen extends Screen {
                 18, 60 + (20 - 12) / 2, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
         graphics.drawString(font, Component.literal("New chat").withStyle(style ->
                 style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 36, 60 + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(
+                (settings.showChatsFromOtherSessions() ? "[x] " : "[ ] ") + "Show chats from other sessions")
+                .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, sidebarWidth - 24))), 12, 87, ModernUi.MUTED, false);
         drawSessionGroups(graphics, mouseX, mouseY);
         int controlY = Math.max(0, height - 32);
         ModernUi.surface(graphics, 12, controlY, 32, Math.min(height, controlY + 20),
@@ -285,6 +288,8 @@ public final class AssistantScreen extends Screen {
         String query = (sessionSearchEditor == null ? sessionSearch : sessionSearchEditor.value()).trim().toLowerCase(java.util.Locale.ROOT);
         Map<String, List<ChatContracts.SessionSummary>> groups = new LinkedHashMap<>();
         for (ChatContracts.SessionSummary session : sessions) {
+            if (!settings.showChatsFromOtherSessions()
+                    && !session.world().worldOrServer().equals(view.activeWorld().worldOrServer())) continue;
             if (!query.isEmpty() && !session.title().toLowerCase(java.util.Locale.ROOT).contains(query)
                     && !session.lastMessage().toLowerCase(java.util.Locale.ROOT).contains(query)
                     && !session.world().readableLabel().toLowerCase(java.util.Locale.ROOT).contains(query)) continue;
@@ -419,6 +424,11 @@ public final class AssistantScreen extends Screen {
             }, y);
             y = drawAnswerSequence(graphics, turn.answer(), turn.steeringMessages(), turn, y, included);
             y = drawMessageActions(graphics, turn, false, tokens.assistant(), y, mouseX, mouseY);
+            if (turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED && turn.durationMillis() != null) {
+                graphics.drawString(font, Component.literal("Completed in " + turn.durationMillis() + " ms")
+                        .withStyle(style -> style.withFont(ModernUi.FONT)), readableLeft + 26, y, ModernUi.MUTED, false);
+                y += ModernUi.MESSAGE_LINE_HEIGHT;
+            }
             String outcome = ScreenText.outcomeLine(turn.outcome());
             if (outcome != null) {
                 for (var line : font.split(Component.literal(outcome).withStyle(style ->
@@ -511,11 +521,15 @@ public final class AssistantScreen extends Screen {
             case CANCELLED -> "Step cancelled.";
         } : step.detail();
         if (!step.id().startsWith("tool:")) return detail;
+        if (step.resultSummary() != null) detail += "\n" + step.resultSummary();
+        if (step.durationMillis() != null) detail += "\nDuration: " + step.durationMillis() + " ms";
+        String toolName = step.toolName();
         String arguments = step.serializedArguments();
-        if (arguments == null) {
+        if (arguments == null || toolName == null) {
             for (ModelBackend.InputItem item : replayItems) {
                 if (item instanceof ModelBackend.ToolCall call && call.callId().equals(step.id().substring("tool:".length()))) {
-                    arguments = call.serializedArguments();
+                    if (arguments == null) arguments = call.serializedArguments();
+                    if (toolName == null) toolName = call.name();
                     break;
                 }
             }
@@ -551,7 +565,7 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
-        String body = detail + "\nParameters:\n" + parameters;
+        String body = (toolName == null ? "" : "Tool: " + toolName + "\n") + detail + "\nParameters:\n" + parameters;
         if (body.length() <= ACTIVITY_ARGUMENTS_DISPLAY_LIMIT) return body;
         String marker = "… [truncated]";
         int end = ACTIVITY_ARGUMENTS_DISPLAY_LIMIT - marker.length();
@@ -1318,6 +1332,12 @@ public final class AssistantScreen extends Screen {
         setFocused(null);
         if (mouseX < sidebarWidth) {
             if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 60 && mouseY < 80) { newChat(); return true; }
+            if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 84 && mouseY < 102) {
+                settings.setShowChatsFromOtherSessions(!settings.showChatsFromOtherSessions());
+                sidebarScroll = 0;
+                settingsSaver.run();
+                return true;
+            }
             if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 104 && mouseY < height - 56) {
                 for (SessionRow row : sessionRows()) {
                     if (mouseY < row.top() || mouseY >= row.top() + row.height()) continue;

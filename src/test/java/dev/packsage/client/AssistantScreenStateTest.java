@@ -1059,6 +1059,7 @@ class AssistantScreenStateTest {
     @Test
     void sidebarGroupsCurrentWorldFirstExpandsAndScrollsToEverySession() {
         FakeActions actions = new FakeActions();
+        actions.settings.setShowChatsFromOtherSessions(true);
         var activeWorld = actions.view.activeWorld();
         var other = new ChatContracts.WorldIdentity("other", "Other");
         List<ChatContracts.SessionSummary> sessions = new ArrayList<>();
@@ -1085,6 +1086,46 @@ class AssistantScreenStateTest {
         assertEquals("open:other-chat", actions.calls.getLast());
         ((MultilineEditor) screen.children().getFirst()).setValue("Question 7");
         assertEquals(List.of("chat-7"), screen.sessionRows().stream().filter(value -> value.session() != null).map(value -> value.session().id()).toList());
+    }
+
+    @Test
+    void sidebarOtherSessionsToggleFiltersAndSavesFromTheSidebar() {
+        FakeActions actions = new FakeActions();
+        actions.sessions = CompletableFuture.completedFuture(List.of(
+                new ChatContracts.SessionSummary(actions.view.activeWorld(), "here", "Here", "", Instant.EPOCH),
+                new ChatContracts.SessionSummary(new ChatContracts.WorldIdentity("elsewhere", "Elsewhere"),
+                        "there", "There", "", Instant.EPOCH)));
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        int[] saves = {0};
+        screen.setSettingsSaver(() -> saves[0]++);
+        ScreenTestHost.initialize(screen);
+
+        assertEquals(List.of("here"), screen.sessionRows().stream().filter(row -> row.session() != null)
+                .map(row -> row.session().id()).toList());
+        assertTrue(screen.mouseClicked(24, 90, 0));
+        assertTrue(actions.settings.showChatsFromOtherSessions());
+        assertEquals(2, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        assertEquals(1, saves[0]);
+        assertTrue(screen.mouseClicked(24, 90, 0));
+        assertFalse(actions.settings.showChatsFromOtherSessions());
+        assertEquals(1, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+    }
+
+    @Test
+    void expandedToolBodyIncludesSavedToolSummaryAndDuration() {
+        var screen = new AssistantScreen(new FakeActions());
+        String body = screen.activityBody(new ChatContracts.ActivityStep("tool:one", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, "{\"identity\":\"minecraft:torch\"}", "plan_recipe",
+                "Coverage: PARTIAL; records: 2\nRoute limit reached", 125L), List.of());
+
+        assertTrue(body.contains("plan_recipe"));
+        assertTrue(body.contains("minecraft:torch"));
+        assertTrue(body.contains("PARTIAL"));
+        assertTrue(body.contains("records: 2"));
+        assertTrue(body.contains("Route limit reached"));
+        assertTrue(body.contains("125 ms"));
     }
 
     @Test

@@ -4,6 +4,8 @@
 
 ### 2026-10-26
 
+- The journal now records items put into or taken from a donkey, mule or other mount whose inventory was opened without right-clicking it, such as with the inventory key while riding. Requests carry the player's local time, so "today" follows their calendar. An undefined pending loot table is reported as generating nothing.
+- PackSage's log lines, including the world-close journal summary and request timing, stay in the game logs while the debug bridge runs. The bridge's resource-pack selection now sees packs added after startup.
 - Smithing recipes now report their template, base and addition. Trim results are dynamic, so trim recipes are PARTIAL. Only crafting recipes report remainders, and a failed component encoding makes a recipe PARTIAL. The bridge now names menus that have no registered type, so opening a mount's inventory returns normally.
 - Recipe plans now expand intermediate recipes. Vanilla crafting, cooking, stonecutting and smithing recipes mark their ingredients consumed and report remainders such as empty buckets, and tag ingredients expand to up to 16 member items. Every PARTIAL plan names its reasons, such as raw materials with no recipe or the depth bound.
 - The debug bridge can leave and open worlds, join a server, open a mount's inventory, open the adapter, settings and chat screens, select resource packs and quit the game, so live checks no longer need desktop control.

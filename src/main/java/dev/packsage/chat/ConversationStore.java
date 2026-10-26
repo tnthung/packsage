@@ -592,15 +592,21 @@ public final class ConversationStore {
         conversation.turns().stream().filter(turn -> turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED)
                 .reduce((first, last) -> last).ifPresent(turn -> value.addProperty("latestCompletedRequestId", turn.requestId().value()));
         Path summaryFile = file.resolveSibling(file.getFileName().toString().replaceFirst("\\.jsonl$", ".summary.json"));
-        if (!safePath(summaryFile)) throw new IOException("conversation summary path is unsafe");
         Path temporary = summaryFile.resolveSibling(summaryFile.getFileName() + "-" + UUID.randomUUID() + ".tmp");
         try {
+            if (!safePath(summaryFile)) throw new IOException("conversation summary path is unsafe");
             Files.writeString(temporary, value.toString(), StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
             Files.move(temporary, summaryFile, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
                     java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException exception) {
+            report(exception);
         } finally {
-            Files.deleteIfExists(temporary);
+            try {
+                Files.deleteIfExists(temporary);
+            } catch (IOException exception) {
+                report(exception);
+            }
         }
         return value;
     }

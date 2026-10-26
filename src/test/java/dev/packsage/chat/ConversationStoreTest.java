@@ -91,6 +91,28 @@ class ConversationStoreTest {
     }
 
     @Test
+    void summaryCacheWriteFailureDoesNotFailSavedTurnsOrHideChats() throws Exception {
+        var world = new ChatContracts.WorldIdentity("world-a", "World");
+        var store = new ConversationStore(temporaryDirectory, DIRECT);
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        Path file = store.conversationPath(world, conversation.id());
+        Path summary = file.resolveSibling(file.getFileName().toString().replace(".jsonl", ".summary.json"));
+        Files.delete(summary);
+        Files.createDirectory(summary);
+
+        store.appendTurn(world, SCOPE, conversation.id(), simpleTurn("first")).toCompletableFuture().join();
+        assertEquals("first", store.openConversation(world, conversation.id()).toCompletableFuture().join()
+                .turns().getLast().question());
+        assertEquals(1, store.sessions().toCompletableFuture().join().size());
+        assertEquals("first", store.summary(world, conversation.id()).toCompletableFuture().join().title());
+        store.replaceLatestTurn(world, SCOPE, conversation.id(), new ChatContracts.RequestId("first"), simpleTurn("replacement"))
+                .toCompletableFuture().join();
+        assertEquals("replacement", store.openConversation(world, conversation.id()).toCompletableFuture().join()
+                .turns().getLast().question());
+        assertFalse(store.errors().isEmpty());
+    }
+
+    @Test
     void loadingFailedToolActivityEnrichesOnlyGenericDetailsFromSavedReplayResults() {
         ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
         ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "Readable World");

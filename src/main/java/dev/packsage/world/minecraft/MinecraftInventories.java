@@ -165,10 +165,11 @@ public final class MinecraftInventories implements InventoryReader {
             if (half.getLootTable() != null) {
                 // Reading the slots would generate the loot, so report the pending table and no items.
                 var table = half.getLootTable().location().toString();
-                var level = half instanceof BlockEntity entity ? entity.getLevel() : null;
+                // Loot tables live in the server's reloadable registries, not the level's registry access.
+                var server = half instanceof BlockEntity entity && entity.getLevel() instanceof ServerLevel level ? level.getServer() : null;
                 return new Part("container", label + ", loot not generated (" + table + ")",
                         SlotRole.STORAGE, slots, 0, index -> ItemStack.EMPTY, pendingLoot(table, half.getLootTableSeed(),
-                                level == null ? null : MinecraftLoot.lookup(level.registryAccess(), half.getLootTable())));
+                                server == null ? null : MinecraftLoot.lookup(server.reloadableRegistries().get(), half.getLootTable())));
             }
         }
         return null;

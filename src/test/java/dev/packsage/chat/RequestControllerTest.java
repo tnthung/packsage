@@ -44,6 +44,22 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RequestControllerTest {
+    @Test
+    void completedTurnKeepsSubmissionVerbosity() {
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+        controller.begin(new ChatContracts.Submission(new ChatContracts.RequestId("verbose"), WORLD_A, SCOPE_A, "question",
+                false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED, 4096,
+                ModelBackend.ReasoningEffort.DEFAULT, null, PackSageSettings.Verbosity.DETAILED));
+        backend.emit("verbose", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        assertEquals(PackSageSettings.Verbosity.DETAILED, controller.view().conversation().turns().getLast().verbosity());
+    }
+
+
+
     private static final Executor DIRECT = Runnable::run;
     private static final Evidence.Scope SCOPE_A = new Evidence.Scope("session-a", "en_us", "team-a", "provider-1", 2);
     private static final Evidence.Scope SCOPE_B = new Evidence.Scope("session-b", "en_us", "team-b", "provider-1", 3);
@@ -2223,4 +2239,4 @@ class RequestControllerTest {
             events.get(requestId).accept(event);
         }
     }
-}
+}

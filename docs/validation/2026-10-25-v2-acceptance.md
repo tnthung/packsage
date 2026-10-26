@@ -27524,7 +27524,7 @@ A1, A2, B1, D1 and C1 were excluded by request. No failed model check was rerun 
 | J8 | NOT RUN | Chest withdrawal recorded; donkey interaction pending. |
 | J9 | NOT RUN | Pending open-container disconnect check. |
 | J10 | PASS | All requested event families recorded with actor, subject and place; repeat visit did not duplicate first entry. |
-| J11 | NOT RUN | Pending raid start/outcome fixture. |
+| J11 | PASS | Raid start and a loss outcome were recorded; all navigation targets opened. |
 | J12 | FAIL | Deleting the Nether note makes its link unavailable, but a later answer resurrects its coordinates from chat history. |
 | J13 | NOT RUN | Pending immediate quit and quick rejoin checks. |
 | J14 | FAIL | The first tool-using conversation has neither conversation nor message origin fields. |
@@ -27532,10 +27532,10 @@ A1, A2, B1, D1 and C1 were excluded by request. No failed model check was rerun 
 | W9 | PASS | Potion, arrow, dye, custom name and book facts correct; stale item reference refused and moved item rediscovered. |
 | W10 | PASS | Closed chest contents are not reused as current context. |
 | W11 | NOT RUN | Donkey /player/open mounted it (opened=false); desktop inventory path pending. |
-| W12 | NOT RUN | Pending sealed loot-table chests. |
+| W12 | FAIL | Sealed loot stays sealed, but seed and known/unknown/empty table status are not exposed. |
 | W13 | NOT RUN | Pending biome and cherry-grove discovery. |
 | W14 | NOT RUN | Pending command discovery and follow-up page. |
-| W15 | NOT RUN | Pending uncached villager POI fixture. |
+| W15 | NOT RUN | Uncached job-site memory set, but the donkey blocked the intended villager target. |
 | W16 | NOT RUN | Pending holder and advancement-tree rereads. |
 | W17 | NOT RUN | Legacy provider-citation conversations found; saved-chat UI check pending. |
 | W18 | NOT RUN | Pending effect-description resource pack. |
@@ -27951,11 +27951,182 @@ The search was complete for these event types within the last hour; it does **no
 Timing: {"wallMs":24301,"modelTerminalMs":"22738","toolWallMs":"4","persistMs":"8"}.
 
 
-#### J11 — NOT RUN
+#### J11 — PASS
 
-Pending raid start/outcome fixture.
+Raid start and a loss outcome were recorded; all navigation targets opened.
 
+Bad Omen in the located plains village produced a live Raid bar. The journal reports raid start at 00:52:04 UTC, one wave, and loss 42 seconds later. Natural raiders killed two villagers; the fixture then killed the remaining nearby villagers to make a deterministic loss. Both raid events and the intervening deaths have places and links.
 
+Evidence: [j11-raid.png](../../build/native-readiness-live/j11-raid.png).
+
+Evidence: [j11-lose-fixture.json](../../build/native-readiness-live/j11-lose-fixture.json).
+
+Evidence: [j11-raid-start-state.json](../../build/native-readiness-live/j11-raid-start-state.json).
+
+Question: `What happened in the raid I just started, and what was its outcome?`
+
+Request `3a82a055-8412-4fb9-a0e5-a58955bd5d62`; conversation `7f29ac6b-90e1-4367-8f49-edf3bbd198fe`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j11.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 120
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "raid_start",
+          "raid_end"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 2,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-26T00:52:04Z",
+          "before": "2026-10-26T00:52:47Z",
+          "lastMinutes": null
+        },
+        "area": {
+          "radius": 96,
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|1867,66,877"
+          }
+        },
+        "dimension": "minecraft:overworld",
+        "types": null,
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 11,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The raid at **(1867, 66, 877)** in the Overworld started at 00:52:04 on October 26 with **one wave** and ended about **42 seconds later in a loss**. [Start](journal:event:97) [Outcome](journal:event:107)
+
+During that interval, the journal recorded **nine villager deaths** nearby. A vindicator killed a cleric at **(1874, 67, 879)**, and a pillager shot a villager at **(1867, 64, 904)**. [Cleric](journal:event:98) [Villager](journal:event:99) Seven more villagers died just before the raid ended: a farmer, two leatherworkers, and four villagers with no profession. One death message mentions fighting a pillager; the other six do not identify a killer. [Farmer](journal:event:100) [Leatherworker](journal:event:101) [Leatherworker](journal:event:102) [Villager](journal:event:103) [Villager](journal:event:104) [Villager](journal:event:105) [Villager](journal:event:106)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|1867,66,877",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1867,66,877",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1898,68,871",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1898,69,872",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1874,64,898",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1861,65,891",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1832,67,849",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1832,67,850",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1833,67,849",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1867,64,904",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1874,67,879",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":30372,"modelTerminalMs":"28552","toolWallMs":"49","persistMs":"8"}.
 
 
 #### J13 — NOT RUN
@@ -28328,13 +28499,6 @@ Donkey /player/open mounted it (opened=false); desktop inventory path pending.
 
 
 
-#### W12 — NOT RUN
-
-Pending sealed loot-table chests.
-
-
-
-
 #### W13 — NOT RUN
 
 Pending biome and cherry-grove discovery.
@@ -28351,9 +28515,56 @@ Pending command discovery and follow-up page.
 
 #### W15 — NOT RUN
 
-Pending uncached villager POI fixture.
+Classification: **fixture**. Uncached job-site memory set, but the donkey blocked the intended villager target.
 
+The villager memory points to unloaded (100000,70,100000), but the saved pre-question crosshair target is the fixture donkey. The assistant correctly inspects that donkey and says it has no job site. This does not exercise the POI fallback. No fixture retry was made after the attempt.
 
+Evidence: [w15-fixture.json](../../build/native-readiness-live/w15-fixture.json).
+
+Question: `where does this villager work?`
+
+Request `8b9f77ae-fbf8-416b-8777-b8d9593ae657`; conversation `a32877e8-1482-42dd-9f80-316aff957214`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w15.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "11111111-1111-1111-1111-111111111111"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You’re pointing at a **donkey** at (1605, 250, 1602), not a villager, so it doesn’t have a job site. [Donkey](world:entity|11111111-1111-1111-1111-111111111111) Which villager did you mean?
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-entity|11111111-1111-1111-1111-111111111111",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":12213,"modelTerminalMs":"10740","toolWallMs":"22","persistMs":"8"}.
 
 
 #### W16 — NOT RUN
@@ -29050,4 +29261,177 @@ Classification: **code**. The first tool-using conversation has neither conversa
 Conversation header keys: type,id,world,label,updatedAt. The saved turn keys include requestId,question,answer,context,sources,activities and steeringMessages, but no origin fields. Source file is identified in the evidence. This is the first chat of this round, M5 request 1b726f91-b5a3-45e9-9291-aa7dc39d0386, conversation 6c76374d-5a21-4237-ac56-17367d77c52e. No separate question or navigation required for this file-inspection check; its chat evidence is under M5.
 
 Evidence: [j14-conversation.json](../../build/native-readiness-live/j14-conversation.json).
+
+
+#### W12 — FAIL
+
+Classification: **code**. Sealed loot stays sealed, but seed and known/unknown/empty table status are not exposed.
+
+Known simple_dungeon seed12345, missing packsage:missing_native_readiness seed67890 and minecraft:empty seed222 remain stored with LootTable after reads, so no unpacking occurred. list_items exposes only table text in an inventory label; inspect_block for the unknown table exposes no seed or table-resolution status and reports its minecraft section COMPLETE. The replies all say contents will be decided when opened; neither unknown nor empty table is identified.
+
+Evidence: [w12-fixture.json](../../build/native-readiness-live/w12-fixture.json).
+
+Evidence: [w12-before.json](../../build/native-readiness-live/w12-before.json).
+
+Evidence: [w12-known-after.json](../../build/native-readiness-live/w12-known-after.json).
+
+Evidence: [w12-unknown-after.json](../../build/native-readiness-live/w12-unknown-after.json).
+
+Evidence: [w12-empty-after.json](../../build/native-readiness-live/w12-empty-after.json).
+
+Question: `what is in this chest?`
+
+Request `7a7a0637-2fa6-457b-a613-7d37ef6b66c5`; conversation `5bc4c26d-ca91-45fb-9bd7-dabfb5c271a2`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w12-known.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table minecraft:chests/simple_dungeon); its contents are decided when it is first opened",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at (1608, 250, 1600) in the Overworld hasn’t generated its contents yet. Its loot is decided when you first open it, so I can’t tell you the exact items now. [Chest](world:block|minecraft:overworld|1608,250,1600)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1608,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":10261,"modelTerminalMs":"9149","toolWallMs":"15","persistMs":"9"}.
+
+Question: `what is in this chest?`
+
+Request `0305c66f-575e-48f7-92e0-e813d2f93624`; conversation `aced935b-7dfe-4cfb-9345-47b9146bd197`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w12-unknown.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_block",
+    "arguments": {
+      "place": "minecraft:overworld|1610,250,1600"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1610,250,1600",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table packsage:missing_native_readiness); its contents are decided when it is first opened",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I can’t see the contents yet. The chest at **(1610, 250, 1600)** has loot that hasn’t been generated; its contents will be decided when you first open it. [Chest](world:block|minecraft:overworld|1610,250,1600)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1610,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":14216,"modelTerminalMs":"12772","toolWallMs":"42","persistMs":"8"}.
+
+Question: `what is in this chest?`
+
+Request `e47c132a-d1be-4312-ba6e-2e08bbe85f39`; conversation `ca90c151-f976-41d4-a84b-2b0390ff0d6d`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w12-empty.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table minecraft:empty); its contents are decided when it is first opened",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I can’t see a settled item list yet. The chest at **(1612, 250, 1600)** has unopened loot, so its contents won’t be determined until you open it. [Chest](world:block|minecraft:overworld|1612,250,1600)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1612,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":12196,"modelTerminalMs":"10418","toolWallMs":"47","persistMs":"7"}.
 

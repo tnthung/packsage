@@ -70,7 +70,7 @@ class WorldKnowledgeToolsTest {
         assertEquals("command|fill", record.source().sourceHandle());
         assertEquals(WorldTools.text("command-cursor"), record.payload().values().get("cursor"));
         assertEquals(WorldTools.text("fill"), record.payload().values().get("path"));
-        assertEquals(WorldTools.text("PackSage does not run commands"), record.payload().values().get("note"));
+        assertEquals(WorldTools.text("Discovery only; use run_command for player-requested actions"), record.payload().values().get("note"));
         assertTrue(record.targets().isEmpty());
         assertSame(record, WorldKnowledgeTools.commandRereadRecord(SCOPE, "command|fill", WorldPaging.single(record)));
         var usagePage = WorldPaging.result(List.of(record), Evidence.Coverage.PARTIAL, "usage-cursor", "more usage");
@@ -95,7 +95,7 @@ class WorldKnowledgeToolsTest {
         var record = page.records().getFirst();
         assertEquals("command|command0", record.source().sourceHandle());
         assertEquals(new Evidence.JsonBoolean(false), record.payload().values().get("canUse"));
-        assertEquals(WorldTools.text("PackSage does not run commands"), record.payload().values().get("note"));
+        assertEquals(WorldTools.text("Discovery only; use run_command for player-requested actions"), record.payload().values().get("note"));
         assertTrue(record.targets().isEmpty());
         var cursorRequest = new PackSageTools.ReadRequest("search_commands", Evidence.deserializeObject(
                 "{\"cursor\":\"" + page.nextCursor() + "\"}"), SCOPE);

@@ -19,7 +19,7 @@ class PackSageToolsTest {
     private static final List<String> NAMES = List.of("search_recipe", "search_registry", "read_evidence", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
             "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
             "list_progress", "inspect_progress", "list_statistics",
-            "read_loot", "locate", "search_commands", "read_command",
+            "read_loot", "locate", "search_commands", "read_command", "read_game_state",
             "search_journal", "remember", "update_note", "forget_note");
 
     @Test
@@ -60,7 +60,7 @@ class PackSageToolsTest {
     }
 
     @Test
-    void exposesExactlyTwentyEightToolsAndKeepsOptionalArgumentsOptional() {
+    void exposesExactlyTwentyNineToolsAndKeepsOptionalArgumentsOptional() {
         var definitions = PackSageTools.definitions();
         assertEquals(NAMES, definitions.stream().map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : definitions) {
@@ -73,6 +73,18 @@ class PackSageToolsTest {
             var schema = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow();
             assertEquals(64, JsonParser.parseString(schema.serializedSchema()).getAsJsonObject().getAsJsonObject("properties").getAsJsonObject("limit").get("maximum").getAsInt());
         }
+    }
+
+    @Test
+    void readGameStateRequestsOptionalF3Sections() {
+        var definition = PackSageTools.definitions().stream().filter(value -> value.name().equals("read_game_state")).findFirst().orElseThrow();
+        var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
+        assertTrue(definition.description().contains("F3"));
+        assertEquals(List.of(), schema.getAsJsonArray("required").asList().stream().map(value -> value.getAsString()).toList());
+        assertEquals(java.util.Set.of("sections"), schema.getAsJsonObject("properties").keySet());
+        assertEquals(List.of("performance", "entities_and_chunks", "light_and_environment", "position", "looking_at"),
+                schema.getAsJsonObject("properties").getAsJsonObject("sections").getAsJsonObject("items").getAsJsonArray("enum")
+                        .asList().stream().map(value -> value.getAsString()).toList());
     }
 
     @Test

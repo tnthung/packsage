@@ -493,7 +493,7 @@ class NativeRecipeReaderTest {
 
         var cookingPayload = page.records().getFirst().payload().values();
         assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(200)), cookingPayload.get("cookingTime"));
-        assertEquals(0.1, ((Evidence.JsonNumber) cookingPayload.get("experience")).value().doubleValue(), 0.000001);
+        assertEquals("0.1", ((Evidence.JsonNumber) cookingPayload.get("experience")).value().toPlainString());
         var craftingPayload = page.records().get(1).payload().values();
         assertFalse(craftingPayload.containsKey("cookingTime"));
         assertFalse(craftingPayload.containsKey("experience"));

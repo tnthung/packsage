@@ -1519,9 +1519,9 @@ public final class AssistantRuntime implements ChatActions {
                     && !(latest.active() && expectedUnread.value().equals(latest.activeRequestId()))) {
                 holder.unreadRequestId = null;
             }
-            sessionListChanged = wasActive != holder.active || wasLoaded != holder.loaded
+            sessionListChanged = selected != null && (wasActive != holder.active || wasLoaded != holder.loaded
                     || wasLoading != holder.loading || wasCreating != holder.creating
-                    || !oldId.equals(holder.id) || !Objects.equals(oldUnreadRequestId, holder.unreadRequestId);
+                    || !oldId.equals(holder.id) || !Objects.equals(oldUnreadRequestId, holder.unreadRequestId));
             isSelected = selected == holder;
             epoch = isSelected ? worldEpoch : 0;
             publication = isSelected ? publicationEpoch : 0;

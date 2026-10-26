@@ -21,6 +21,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void refreshRequestedDuringShowMoreRunsAfterThePageFinishes() {
+        var actions = new FakeActions();
+        actions.settings.setSessionsBeforeCollapse(3);
+        var sessions = new ArrayList<ChatContracts.SessionSummary>();
+        for (int index = 0; index < 20; index++) sessions.add(new ChatContracts.SessionSummary(
+                actions.view.activeWorld(), "chat-" + index, "Question " + index, "", Instant.EPOCH));
+        actions.sessions = CompletableFuture.completedFuture(sessions);
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 900;
+        ScreenTestHost.initialize(screen);
+        var pendingPage = new CompletableFuture<List<ChatContracts.SessionSummary>>();
+        actions.sessions = pendingPage;
+        var more = screen.sessionRows().stream().filter(AssistantScreen.SessionRow::expand).findFirst().orElseThrow();
+        screen.mouseClicked(24, more.top() + 5, 0);
+        actions.sessions = CompletableFuture.completedFuture(sessions.subList(1, sessions.size()));
+        screen.loadSessions();
+        pendingPage.complete(sessions);
+        assertTrue(screen.sessionRows().stream().filter(row -> row.session() != null)
+                .noneMatch(row -> row.session().id().equals("chat-0")));
+    }
+
+    @Test
     void changingOtherSessionsSettingDiscardsAnOlderPendingPage() {
         var actions = new FakeActions();
         var oldPage = new CompletableFuture<List<ChatContracts.SessionSummary>>();

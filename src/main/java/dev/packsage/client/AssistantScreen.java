@@ -68,6 +68,7 @@ public final class AssistantScreen extends Screen {
     private List<ChatContracts.SessionSummary> sessions = List.of();
     private boolean moreSessions;
     private boolean sessionsLoading;
+    private boolean sessionRefreshPending;
     private int sessionOffset;
     private ChatContracts.WorldIdentity catalogWorld;
     private boolean catalogOtherWorlds;
@@ -167,11 +168,15 @@ public final class AssistantScreen extends Screen {
             catalogWorld = view.activeWorld();
             catalogOtherWorlds = settings.showChatsFromOtherSessions();
             sessionsLoading = false;
+            sessionRefreshPending = false;
             sessions = List.of();
             sessionOffset = 0;
             moreSessions = false;
         }
-        if (sessionsLoading) return;
+        if (sessionsLoading) {
+            if (!more) sessionRefreshPending = true;
+            return;
+        }
         sessionsLoading = true;
         long generation = ++catalogGeneration;
         try {
@@ -183,17 +188,21 @@ public final class AssistantScreen extends Screen {
                     if (failure != null) {
                         showNavigationError("Chat history could not be loaded: " + (failure.getMessage() == null
                                 ? failure.getClass().getSimpleName() : failure.getMessage()));
-                        return;
+                    } else {
+                        List<ChatContracts.SessionSummary> next = new ArrayList<>(more ? sessions : List.of());
+                        for (var session : page.sessions()) {
+                            next.removeIf(existing -> existing.id().equals(session.id())
+                                    && existing.world().worldOrServer().equals(session.world().worldOrServer()));
+                            next.add(session);
+                        }
+                        sessions = List.copyOf(next);
+                        sessionOffset = page.nextOffset();
+                        moreSessions = page.hasMore();
                     }
-                    List<ChatContracts.SessionSummary> next = new ArrayList<>(more ? sessions : List.of());
-                    for (var session : page.sessions()) {
-                        next.removeIf(existing -> existing.id().equals(session.id())
-                                && existing.world().worldOrServer().equals(session.world().worldOrServer()));
-                        next.add(session);
+                    if (sessionRefreshPending) {
+                        sessionRefreshPending = false;
+                        loadSessions();
                     }
-                    sessions = List.copyOf(next);
-                    sessionOffset = page.nextOffset();
-                    moreSessions = page.hasMore();
                 };
                 if (minecraft == null) update.run();
                 else minecraft.execute(update);
@@ -209,6 +218,7 @@ public final class AssistantScreen extends Screen {
     public void refreshSessions(List<ChatContracts.SessionSummary> next) {
         catalogGeneration++;
         sessionsLoading = false;
+        sessionRefreshPending = false;
         sessions = List.copyOf(next);
         sessionOffset = sessions.size();
     }

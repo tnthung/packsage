@@ -22,6 +22,21 @@ class ConversationSidebarTest {
     Path root;
 
     @Test
+    void damagedHeaderDoesNotHideHealthyRowsInTheSamePage() throws Exception {
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var store = new ConversationStore(root, Runnable::run);
+        for (int index = 0; index < 3; index++) store.newConversation(world).toCompletableFuture().join();
+        var damaged = store.newConversation(world).toCompletableFuture().join();
+        Path file = store.conversationPath(world, damaged.id());
+        Files.delete(file.resolveSibling(file.getFileName().toString().replace(".jsonl", ".summary.json")));
+        Files.writeString(file, "damaged header");
+        var page = store.sessionPage(world, false, 0, 4).toCompletableFuture().join();
+        assertEquals(3, page.sessions().size());
+        assertEquals(4, page.nextOffset());
+        assertFalse(store.errors().isEmpty());
+    }
+
+    @Test
     void summariesWithoutCompletedAnswersDoNotReadCompletionState() throws Exception {
         var world = new ChatContracts.WorldIdentity("world", "World");
         var store = new ConversationStore(root, Runnable::run);

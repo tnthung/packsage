@@ -588,10 +588,14 @@ public final class ConversationStore {
                 int end = (int) Math.min(files.size(), (long) offset + limit);
                 for (int index = offset; index < end; index++) {
                     Path file = files.get(index).getKey();
-                    if (!safePath(file)) continue;
-                    ChatContracts.SessionSummary summary = readSummary(file,
-                            file.getParent().equals(worldDirectory(currentWorld)) ? currentWorld : null, false);
-                    if (summary != null) summaries.add(summary);
+                    try {
+                        if (!safePath(file)) continue;
+                        ChatContracts.SessionSummary summary = readSummary(file,
+                                file.getParent().equals(worldDirectory(currentWorld)) ? currentWorld : null, false);
+                        if (summary != null) summaries.add(summary);
+                    } catch (IOException | RuntimeException failure) {
+                        report(failure);
+                    }
                 }
                 return new SessionPage(summaries, end < files.size(), end);
             } catch (IOException | RuntimeException failure) {

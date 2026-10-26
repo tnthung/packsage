@@ -29,7 +29,11 @@ public final class SlotStacks {
         if (stack.kind() == RecipeCardModel.Stack.Kind.TAG) {
             if (id == null) return List.of();
             return items.get(TagKey.create(Registries.ITEM, id)).stream().flatMap(tag -> tag.stream())
-                    .map(holder -> new ItemStack(holder, stack.count())).toList();
+                    .map(holder -> {
+                        var resolved = new ItemStack(holder, 1);
+                        resolved.setCount(Math.clamp(stack.count(), 1, resolved.getMaxStackSize()));
+                        return resolved;
+                    }).toList();
         }
         var item = id == null ? null : items.get(ResourceKey.create(Registries.ITEM, id)).orElse(null);
         if (item == null) {
@@ -40,7 +44,9 @@ public final class SlotStacks {
         try {
             var patch = DataComponentPatch.CODEC.parse(registries.createSerializationContext(JsonOps.INSTANCE),
                     JsonParser.parseString(stack.componentsJson())).result().orElseThrow();
-            return List.of(new ItemStack(item, stack.count(), patch));
+            var resolved = new ItemStack(item, 1, patch);
+            resolved.setCount(Math.clamp(stack.count(), 1, resolved.getMaxStackSize()));
+            return List.of(resolved);
         } catch (RuntimeException failure) {
             var missing = new ItemStack(Items.BARRIER);
             missing.set(DataComponents.CUSTOM_NAME, Component.literal("Missing: " + stack.identity()));

@@ -32456,12 +32456,12 @@ The round-1/2 controller rulings apply: v2 has no recipe viewer, seeds need not 
 | W12r2 | FAIL | Tool classification is correct and all chests remain sealed; missing-table reply omits its table and undefined status. |
 | W19r | PASS | locate uses #minecraft:is_forest; sampled forest at (1673,250,1571) has a working waypoint. |
 | D1 | NOT RUN | Both populated offer sets are fully returned and priced; required trader interaction happened after its question, so that setup clause is not accepted. |
-| M5 | NOT RUN | Pending execution. |
-| J8 | NOT RUN | Pending execution. |
-| J9 | NOT RUN | Pending execution. |
+| M5 | FAIL | 2,000 sand plus TNT/9 stone recorded; world-close journal summary is absent, so overflow/tick thresholds cannot be verified. |
+| J8 | FAIL | Actual 17-gold donkey deposit and withdrawal occur, but neither appears in the journal after world reopen. |
+| J9 | PASS | After disconnect with the chest open, the reply marks the association unverifiable and does not invent the 19-item session. |
 | J13 | NOT RUN | Pending execution. |
 | P9/J7 | NOT RUN | Pending execution. |
-| W11 | NOT RUN | Pending execution. |
+| W11 | FAIL | Horse screens open but /player/open errors on menu type; both answers use targeted rather than the required opened path. |
 | W17 | NOT RUN | Pending execution. |
 | W18 | NOT RUN | Pending execution. |
 | U1 | NOT RUN | Pending execution. |
@@ -32833,6 +32833,556 @@ All six are currently in stock. These are the trader’s recorded prices; the pr
 Timing: {"wallMs":25683,"modelTerminalMs":"20166","toolWallMs":"50","persistMs":"1108"}.
 
 
+#### J9 - PASS
+
+After disconnect with the chest open, the reply marks the association unverifiable and does not invent the 19-item session.
+
+The test withdrew 19 iron ingots and left ChestScreen/menu 6 open, then disconnected. On rejoin the chest is empty. The reply labels 31 iron from event 78 as the latest recorded historical withdrawal with its timestamp, and explicitly says it cannot verify the chest open at disconnect. It does not pass the old 31 off as this 19-item session. Actual new-session recording remains a code concern under J8/J13, while this check permits an incomplete report.
+
+Evidence: [j9-fixture.json](../../build/native-readiness-live/round3/j9-fixture.json).
+
+Evidence: [j9-world-leave.json](../../build/native-readiness-live/round3/j9-world-leave.json).
+
+Evidence: [j9-world-open.json](../../build/native-readiness-live/round3/j9-world-open.json).
+
+Evidence: [j9-after.json](../../build/native-readiness-live/round3/j9-after.json).
+
+Question: `what did I take out of the chest I had open when I disconnected?`
+
+Request `546d632e-dca7-409d-9b8f-8de9dc43ee4a`; conversation `f3bf6a30-4c8d-48bc-b353-85b58cfc33be`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/j9-disconnect.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": [
+          "withdraw"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 2,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; more journal entries are available; continue with the cursor; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 64,
+    "nextCursor": "a42acb01-ab11-48c3-a047-c2e9ac904755",
+    "nextCall": {
+      "name": "search_journal",
+      "arguments": {
+        "filter": {
+          "time": null,
+          "area": null,
+          "dimension": null,
+          "types": null,
+          "subjects": null,
+          "text": null,
+          "notesOnly": false
+        },
+        "cursor": "a42acb01-ab11-48c3-a047-c2e9ac904755"
+      }
+    }
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The latest recorded chest withdrawal was **31 iron ingots** from the chest at **(1602, 250, 1600)** on October 26 at 00:42 UTC. [View the chest](journal:event:78)
+
+I can’t verify that it was the chest you had open when you disconnected—the journal records the withdrawal, but not which chest was open at disconnect.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1005,250,1003",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2534,254,2506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2501,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2322,250,2320",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1533,253,1506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1534,254,1506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1500,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1604",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-note|n1899bc0b",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2322,250,2320",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1867,66,877",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1898,68,871",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1898,69,872",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1874,64,898",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1861,65,891",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1832,67,849",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1832,67,850",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1833,67,849",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1867,64,904",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1874,67,879",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1867,66,877",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1863,64,906",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1871,62,907",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1844,65,821",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1877,68,875",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1872,70,864",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1604",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1603,250,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1605",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1603,250,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1607,250,1607",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1607,250,1607",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1606,250,1606",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1604,250,1606",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1603,250,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1604,250,1605",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1601,250,1601",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:the_nether|1603,122,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": "1603, 122, 1603 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1603,250,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1501,250,1550",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1511,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1501,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1531,253,1505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1533,254,1505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1500,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1533,247,1505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1097,250,1021",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1097,250,1021",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1097,250,1021",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1100,250,1025",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1121,100,1121",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1121,100,1121",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1003,250,1005",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1101,100,1100",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1121,100,1121",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1121,100,1121",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1032,250,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1032,250,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1032,250,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1032,250,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:the_nether|130,70,116",
+    "result": {
+      "status": "OPENED",
+      "detail": "130, 70, 116 in minecraft:the_nether"
+    }
+  }
+]
+```
+
+Timing: {"wallMs":29619,"modelTerminalMs":"24496","toolWallMs":"22","persistMs":"1116"}.
+
+
 ### Failures
 
 #### A3 - FAIL
@@ -33190,3 +33740,484 @@ The chest at (1612, 250, 1600) hasn’t generated its loot yet, so I can’t rea
 ```
 
 Timing: {"wallMs":21197,"modelTerminalMs":"15645","toolWallMs":"34","persistMs":"1094"}.
+
+
+#### M5 - FAIL
+
+Classification: **code**. 2,000 sand plus TNT/9 stone recorded; world-close journal summary is absent, so overflow/tick thresholds cannot be verified.
+
+All 2,000 breaks succeeded in 9,186 ms, maximum bridge request 81 ms. Reply reports exactly 2,000 sand and explosion/9 stone; every navigation opens. The close log reaches All dimensions are saved but neither latest.log nor debug.log/stdout-logs.txt contains journal:. The required overflowed 0 and slowest tick under 1,000 us are not claimed. No continuous visual-stall observation was made; bridge responsiveness is the recorded proxy.
+
+Evidence: [m5-fixture.json](../../build/native-readiness-live/round3/m5-fixture.json).
+
+Evidence: [m5-break-timing.json](../../build/native-readiness-live/round3/m5-break-timing.json).
+
+Evidence: [m5-explosion.json](../../build/native-readiness-live/round3/m5-explosion.json).
+
+Evidence: [m5-world-leave.json](../../build/native-readiness-live/round3/m5-world-leave.json).
+
+Evidence: [m5-world-close.log](../../build/native-readiness-live/round3/m5-world-close.log).
+
+Evidence: [m5-metrics-observation.json](../../build/native-readiness-live/round3/m5-metrics-observation.json).
+
+Question: `what did I just dig up and blow up?`
+
+Request `3c021f9c-bc54-4f97-94ab-59f7e779c371`; conversation `f4fb8ed2-5b66-4e73-9e52-b6d0bc5d12b2`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/m5-journal.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 15
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break",
+          "explosion"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You dug up **2,000 sand blocks** across the area from (2500, 250, 2500) to (2519, 250, 2599). [Sand dig site](journal:event:115)
+
+Then **TNT exploded** at (2534, 254, 2506), breaking **9 stone blocks** nearby. [TNT explosion](journal:event:116) [Broken stone](journal:event:117)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2534,254,2506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2501,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":20856,"modelTerminalMs":"17268","toolWallMs":"14","persistMs":"1128"}.
+
+
+#### J8 - FAIL
+
+Classification: **code**. Actual 17-gold donkey deposit and withdrawal occur, but neither appears in the journal after world reopen.
+
+NBT proves 17 gold ingots entered the donkey and then its Items became empty; menu moves succeed despite /player/open returning Unable to construct this menu by type after opening the horse inventory. The donkey reply honestly says no deposit is recorded. Chest search initially recovers from a model-generated invalid date, then returns only older round-1 withdrawals (event 78 is the earlier 31-iron withdrawal, not a new record for this round). It calls October 25 U.S. time today although the fixture runs October 26 Asia/Taipei; that is an additional prompt observation. No model question was rerun.
+
+Evidence: [j8-fixture.json](../../build/native-readiness-live/round3/j8-fixture.json).
+
+Evidence: [j8-chest-interactions.json](../../build/native-readiness-live/round3/j8-chest-interactions.json).
+
+Evidence: [j8-donkey-deposit.json](../../build/native-readiness-live/round3/j8-donkey-deposit.json).
+
+Evidence: [j8-donkey-withdrawal.json](../../build/native-readiness-live/round3/j8-donkey-withdrawal.json).
+
+Question: `what did I take out of chests today?`
+
+Request `afb0788a-9651-41be-bc8f-d2d26a4c16de`; conversation `da004e52-99e0-4772-90a5-8c94637c9478`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/j8-chest.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-26",
+          "before": null,
+          "lastMinutes": null
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "withdraw"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": true,
+    "coverage": "ERROR",
+    "detail": "INVALID_ARGUMENTS: Text '2026-10-26' could not be parsed at index 10",
+    "recordCount": 0
+  },
+  {
+    "group": "2",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-25T00:00:00Z",
+          "before": null,
+          "lastMinutes": null
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "withdraw"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 2,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Today, **October 25 in U.S. time**, the journal shows you took **36 iron ingots** from chests:
+
+- **5** from the chest at (1005, 250, 1003). [journal:event:38]
+- **31** from the chest at (1602, 250, 1600). [journal:event:78]
+
+The journal has a recording gap today, so it may have missed other withdrawals. [journal:event:38]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1005,250,1003",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":31659,"modelTerminalMs":"25346","toolWallMs":"5","persistMs":"1179"}.
+
+Question: `what did I put in my donkey?`
+
+Request `6f15fe06-c7f8-403b-86a3-dea5ca977692`; conversation `57b34803-d6bf-451b-b7ef-679661fd4328`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/j8-donkey.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": [
+          "deposit"
+        ],
+        "subjects": null,
+        "text": "donkey",
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "1",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "11111111-1111-1111-1111-111111111111"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": [
+          "deposit",
+          "withdraw"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 4,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "list_items",
+    "arguments": {
+      "holder": "entity:11111111-1111-1111-1111-111111111111",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The donkey at **(1605, 250, 1602)** has an empty chest now—all 15 storage slots are empty. [Donkey](world:entity|11111111-1111-1111-1111-111111111111)
+
+I couldn’t confirm what you *previously put in it*: the recorded deposits don’t show one to this donkey, but the journal has a recording gap, so that isn’t proof you never did. [world:entity|11111111-1111-1111-1111-111111111111]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-entity|11111111-1111-1111-1111-111111111111",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1005,250,1003",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1004,250,1003",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1003,250,1006",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":27540,"modelTerminalMs":"20648","toolWallMs":"87","persistMs":"1185"}.
+
+
+#### W11 - FAIL
+
+Classification: **code, prompt**. Horse screens open but /player/open errors on menu type; both answers use targeted rather than the required opened path.
+
+Both /state captures show HorseInventoryScreen and real menu IDs. Both opens return Unable to construct this menu by type after the side effect. Both model questions call list_items(holder=targeted), then inspect_entity; neither calls holder=opened. Empty contents and coordinates are correct and navigation works, but the requested opened-menu branch is unexercised.
+
+Evidence: [w11-donkey-open.json](../../build/native-readiness-live/round3/w11-donkey-open.json).
+
+Evidence: [w11-donkey-state.json](../../build/native-readiness-live/round3/w11-donkey-state.json).
+
+Evidence: [w11-mule-open.json](../../build/native-readiness-live/round3/w11-mule-open.json).
+
+Evidence: [w11-mule-state.json](../../build/native-readiness-live/round3/w11-mule-state.json).
+
+Question: `what's in this?`
+
+Request `d30427ea-d099-4785-aae7-d864420ab455`; conversation `bc481c47-a0e7-4fb3-b5ff-a162c44e8224`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/w11-donkey.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "1",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "11111111-1111-1111-1111-111111111111"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The donkey at **(1605, 250, 1602)** has an empty chest—all 15 storage slots are empty—and no saddle equipped. [Donkey](world:entity|11111111-1111-1111-1111-111111111111)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-entity|11111111-1111-1111-1111-111111111111",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":19288,"modelTerminalMs":"11753","toolWallMs":"15","persistMs":"1807"}.
+
+Question: `what's in this?`
+
+Request `57668727-a981-4a72-aa26-0e5907ef8909`; conversation `85866178-b669-44fc-820f-c2ef871b11d0`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/w11-mule.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "1",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "22222222-2222-2222-2222-222222222222"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The mule at **(1607, 250, 1602)** has an **empty chest (15 slots)** and **no saddle equipped**. [Mule](world:entity|22222222-2222-2222-2222-222222222222)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-entity|22222222-2222-2222-2222-222222222222",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":16478,"modelTerminalMs":"10023","toolWallMs":"39","persistMs":"1254"}.

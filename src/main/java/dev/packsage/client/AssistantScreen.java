@@ -148,16 +148,6 @@ public final class AssistantScreen extends Screen {
         loadSessions();
     }
 
-    @Override
-    public void tick() {
-        super.tick();
-        if (visibleTurnCount < view.conversation().turns().size()) {
-            visibleTurnCount = Math.min(view.conversation().turns().size(), visibleTurnCount + 4);
-            historyPrepended = true;
-            followOnCompletion = followBottom;
-        }
-    }
-
     public void loadSessions() {
         loadSessionPage(false);
     }
@@ -907,7 +897,9 @@ public final class AssistantScreen extends Screen {
                         if (space) continue;
                     }
                     while (!token.isEmpty()) {
-                        int take = prefixWidth(token, Math.max(1, width - x), span.bold());
+                        int take = font.substrByWidth(
+                                Component.literal(token).withStyle(style -> style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)),
+                                Math.max(1, width - x)).getString().length();
                         if (take <= 0) take = Character.charCount(token.codePointAt(0));
                         String piece = token.substring(0, take);
                         int pieceWidth = font.width(Component.literal(piece).withStyle(style ->
@@ -923,18 +915,6 @@ public final class AssistantScreen extends Screen {
             y += ModernUi.MESSAGE_LINE_HEIGHT;
         }
         return new MessageLayout(List.copyOf(runs), y);
-    }
-
-    private int prefixWidth(String value, int available, boolean bold) {
-        int end = 0;
-        while (end < value.length()) {
-            int next = end + Character.charCount(value.codePointAt(end));
-            Component candidate = Component.literal(value.substring(0, next)).withStyle(style ->
-                    style.withFont(bold ? ModernUi.BOLD_FONT : ModernUi.FONT));
-            if (font.width(candidate) > available) break;
-            end = next;
-        }
-        return end;
     }
 
     private List<Evidence.NavigationTarget> turnTargets(ChatContracts.Turn turn) {
@@ -1368,6 +1348,11 @@ public final class AssistantScreen extends Screen {
         if (height > 0 && (mouseY < 40 || mouseY >= toggleY - 8)) return false;
         scrollOffset = Math.max(0, Math.min(maxScroll(), scrollOffset - (int) (scrollY * 20)));
         followBottom = scrollOffset >= maxScroll();
+        if (scrollY > 0 && scrollOffset == 0 && visibleTurnCount < view.conversation().turns().size()) {
+            visibleTurnCount = Math.min(view.conversation().turns().size(), visibleTurnCount + 4);
+            historyPrepended = true;
+            followBottom = false;
+        }
         return true;
     }
 

@@ -179,7 +179,7 @@ public final class MinecraftInventories implements InventoryReader {
     static String pendingLoot(String table, long seed, java.util.Optional<LootTable> defined) {
         var pending = "table " + table + ", " + (seed == 0 ? "random seed" : "seed " + seed);
         if (defined == null) return pending;
-        if (defined.isEmpty()) return pending + ", a table the loaded data packs do not define";
+        if (defined.isEmpty()) return pending + ", a table the loaded data packs do not define, so opening it generates nothing";
         return defined.get() == LootTable.EMPTY ? pending + ", the empty table, which generates nothing" : pending;
     }
 

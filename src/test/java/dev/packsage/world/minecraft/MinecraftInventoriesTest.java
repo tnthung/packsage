@@ -262,7 +262,7 @@ class MinecraftInventoriesTest {
         var known = net.minecraft.world.level.storage.loot.LootTable.lootTable().build();
         assertEquals("table minecraft:chests/simple_dungeon, seed 1",
                 MinecraftInventories.pendingLoot("minecraft:chests/simple_dungeon", 1, java.util.Optional.of(known)));
-        assertEquals("table packsage:missing, seed 2, a table the loaded data packs do not define",
+        assertEquals("table packsage:missing, seed 2, a table the loaded data packs do not define, so opening it generates nothing",
                 MinecraftInventories.pendingLoot("packsage:missing", 2, java.util.Optional.empty()));
         assertEquals("table minecraft:empty, random seed, the empty table, which generates nothing",
                 MinecraftInventories.pendingLoot("minecraft:empty", 0,

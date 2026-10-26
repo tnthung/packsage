@@ -179,6 +179,29 @@ class AssistantSettingsScreenTest {
     }
 
     @Test
+    void commandConfirmationChoiceIsEditableAndPersists() {
+        PackSageSettings settings = PackSageSettings.defaults();
+        Path path = temporaryDirectory.resolve("settings.properties");
+        var screen = new AssistantSettingsScreen(settings, path, Component.literal("Settings"), List.of(), null, () -> { });
+        screen.width = 512;
+        screen.height = 1_000;
+        var layout = screen.layout();
+
+        assertEquals(PackSageSettings.CommandConfirmation.ALWAYS, settings.commandConfirmation());
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.shortcutTop() + 52 + 26, 0));
+        assertEquals(PackSageSettings.CommandConfirmation.RISKY, settings.commandConfirmation());
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.shortcutTop() + 52 + 52, 0));
+        assertEquals(PackSageSettings.CommandConfirmation.DIRECT, settings.commandConfirmation());
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.shortcutTop() + 52, 0));
+        assertEquals(PackSageSettings.CommandConfirmation.ALWAYS, settings.commandConfirmation());
+
+        settings.setCommandConfirmation(PackSageSettings.CommandConfirmation.DIRECT);
+        screen.close();
+        settings.flushAndClose(path).join();
+        assertEquals(PackSageSettings.CommandConfirmation.DIRECT, PackSageSettings.load(path).commandConfirmation());
+    }
+
+    @Test
     void accountControlUsesTheCurrentAuthenticationStateAndBackHasBoundedHitArea() {
         FakeActions actions = new FakeActions();
         AtomicInteger returned = new AtomicInteger();

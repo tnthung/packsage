@@ -256,13 +256,13 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
         screen.updateContentMetrics(1_000, 100);
-        screen.mouseScrolled(400, 200, 0, 5);
-        assertEquals(800, screen.scrollOffset());
+        screen.mouseScrolled(400, 200, 0, 100);
+        assertEquals(0, screen.scrollOffset());
 
         screen.tick();
         screen.updateContentMetrics(2_000, 100);
 
-        assertEquals(1_800, screen.scrollOffset());
+        assertEquals(1_000, screen.scrollOffset());
         assertFalse(screen.followingBottom());
     }
     @Test

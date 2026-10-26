@@ -15,7 +15,12 @@ public final class ChatContracts {
     public enum OutcomeStatus { ACTIVE, COMPLETED, CANCELLED, FAILED }
     public enum ActivityStatus { RUNNING, COMPLETED, FAILED, CANCELLED }
 
-    public record ActivityStep(String id, String title, String detail, ActivityStatus status, String serializedArguments) {
+    public record ActivityStep(String id, String title, String detail, ActivityStatus status, String serializedArguments,
+                               String toolName, String resultSummary, Long durationMillis) {
+        public ActivityStep(String id, String title, String detail, ActivityStatus status, String serializedArguments) {
+            this(id, title, detail, status, serializedArguments, null, null, null);
+        }
+
         public ActivityStep(String id, String title, String detail, ActivityStatus status) {
             this(id, title, detail, status, null);
         }
@@ -26,6 +31,7 @@ public final class ChatContracts {
             detail = detail == null ? "" : detail;
             Objects.requireNonNull(status);
             if (id.isBlank() || title.isBlank()) throw new IllegalArgumentException("activity identity and title are required");
+            if (durationMillis != null && durationMillis < 0) throw new IllegalArgumentException("duration cannot be negative");
         }
     }
 
@@ -182,7 +188,15 @@ public final class ChatContracts {
     public record Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
                        Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities,
-                       List<SteeringMessage> steeringMessages) {
+                       List<SteeringMessage> steeringMessages, Long durationMillis) {
+        public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities,
+                    List<SteeringMessage> steeringMessages) {
+            this(requestId, question, answer, replayItems, context, sources, navigationTargets, outcome, tokenCount,
+                    sentAt, activities, steeringMessages, null);
+        }
+
         public Turn {
             Objects.requireNonNull(requestId);
             Objects.requireNonNull(question);
@@ -209,6 +223,7 @@ public final class ChatContracts {
             }
             Objects.requireNonNull(outcome);
             if (tokenCount < 0) throw new IllegalArgumentException("tokenCount cannot be negative");
+            if (durationMillis != null && durationMillis < 0) throw new IllegalArgumentException("duration cannot be negative");
         }
 
         public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,

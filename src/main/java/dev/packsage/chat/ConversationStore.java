@@ -892,6 +892,7 @@ public final class ConversationStore {
         value.addProperty("answer", turn.answer());
         value.addProperty("tokenCount", turn.tokenCount());
         if (turn.sentAt() != null) value.addProperty("sentAt", turn.sentAt().toString());
+        if (turn.durationMillis() != null) value.addProperty("durationMillis", turn.durationMillis());
         value.addProperty("outcome", turn.outcome().status().name());
         if (turn.outcome().detail() != null) value.addProperty("outcomeDetail", turn.outcome().detail());
         JsonArray replay = new JsonArray();
@@ -912,6 +913,9 @@ public final class ConversationStore {
             item.addProperty("detail", step.detail());
             item.addProperty("status", step.status().name());
             if (step.serializedArguments() != null) item.addProperty("serializedArguments", step.serializedArguments());
+            if (step.toolName() != null) item.addProperty("toolName", step.toolName());
+            if (step.resultSummary() != null) item.addProperty("resultSummary", step.resultSummary());
+            if (step.durationMillis() != null) item.addProperty("durationMillis", step.durationMillis());
             activities.add(item);
         });
         value.add("activities", activities);
@@ -1096,7 +1100,10 @@ public final class ConversationStore {
                     item.has("detail") ? item.get("detail").getAsString() : "",
                     ChatContracts.ActivityStatus.valueOf(item.get("status").getAsString()),
                     item.has("serializedArguments") && !item.get("serializedArguments").isJsonNull()
-                            ? item.get("serializedArguments").getAsString() : null));
+                            ? item.get("serializedArguments").getAsString() : null,
+                    item.has("toolName") ? item.get("toolName").getAsString() : null,
+                    item.has("resultSummary") ? item.get("resultSummary").getAsString() : null,
+                    item.has("durationMillis") ? item.get("durationMillis").getAsLong() : null));
         });
         List<ChatContracts.SteeringMessage> steeringMessages = new ArrayList<>();
         if (value.has("steeringMessages")) value.getAsJsonArray("steeringMessages").forEach(message -> {
@@ -1114,7 +1121,8 @@ public final class ConversationStore {
                 if (replayItem instanceof dev.packsage.model.ModelBackend.ToolResult result
                         && result.error() && result.callId().equals(callId)) {
                     activities.set(i, new ChatContracts.ActivityStep(activity.id(), activity.title(),
-                            ActivityLabels.toolError(result.serializedResult()), activity.status(), activity.serializedArguments()));
+                            ActivityLabels.toolError(result.serializedResult()), activity.status(), activity.serializedArguments(),
+                            activity.toolName(), activity.resultSummary(), activity.durationMillis()));
                     break;
                 }
             }
@@ -1125,7 +1133,8 @@ public final class ConversationStore {
                 new ChatContracts.Context(contextValue.get("serializedGameplayContext").getAsString(), screenshot, scope),
                 sources, targets, new ChatContracts.Outcome(ChatContracts.OutcomeStatus.valueOf(value.get("outcome").getAsString()), detail),
                 value.get("tokenCount").getAsInt(), value.has("sentAt") && !value.get("sentAt").isJsonNull()
-                ? Instant.parse(value.get("sentAt").getAsString()) : null, activities, steeringMessages);
+                ? Instant.parse(value.get("sentAt").getAsString()) : null, activities, steeringMessages,
+                value.has("durationMillis") ? value.get("durationMillis").getAsLong() : null);
     }
 
     private static dev.packsage.model.ModelBackend.InputItem replayFromJson(JsonObject value) {

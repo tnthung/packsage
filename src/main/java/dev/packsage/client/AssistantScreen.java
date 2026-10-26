@@ -576,14 +576,24 @@ public final class AssistantScreen extends Screen {
             }
             y += header.height();
             if (activityExpanded(key)) {
-                for (var line : font.split(Component.literal(activityBody(step, replayItems)).withStyle(style ->
-                        style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), Math.max(1, readableWidth - 38))) {
-                    graphics.drawString(font, line, left + 10, y, ModernUi.MUTED, false);
-                    y += ModernUi.MESSAGE_LINE_HEIGHT;
-                }
+                y = drawInlineLines(graphics, messageLayout(activityBodyLines(step, replayItems),
+                        Math.max(1, readableWidth - 38)), y, left + 10, null);
             }
         }
         return y;
+    }
+
+    List<ScreenText.InlineLine> activityBodyLines(ChatContracts.ActivityStep step, List<ModelBackend.InputItem> replayItems) {
+        List<ScreenText.InlineLine> lines = new ArrayList<>();
+        for (String line : activityBody(step, replayItems).split("\n", -1)) {
+            int colon = line.indexOf(':');
+            if (colon >= 0 && List.of("Tool", "Parameter", "Result", "Error", "Elapsed").contains(line.substring(0, colon))) {
+                lines.add(new ScreenText.InlineLine(List.of(
+                        new ScreenText.InlineSpan(line.substring(0, colon + 1), null, ModernUi.MUTED, false, false),
+                        new ScreenText.InlineSpan(line.substring(colon + 1), null, ModernUi.TEXT, false, false))));
+            } else lines.add(new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan(line, null, ModernUi.TEXT, false, false))));
+        }
+        return lines;
     }
 
     String activityBody(ChatContracts.ActivityStep step, List<ModelBackend.InputItem> replayItems) {

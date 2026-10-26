@@ -889,7 +889,7 @@ class ScreenTextTest {
                 turn.sources(), java.util.Map.of(), null, cards);
         assertEquals(null, lines.getFirst().card());
         assertEquals(null, lines.getFirst().spans().getFirst().resultCard());
-        assertEquals("Stone", lines.get(1).spans().getFirst().text());
+        assertEquals("[Stone](item:minecraft:stone)", lines.get(1).spans().getFirst().text());
         assertEquals(null, lines.get(1).spans().getFirst().itemId());
     }
 
@@ -931,5 +931,30 @@ class ScreenTextTest {
         bad.getAsJsonObject("source").addProperty("observedGeneration", 2);
         var turn = recipeTurn(List.of(source), record, bad);
         assertEquals("minecraft:diamond", ScreenText.recipeCards(turn).get(source).slots().getLast().stacks().getFirst().identity());
+    }
+
+    @Test
+    void cardRequiresTheEntireRawLineToBeOneCitation() {
+        var source = recipeSource("minecraft:stone", 0);
+        var turn = recipeTurn(List.of(source), recipeRecord(source, "stone"));
+        var cards = ScreenText.recipeCards(turn);
+        for (String text : List.of("# [native:minecraft:stone]", "> [native:minecraft:stone]",
+                "**[native:minecraft:stone]**", "[ref:e36be868.1.1f] [native:minecraft:stone]")) {
+            assertEquals(null, ScreenText.inlineLines(text, List.of(), List.of(), turn.sources(), java.util.Map.of(),
+                    dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, cards).getFirst().card(), text);
+        }
+    }
+
+    @Test
+    void aliasedReplayHandlesBindOnlyWhenTheirSourceIdentityIsKnown() {
+        var source = recipeSource("minecraft:stone", 0);
+        var record = recipeRecord(source, "stone");
+        record.getAsJsonObject("source").addProperty("sourceHandle", "ref:12345678.1.1");
+        var turn = recipeTurn(List.of(source), record);
+        assertTrue(ScreenText.recipeCards(turn).containsKey(source));
+        record.addProperty("reference", "ref:12345678.1.1");
+        assertTrue(ScreenText.recipeCards(recipeTurn(List.of(source), record)).isEmpty());
+        var alias = recipeSource("ref:12345678.1.1", 0);
+        assertTrue(ScreenText.recipeCards(recipeTurn(List.of(alias), record)).containsKey(alias));
     }
 }

@@ -1,5 +1,7 @@
 package dev.packsage.chat;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 import dev.packsage.PackSageLog;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
@@ -719,7 +721,7 @@ public final class RequestController {
                 }
                 request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                         : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
-                        step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis()));
+                        step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail()));
                 request.activity = providerRetry ? "Retrying provider request…" : ActivityLabels.RETRYING_WITHOUT_WEB_SEARCH;
             } else if (event.kind() == ModelBackend.EventKind.REASONING) {
                 request.activity = ActivityLabels.THINKING;
@@ -823,7 +825,8 @@ public final class RequestController {
                         ? ActivityLabels.toolError(response.result().serializedResult()) : "Completed",
                         response.result().error() ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED,
                         toolActivity.serializedArguments(), call.name(), ActivityLabels.toolSummary(response.result().serializedResult()),
-                        (System.nanoTime() - request.toolReceivedAtNanos.get(call.callId())) / 1_000_000));
+                        (System.nanoTime() - request.toolReceivedAtNanos.get(call.callId())) / 1_000_000,
+                        toolResultDetail(response.result().serializedResult(), response.result().error())));
                 List<Evidence.Source> mergedSources = new ArrayList<>(request.evidence.sources());
                 response.evidence().sources().forEach(source -> {
                     if (!mergedSources.contains(source)) mergedSources.add(source);
@@ -863,6 +866,77 @@ public final class RequestController {
                 "tool failed: " + failureMessage(failure), true), new ChatContracts.EvidenceSelection(List.of(), List.of())));
     }
 
+    private static String toolResultDetail(String serializedResult, boolean error) {
+        if (error) return ActivityLabels.toolError(serializedResult);
+        try {
+            JsonElement parsed = JsonParser.parseString(serializedResult);
+            if (!parsed.isJsonObject()) return "Result details unavailable";
+            var result = parsed.getAsJsonObject();
+            StringBuilder detail = new StringBuilder();
+            for (String key : List.of("coverage", "outcome")) {
+                JsonElement value = result.get(key);
+                if (value != null && value.isJsonPrimitive()) {
+                    if (!detail.isEmpty()) detail.append(" | ");
+                    detail.append(key).append(": ").append(value.getAsString());
+                }
+            }
+            JsonElement resultMessage = result.get("detail");
+            if (resultMessage != null && resultMessage.isJsonPrimitive() && resultMessage.getAsJsonPrimitive().isString()) {
+                String message = resultMessage.getAsString().replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();
+                if (!message.isEmpty()) {
+                    if (!detail.isEmpty()) detail.append('\n');
+                    detail.append(message.length() > 240 ? message.substring(0, 240) + "..." : message);
+                }
+            }
+            JsonElement recordsValue = result.get("records");
+            if (recordsValue != null && recordsValue.isJsonArray()) {
+                var records = recordsValue.getAsJsonArray();
+                int shown = Math.min(8, records.size());
+                for (int index = 0; index < shown; index++) {
+                    JsonElement recordValue = records.get(index);
+                    if (!recordValue.isJsonObject()) continue;
+                    var record = recordValue.getAsJsonObject();
+                    JsonElement titleValue = record.get("title");
+                    String title = titleValue != null && titleValue.isJsonPrimitive()
+                            ? titleValue.getAsString() : "Untitled result";
+                    title = title.replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();
+                    if (title.length() > 180) title = title.substring(0, 180) + "...";
+                    if (!detail.isEmpty()) detail.append('\n');
+                    detail.append(title.isEmpty() ? "Untitled result" : title);
+                    JsonElement payloadValue = record.get("payload");
+                    if (payloadValue != null && payloadValue.isJsonObject()) {
+                        int fields = 0;
+                        StringBuilder payload = new StringBuilder();
+                        for (var entry : payloadValue.getAsJsonObject().entrySet()) {
+                            if (fields == 4) break;
+                            JsonElement fieldValue = entry.getValue();
+                            String value;
+                            if (fieldValue.isJsonPrimitive()) value = fieldValue.getAsString();
+                            else if (fieldValue.isJsonArray()) value = "list (" + fieldValue.getAsJsonArray().size() + ")";
+                            else if (fieldValue.isJsonObject()) value = "fields: " + String.join(", ",
+                                    fieldValue.getAsJsonObject().keySet().stream().limit(3).toList());
+                            else value = "none";
+                            value = value.replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();
+                            if (value.length() > 100) value = value.substring(0, 100) + "...";
+                            if (!payload.isEmpty()) payload.append("; ");
+                            payload.append(entry.getKey()).append(": ").append(value);
+                            fields++;
+                        }
+                        if (!payload.isEmpty()) detail.append("  ").append(payload);
+                    }
+                }
+                if (records.size() > shown) {
+                    if (!detail.isEmpty()) detail.append('\n');
+                    detail.append("and ").append(records.size() - shown).append(" more");
+                }
+            }
+            if (detail.isEmpty()) return "No result details available";
+            return detail.length() <= 4096 ? detail.toString() : detail.substring(0, 4096);
+        } catch (RuntimeException ignored) {
+            return "Result details unavailable";
+        }
+    }
+
     private void finishModel(ActiveRequest request, ModelBackend.Event event) {
         ChatContracts.Conversation target;
         ChatContracts.CapturedContext captured;
@@ -892,7 +966,7 @@ public final class RequestController {
                     : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(),
                     terminalActivity == ChatContracts.ActivityStatus.COMPLETED && id.startsWith("tool:")
                             ? ChatContracts.ActivityStatus.CANCELLED : terminalActivity, step.serializedArguments(),
-                    step.toolName(), step.resultSummary(), step.durationMillis()));
+                    step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail()));
             markPersistencePending(request);
             active = null;
             if (request.submission.replacing() != null) pendingReplacement = request;
@@ -956,7 +1030,7 @@ public final class RequestController {
             }
             request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                     : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
-                    step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis()));
+                    step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail()));
             toolCalls = request.toolCalls.size();
             toolWallMs = ToolTiming.unionMillis(request.toolIntervals);
         }

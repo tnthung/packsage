@@ -22,6 +22,17 @@ class ConversationSidebarTest {
     Path root;
 
     @Test
+    void summariesWithoutCompletedAnswersDoNotReadCompletionState() throws Exception {
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var store = new ConversationStore(root, Runnable::run);
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        Path file = store.conversationPath(world, conversation.id());
+        Files.writeString(file.resolveSibling(file.getFileName().toString().replace(".jsonl", ".state.json")), "invalid unused state");
+        assertEquals(1, store.sessionPage(world, false, 0, 2).toCompletableFuture().join().sessions().size());
+        assertTrue(store.errors().isEmpty(), store.errors().toString());
+    }
+
+    @Test
     void otherWorldRowsWithValidSummariesNeverOpenConversationFiles() throws Exception {
         var world = new ChatContracts.WorldIdentity("world", "World");
         var other = new ChatContracts.WorldIdentity("other", "Other");

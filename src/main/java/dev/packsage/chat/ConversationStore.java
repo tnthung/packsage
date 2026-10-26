@@ -667,8 +667,8 @@ public final class ConversationStore {
         if (world == null) world = new ChatContracts.WorldIdentity(value.get("world").getAsString(),
                 value.has("label") ? value.get("label").getAsString()
                         : file.getParent().getFileName().toString().replaceFirst("-[0-9a-f]{16}$", "").replace('_', ' '));
-        CompletionState state = readCompletionState(file);
         String completed = value.has("latestCompletedRequestId") ? value.get("latestCompletedRequestId").getAsString() : null;
+        CompletionState state = completed == null ? new CompletionState(null, null) : readCompletionState(file);
         return new ChatContracts.SessionSummary(world, value.get("id").getAsString(), value.get("title").getAsString(),
                 value.get("lastMessage").getAsString(), Instant.ofEpochMilli(value.get("modifiedAt").getAsLong()), false,
                 completed != null && completed.equals(state.latestCompletedRequestId())

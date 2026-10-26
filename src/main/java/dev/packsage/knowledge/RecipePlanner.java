@@ -110,6 +110,7 @@ public final class RecipePlanner {
             }
             if (output == null || batches == null) candidateComplete = false;
             var required = new LinkedHashMap<RequirementKey, Long>();
+            var processedAlternativeSets = new HashSet<List<Evidence.RecipeAlternative>>();
             for (Evidence.RecipeSlot slot : candidate.recipePayload().inputs()) {
                 if (slot.alternatives().isEmpty()) {
                     candidateComplete = false;
@@ -142,8 +143,12 @@ public final class RecipePlanner {
                         }
                     }
                 } else {
+                    if (!processedAlternativeSets.add(slot.alternatives())) continue;
                     boolean alternativeComplete = false;
                     boolean alternativeIncomplete = false;
+                    long equivalentSlots = candidate.recipePayload().inputs().stream()
+                            .filter(other -> other.alternatives().equals(slot.alternatives())).count();
+                    var groupedBatches = batches == null ? null : multiply(batches, equivalentSlots);
                     for (Evidence.RecipeAlternative alternative : slot.alternatives()) {
                         if (state.branches >= MAX_BRANCHES) {
                             alternativeIncomplete = true;
@@ -153,14 +158,16 @@ public final class RecipePlanner {
                         }
                         state.branches++;
                         if (alternative.consumption() != Evidence.Consumption.CONSUMED || alternative.quantity() == null
-                                || batches == null || !alternative.type().equals("item")) {
+                                || groupedBatches == null || !alternative.type().equals("item")) {
                             alternativeIncomplete = true;
+                            state.partial = true;
                             state.reasons.add("unknown-consumption-or-requirement:" + candidate.source().sourceHandle() + ":" + slot.groupId());
                         } else {
-                            var requiredQuantity = multiply(alternative.quantity(), batches);
+                            var requiredQuantity = multiply(alternative.quantity(), groupedBatches);
                             alternativeComplete |= requiredQuantity != null && visit(alternative.comparisonIdentity(), alternative.components(),
                                     requiredQuantity, scope, depth - 1, visiting, state);
                             alternativeIncomplete |= requiredQuantity == null;
+                            if (requiredQuantity == null) state.reasons.add("input-quantity-overflow:" + candidate.source().sourceHandle() + ":" + slot.groupId());
                         }
                     }
                     if (!alternativeComplete || alternativeIncomplete) {

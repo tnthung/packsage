@@ -11,11 +11,13 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.alchemy.PotionBrewing;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -29,6 +31,8 @@ final class NativeRecipeReader {
     static final int MAX_OUTPUT_CANDIDATES = 4096;
     static final int MAX_PLAN_INDEX = 65536;
     private static final int MAX_PLAN_COPIES = 512;
+    private static final int MAX_PLAN_TAG_SCAN = 4096;
+    private static final int MAX_PLAN_TAG_MEMBERS = 16;
 
     private NativeRecipeReader() { }
 
@@ -119,6 +123,7 @@ final class NativeRecipeReader {
     static PlanSource planSource(Collection<RecipeHolder<?>> recipes, PotionBrewing brewing, RegistryAccess registries,
                                  Registry<Item> itemRegistry, ResourceManager resourceManager, Evidence.Scope scope) {
         var result = new PlanSource(scope);
+        var expandedTags = new LinkedHashMap<String, List<Evidence.RecipeAlternative>>();
         int scanned = 0;
         for (RecipeHolder<?> holder : recipes) {
             if (scanned++ == MAX_PLAN_INDEX) {
@@ -134,13 +139,60 @@ final class NativeRecipeReader {
                 }
                 var identity = NativeSnapshot.itemIdentity(output, itemRegistry);
                 result.outputs.computeIfAbsent(identity, ignored -> new ArrayList<>()).add(() ->
-                        NativeSnapshot.copyRecipe(holder, registries, itemRegistry, resourceManager, scope, identity));
+                        expandPlanTags(NativeSnapshot.copyRecipe(holder, registries, itemRegistry, resourceManager, scope, identity),
+                                itemRegistry, registries, result.reasons, expandedTags));
             } catch (RuntimeException unreadableOutput) {
                 result.reasons.add("native-recipe-output-unreadable");
             }
         }
         NativeBrewingReader.indexPlanCandidates(brewing, registries, itemRegistry, scope, result);
         return result;
+    }
+
+    private static Evidence.Record expandPlanTags(Evidence.Record record, Registry<Item> itemRegistry, RegistryAccess registries,
+                                                  Set<String> reasons, Map<String, List<Evidence.RecipeAlternative>> expandedTags) {
+        if (record == null) return null;
+        var slots = new ArrayList<Evidence.RecipeSlot>();
+        for (Evidence.RecipeSlot slot : record.recipePayload().inputs()) {
+            var alternatives = new ArrayList<Evidence.RecipeAlternative>();
+            for (Evidence.RecipeAlternative alternative : slot.alternatives()) {
+                if (!alternative.type().equals("tag") || !alternative.comparisonIdentity().startsWith("#")) {
+                    alternatives.add(alternative);
+                    continue;
+                }
+                var members = expandedTags.get(alternative.comparisonIdentity());
+                if (members == null) {
+                    var location = ResourceLocation.tryParse(alternative.comparisonIdentity().substring(1));
+                    var tag = location == null ? null : itemRegistry.getTag(net.minecraft.tags.TagKey.create(Registries.ITEM, location)).orElse(null);
+                    if (tag == null) {
+                        reasons.add("native-recipe-tag-unresolved=" + alternative.comparisonIdentity());
+                        members = List.of();
+                    } else {
+                        var ordered = tag.stream().limit(MAX_PLAN_TAG_SCAN + 1L)
+                                .sorted(Comparator.comparingInt(member -> itemRegistry.getId(member.value()))).toList();
+                        if (ordered.size() > MAX_PLAN_TAG_SCAN) reasons.add("native-recipe-tag-scan-cap=" + alternative.comparisonIdentity() + ":" + MAX_PLAN_TAG_SCAN);
+                        if (ordered.size() > MAX_PLAN_TAG_MEMBERS) reasons.add("native-recipe-tag-member-cap=" + alternative.comparisonIdentity() + ":" + MAX_PLAN_TAG_MEMBERS);
+                        members = ordered.stream().limit(MAX_PLAN_TAG_MEMBERS).map(member -> {
+                            var stack = new ItemStack(member.value());
+                            return new Evidence.RecipeAlternative("item", NativeSnapshot.itemIdentity(stack, itemRegistry),
+                                    NativeSnapshot.componentPayload(stack, registries), 1, Evidence.Consumption.UNKNOWN);
+                        }).toList();
+                    }
+                    expandedTags.put(alternative.comparisonIdentity(), members);
+                }
+                if (members.isEmpty()) alternatives.add(alternative);
+                else alternatives.addAll(members.stream().map(member -> new Evidence.RecipeAlternative(member.type(), member.comparisonIdentity(),
+                        member.components(), member.quantity(), alternative.consumption())).toList());
+            }
+            slots.add(new Evidence.RecipeSlot(slot.groupId(), alternatives));
+        }
+        var recipe = record.recipePayload();
+        var expandedRecipe = new Evidence.RecipePayload(recipe.canonicalRecipeId(), slots, recipe.outputs(), recipe.remainders(),
+                recipe.catalysts(), recipe.constraints(), recipe.decodingStatus());
+        var payload = new LinkedHashMap<>(record.payload().values());
+        payload.put("inputs", NativeSnapshot.recipePayloadJson(recipe.canonicalRecipeId(), slots, recipe.outputs(), recipe.remainders(),
+                recipe.catalysts(), recipe.constraints(), recipe.decodingStatus(), Set.of()).values().get("inputs"));
+        return new Evidence.Record(record.source(), record.kind(), record.title(), new Evidence.JsonObject(payload), record.targets(), expandedRecipe);
     }
 
     record Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned, boolean partial,

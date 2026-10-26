@@ -111,7 +111,13 @@ public final class NativeProvider implements KnowledgeProvider {
                     record.recipePayload()));
         }
         result = new Evidence.Result(planRecords, result.coverage(), result.outcome(), result.nextCursor(), result.detail());
-        return candidates.reasons.isEmpty() ? result : partial(result, String.join("; ", candidates.reasons));
+        if (candidates.reasons.isEmpty()) return result;
+        var sourceReasons = new ArrayList<String>();
+        candidates.reasons.stream().filter(reason -> reason.contains("cap")).limit(8).forEach(sourceReasons::add);
+        candidates.reasons.stream().filter(reason -> !reason.contains("cap")).limit(8).forEach(sourceReasons::add);
+        if (candidates.reasons.size() > sourceReasons.size()) sourceReasons.add("native-recipe-source-reason-cap=16; omitted="
+                + (candidates.reasons.size() - sourceReasons.size()));
+        return partial(result, String.join("; ", sourceReasons));
     }
 
     @Override

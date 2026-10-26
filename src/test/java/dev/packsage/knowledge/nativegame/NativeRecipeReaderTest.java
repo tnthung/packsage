@@ -390,6 +390,92 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void smithingTransformDecodesThreeConsumedInputsAndPlansTheirRequirements() {
+        var recipe = new net.minecraft.world.item.crafting.SmithingTransformRecipe(
+                Ingredient.of(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE), Ingredient.of(Items.DIAMOND_SWORD),
+                Ingredient.of(Items.NETHERITE_INGOT), new ItemStack(Items.NETHERITE_SWORD));
+        var holder = new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:netherite_sword"), recipe);
+        var record = NativeSnapshot.copyRecipe(holder, registries, ITEMS, null, SCOPE, null);
+
+        assertEquals(List.of("minecraft:netherite_upgrade_smithing_template", "minecraft:diamond_sword", "minecraft:netherite_ingot"),
+                record.recipePayload().inputs().stream().map(slot -> slot.alternatives().getFirst().comparisonIdentity()).toList());
+        assertTrue(record.recipePayload().inputs().stream().allMatch(slot -> slot.alternatives().getFirst().quantity() == 1
+                && slot.alternatives().getFirst().consumption() == Evidence.Consumption.CONSUMED));
+        assertTrue(record.recipePayload().constraints().contains("result keeps the base item's components"));
+        var result = NativeProvider.planRecipe(NativeRecipeReader.planSource(List.of(holder),
+                new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build(),
+                registries, ITEMS, null, SCOPE), "minecraft:netherite_sword", 2, SCOPE, 4);
+
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertTrue(result.detail().contains("minecraft:netherite_upgrade_smithing_template"));
+        assertTrue(result.detail().contains("minecraft:diamond_sword"));
+        assertTrue(result.detail().contains("minecraft:netherite_ingot"));
+        assertEquals(record.recipePayload().inputs(), result.records().getFirst().recipePayload().inputs());
+        assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(2)), result.records().getFirst().payload().values().get("batches"));
+    }
+
+    @Test
+    void smithingTrimDecodesInputsButKeepsItsDynamicOutputPartial() {
+        var recipe = new net.minecraft.world.item.crafting.SmithingTrimRecipe(Ingredient.of(Items.SENTRY_ARMOR_TRIM_SMITHING_TEMPLATE),
+                Ingredient.of(Items.DIAMOND_CHESTPLATE), Ingredient.of(Items.QUARTZ));
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:trim"), recipe),
+                registries, ITEMS, null, SCOPE, null);
+
+        assertEquals(3, record.recipePayload().inputs().size());
+        assertTrue(record.recipePayload().inputs().stream().allMatch(slot -> slot.alternatives().getFirst().quantity() == 1
+                && slot.alternatives().getFirst().consumption() == Evidence.Consumption.CONSUMED));
+        assertEquals(Evidence.DecodingStatus.PARTIAL, record.recipePayload().decodingStatus());
+        assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
+        assertEquals("unknown", record.recipePayload().outputs().getFirst().type());
+        assertTrue(record.recipePayload().constraints().stream().anyMatch(value -> value.contains("dynamic") && value.contains("trim")));
+    }
+
+    @Test
+    void smeltingConsumesMilkBucketWithoutCraftingRemainder() {
+        var recipe = new net.minecraft.world.item.crafting.SmeltingRecipe("", net.minecraft.world.item.crafting.CookingBookCategory.MISC,
+                Ingredient.of(Items.MILK_BUCKET), new ItemStack(Items.STONE), 0, 200);
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:smelt_milk"), recipe),
+                registries, ITEMS, null, SCOPE, null);
+
+        assertTrue(record.recipePayload().remainders().isEmpty());
+        assertEquals(Evidence.Consumption.CONSUMED, record.recipePayload().inputs().getFirst().alternatives().getFirst().consumption());
+        assertEquals(Evidence.DecodingStatus.VERIFIED, record.recipePayload().decodingStatus());
+        assertEquals(Evidence.Coverage.COMPLETE, record.source().coverage());
+    }
+
+    @Test
+    void failedComponentEncodingKeepsDamagedOutputPartial() {
+        var output = new ItemStack(Items.DIAMOND_SWORD);
+        output.setDamageValue(7);
+        var recipe = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                output, NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.DIAMOND)));
+        var failingRegistries = (net.minecraft.core.HolderLookup.Provider) Proxy.newProxyInstance(
+                net.minecraft.core.HolderLookup.Provider.class.getClassLoader(), new Class<?>[] {net.minecraft.core.HolderLookup.Provider.class},
+                (proxy, method, arguments) -> {
+                    if (method.getName().equals("createSerializationContext")) throw new IllegalStateException("serialization context unavailable");
+                    return method.invoke(registries, arguments);
+                });
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:damaged"), recipe),
+                failingRegistries, ITEMS, null, SCOPE, null);
+
+        assertEquals(Evidence.DecodingStatus.PARTIAL, record.recipePayload().decodingStatus());
+        assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
+        assertTrue(record.recipePayload().constraints().stream().anyMatch(value -> value.contains("components") && value.contains("encoding")));
+    }
+
+    @Test
+    void successfulEmptyComponentEncodingRemainsComplete() {
+        var recipe = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.STICK), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.OAK_PLANKS)));
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:empty_components"), recipe),
+                registries, ITEMS, null, SCOPE, null);
+
+        assertEquals(new Evidence.JsonObject(Map.of()), record.recipePayload().outputs().getFirst().components());
+        assertEquals(Evidence.DecodingStatus.VERIFIED, record.recipePayload().decodingStatus());
+        assertEquals(Evidence.Coverage.COMPLETE, record.source().coverage());
+    }
+
+    @Test
     void shapedRecipeReportsGridShapeConstraintsAndPayload() {
         var pattern = net.minecraft.world.item.crafting.ShapedRecipePattern.of(java.util.Map.of(
                 'P', Ingredient.of(Items.OAK_PLANKS), 'C', Ingredient.of(Items.COBBLESTONE),

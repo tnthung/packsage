@@ -17,6 +17,8 @@ import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
@@ -27,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WorldInspectionTest {
@@ -110,13 +113,14 @@ class WorldInspectionTest {
     }
 
     @Test
-    void aComponentHeavyVillagerStillReturnsABoundedPartialRecord() throws Exception {
+    void componentHeavyVillagerOffersFitWithoutTrimmingTheEntityRecord() throws Exception {
         var world = DenseWorld.create(0);
         var villager = new Villager(EntityType.VILLAGER, world);
         var offers = new MerchantOffers();
         for (int i = 0; i < 64; i++) {
-            var stack = new ItemStack(Items.BREAD);
-            stack.set(DataComponents.CUSTOM_NAME, Component.literal("x".repeat(3000)));
+            var stack = i % 2 == 0 ? new ItemStack(Items.ENCHANTED_BOOK) : PotionContents.createItemStack(Items.POTION, Potions.HEALING);
+            stack.set(DataComponents.CUSTOM_NAME, Component.literal((i % 2 == 0 ? "enchanted book " : "healing potion ")
+                    + (i % 2 == 0 ? "x" : "y").repeat(3000)));
             offers.add(new MerchantOffer(new ItemCost(Items.EMERALD), stack, 12, 1, 0.05f));
         }
         var field = AbstractVillager.class.getDeclaredField("offers");
@@ -126,10 +130,21 @@ class WorldInspectionTest {
         var result = inspect(world, villager);
 
         assertEquals(1, result.records().size());
-        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
-        var payload = Evidence.serialize(result.records().getFirst().payload());
-        assertTrue(payload.getBytes(StandardCharsets.UTF_8).length < 64_000, "payload bytes " + payload.length());
-        assertTrue(payload.contains("byte budget"), payload);
-        assertTrue(payload.contains("health"), "small entity facts survive oversized offers");
+        assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
+        var record = result.records().getFirst();
+        assertEquals(Evidence.Coverage.COMPLETE, record.source().coverage());
+        assertEquals(1, record.targets().size());
+        var payload = Evidence.serialize(record.payload());
+        assertTrue(payload.getBytes(StandardCharsets.UTF_8).length < 60_000, "payload bytes " + payload.length());
+        var sections = ((Evidence.JsonObject) record.payload().values().get("sections")).values();
+        var minecraft = ((Evidence.JsonObject) sections.get("minecraft")).values();
+        var facts = ((Evidence.JsonObject) minecraft.get("facts")).values();
+        var trade = ((Evidence.JsonObject) facts.get("offers")).values();
+        assertEquals(64, ((Evidence.JsonArray) trade.get("entries")).values().size());
+        assertEquals(2, ((Evidence.JsonArray) trade.get("itemFacts")).values().size());
+        var encoded = PackSageTools.encodeRecord(record);
+        assertEquals(64, encoded.getAsJsonObject("payload").getAsJsonObject("sections").getAsJsonObject("minecraft")
+                .getAsJsonObject("facts").getAsJsonObject("offers").getAsJsonArray("entries").size());
+        assertFalse(encoded.has("truncationNote"), encoded.toString());
     }
 }

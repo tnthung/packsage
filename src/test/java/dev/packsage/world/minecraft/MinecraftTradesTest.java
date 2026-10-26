@@ -3,8 +3,10 @@ package dev.packsage.world.minecraft;
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.data.registries.VanillaRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.EnchantedBookItem;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Optional;
 
@@ -109,6 +112,68 @@ class MinecraftTradesTest {
 
         var plain = ((Evidence.JsonObject) MinecraftTrades.offer(offer(), 0, null, lookup).values().get("costA")).values();
         assertFalse(plain.containsKey("components"), plain.toString());
+    }
+
+    @Test
+    void sharedItemFactsResolveToTheCorrectOfferItems() throws Exception {
+        var villager = bareVillager();
+        var enchantments = lookup.lookupOrThrow(Registries.ENCHANTMENT);
+        var mending = EnchantedBookItem.createForEnchantment(new EnchantmentInstance(enchantments.getOrThrow(Enchantments.MENDING), 1));
+        var sharpness = EnchantedBookItem.createForEnchantment(new EnchantmentInstance(enchantments.getOrThrow(Enchantments.SHARPNESS), 3));
+        var healing = PotionContents.createItemStack(Items.POTION, Potions.HEALING);
+        var offers = new MerchantOffers();
+        offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, 20), Optional.of(new ItemCost(Items.BOOK, 1)), mending, 0, 12, 30, 0.2f, 0));
+        offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, 22), Optional.of(new ItemCost(Items.BOOK, 1)), mending.copy(), 0, 12, 30, 0.2f, 0));
+        offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, 24), Optional.of(new ItemCost(Items.BOOK, 1)), sharpness, 0, 12, 30, 0.2f, 0));
+        offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, 3), healing, 12, 1, 0.05f));
+        MinecraftTrades.OFFERS.set(villager, offers);
+        var values = new LinkedHashMap<String, Evidence.JsonValue>();
+
+        MinecraftTrades.facts(villager, null, values);
+
+        var entries = ((Evidence.JsonArray) values.get("offers")).values();
+        var itemFacts = ((Evidence.JsonArray) values.get("offerItemFacts")).values();
+        var first = ((Evidence.JsonObject) entries.get(0)).values();
+        var second = ((Evidence.JsonObject) entries.get(1)).values();
+        var third = ((Evidence.JsonObject) entries.get(2)).values();
+        var fourth = ((Evidence.JsonObject) entries.get(3)).values();
+        assertEquals(first.get("itemFactsIndex"), second.get("itemFactsIndex"));
+        assertFalse(first.get("itemFactsIndex").equals(third.get("itemFactsIndex")));
+        var mendingFacts = ((Evidence.JsonObject) itemFacts.get(((Evidence.JsonNumber) first.get("itemFactsIndex")).value().intValue())).values();
+        var sharpnessFacts = ((Evidence.JsonObject) itemFacts.get(((Evidence.JsonNumber) third.get("itemFactsIndex")).value().intValue())).values();
+        var healingFacts = ((Evidence.JsonObject) itemFacts.get(((Evidence.JsonNumber) fourth.get("itemFactsIndex")).value().intValue())).values();
+        assertEquals(new Evidence.JsonString("minecraft:enchanted_book"), mendingFacts.get("item"));
+        assertEquals(number(1), ((Evidence.JsonObject) mendingFacts.get("storedEnchantments")).values().get("minecraft:mending"));
+        assertEquals(number(3), ((Evidence.JsonObject) sharpnessFacts.get("storedEnchantments")).values().get("minecraft:sharpness"));
+        assertEquals(new Evidence.JsonString("minecraft:potion"), healingFacts.get("item"));
+        assertEquals(new Evidence.JsonString("minecraft:healing"), ((Evidence.JsonObject) healingFacts.get("potion")).values().get("potion"));
+        assertEquals(number(20), ((Evidence.JsonObject) first.get("costA")).values().get("count"));
+        assertEquals(number(22), ((Evidence.JsonObject) second.get("costA")).values().get("count"));
+    }
+
+    @Test
+    void richTraderOffersFitWithoutTrimmingAnyOffers() throws Exception {
+        var villager = bareVillager();
+        var enchantment = lookup.lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.MENDING);
+        var book = EnchantedBookItem.createForEnchantment(new EnchantmentInstance(enchantment, 1));
+        book.set(DataComponents.CUSTOM_NAME, Component.literal("enchanted book " + "x".repeat(3000)));
+        var potion = PotionContents.createItemStack(Items.POTION, Potions.HEALING);
+        potion.set(DataComponents.CUSTOM_NAME, Component.literal("healing potion " + "y".repeat(3000)));
+        var offers = new MerchantOffers();
+        for (int index = 0; index < MinecraftTrades.MAX_OFFERS; index++) {
+            var result = index % 2 == 0 ? book.copy() : potion.copy();
+            offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, index + 1), result, 12, 1, 0.05f));
+        }
+        MinecraftTrades.OFFERS.set(villager, offers);
+        var values = new LinkedHashMap<String, Evidence.JsonValue>();
+
+        MinecraftTrades.facts(villager, null, values);
+
+        var payload = Evidence.serialize(new Evidence.JsonObject(values));
+        assertTrue(payload.getBytes(StandardCharsets.UTF_8).length < 65_536, "payload bytes " + payload.length());
+        assertEquals(MinecraftTrades.MAX_OFFERS, ((Evidence.JsonArray) values.get("offers")).values().size());
+        assertEquals(number(MinecraftTrades.MAX_OFFERS), values.get("offerCount"));
+        assertFalse(values.containsKey("offersStatus"));
     }
 
     @Test

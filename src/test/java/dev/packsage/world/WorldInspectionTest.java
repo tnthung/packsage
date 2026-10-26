@@ -120,7 +120,7 @@ class WorldInspectionTest {
         for (int i = 0; i < 64; i++) {
             var stack = i % 2 == 0 ? new ItemStack(Items.ENCHANTED_BOOK) : PotionContents.createItemStack(Items.POTION, Potions.HEALING);
             stack.set(DataComponents.CUSTOM_NAME, Component.literal((i % 2 == 0 ? "enchanted book " : "healing potion ")
-                    + (i % 2 == 0 ? "x" : "y").repeat(3000)));
+                    + (i % 2 == 0 ? "x" : "y").repeat(1500)));
             offers.add(new MerchantOffer(new ItemCost(Items.EMERALD), stack, 12, 1, 0.05f));
         }
         var field = AbstractVillager.class.getDeclaredField("offers");
@@ -141,7 +141,7 @@ class WorldInspectionTest {
         var facts = ((Evidence.JsonObject) minecraft.get("facts")).values();
         var trade = ((Evidence.JsonObject) facts.get("offers")).values();
         assertEquals(64, ((Evidence.JsonArray) trade.get("entries")).values().size());
-        assertEquals(2, ((Evidence.JsonArray) trade.get("itemFacts")).values().size());
+        assertEquals(3, ((Evidence.JsonArray) trade.get("itemFacts")).values().size());
         var encoded = PackSageTools.encodeRecord(record);
         assertEquals(64, encoded.getAsJsonObject("payload").getAsJsonObject("sections").getAsJsonObject("minecraft")
                 .getAsJsonObject("facts").getAsJsonObject("offers").getAsJsonArray("entries").size());

@@ -131,24 +131,32 @@ class MinecraftTradesTest {
 
         MinecraftTrades.facts(villager, null, values);
 
-        var entries = ((Evidence.JsonArray) values.get("offers")).values();
-        var itemFacts = ((Evidence.JsonArray) values.get("offerItemFacts")).values();
+        var trade = ((Evidence.JsonObject) values.get("offers")).values();
+        var entries = ((Evidence.JsonArray) trade.get("entries")).values();
+        var itemFacts = ((Evidence.JsonArray) trade.get("itemFacts")).values();
         var first = ((Evidence.JsonObject) entries.get(0)).values();
         var second = ((Evidence.JsonObject) entries.get(1)).values();
         var third = ((Evidence.JsonObject) entries.get(2)).values();
         var fourth = ((Evidence.JsonObject) entries.get(3)).values();
-        assertEquals(first.get("itemFactsIndex"), second.get("itemFactsIndex"));
-        assertFalse(first.get("itemFactsIndex").equals(third.get("itemFactsIndex")));
-        var mendingFacts = ((Evidence.JsonObject) itemFacts.get(((Evidence.JsonNumber) first.get("itemFactsIndex")).value().intValue())).values();
-        var sharpnessFacts = ((Evidence.JsonObject) itemFacts.get(((Evidence.JsonNumber) third.get("itemFactsIndex")).value().intValue())).values();
-        var healingFacts = ((Evidence.JsonObject) itemFacts.get(((Evidence.JsonNumber) fourth.get("itemFactsIndex")).value().intValue())).values();
+        var firstResult = ((Evidence.JsonObject) first.get("result")).values();
+        var secondResult = ((Evidence.JsonObject) second.get("result")).values();
+        var thirdResult = ((Evidence.JsonObject) third.get("result")).values();
+        var fourthResult = ((Evidence.JsonObject) fourth.get("result")).values();
+        assertEquals(firstResult.get("itemFactsIndex"), secondResult.get("itemFactsIndex"));
+        assertFalse(firstResult.get("itemFactsIndex").equals(thirdResult.get("itemFactsIndex")));
+        var firstCostA = ((Evidence.JsonObject) first.get("costA")).values();
+        var secondCostA = ((Evidence.JsonObject) second.get("costA")).values();
+        assertEquals(firstCostA.get("itemFactsIndex"), secondCostA.get("itemFactsIndex"));
+        var mendingFacts = ((Evidence.JsonObject) itemFacts.get(((Evidence.JsonNumber) firstResult.get("itemFactsIndex")).value().intValue())).values();
+        var sharpnessFacts = ((Evidence.JsonObject) itemFacts.get(((Evidence.JsonNumber) thirdResult.get("itemFactsIndex")).value().intValue())).values();
+        var healingFacts = ((Evidence.JsonObject) itemFacts.get(((Evidence.JsonNumber) fourthResult.get("itemFactsIndex")).value().intValue())).values();
         assertEquals(new Evidence.JsonString("minecraft:enchanted_book"), mendingFacts.get("item"));
         assertEquals(number(1), ((Evidence.JsonObject) mendingFacts.get("storedEnchantments")).values().get("minecraft:mending"));
         assertEquals(number(3), ((Evidence.JsonObject) sharpnessFacts.get("storedEnchantments")).values().get("minecraft:sharpness"));
         assertEquals(new Evidence.JsonString("minecraft:potion"), healingFacts.get("item"));
         assertEquals(new Evidence.JsonString("minecraft:healing"), ((Evidence.JsonObject) healingFacts.get("potion")).values().get("potion"));
-        assertEquals(number(20), ((Evidence.JsonObject) first.get("costA")).values().get("count"));
-        assertEquals(number(22), ((Evidence.JsonObject) second.get("costA")).values().get("count"));
+        assertEquals(number(20), firstCostA.get("count"));
+        assertEquals(number(22), secondCostA.get("count"));
     }
 
     @Test
@@ -171,7 +179,11 @@ class MinecraftTradesTest {
 
         var payload = Evidence.serialize(new Evidence.JsonObject(values));
         assertTrue(payload.getBytes(StandardCharsets.UTF_8).length < 65_536, "payload bytes " + payload.length());
-        assertEquals(MinecraftTrades.MAX_OFFERS, ((Evidence.JsonArray) values.get("offers")).values().size());
+        var trade = ((Evidence.JsonObject) values.get("offers")).values();
+        var entries = ((Evidence.JsonArray) trade.get("entries")).values();
+        assertEquals(MinecraftTrades.MAX_OFFERS, entries.size());
+        assertEquals(number(0), ((Evidence.JsonObject) entries.getFirst()).values().get("index"));
+        assertEquals(number(MinecraftTrades.MAX_OFFERS - 1), ((Evidence.JsonObject) entries.getLast()).values().get("index"));
         assertEquals(number(MinecraftTrades.MAX_OFFERS), values.get("offerCount"));
         assertFalse(values.containsKey("offersStatus"));
     }
@@ -194,7 +206,8 @@ class MinecraftTradesTest {
         MinecraftTrades.OFFERS.set(villager, offers);
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         MinecraftTrades.facts(villager, null, values);
-        assertEquals(MinecraftTrades.MAX_OFFERS, ((Evidence.JsonArray) values.get("offers")).values().size());
+        var trade = ((Evidence.JsonObject) values.get("offers")).values();
+        assertEquals(MinecraftTrades.MAX_OFFERS, ((Evidence.JsonArray) trade.get("entries")).values().size());
         assertEquals(new Evidence.JsonString("bounded"), values.get("offersStatus"));
         assertTrue(values.get("pricesNote") instanceof Evidence.JsonString note && note.value().contains("demand"), values.toString());
     }
@@ -207,7 +220,8 @@ class MinecraftTradesTest {
         MinecraftTrades.OFFERS.set(villager, offers);
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         MinecraftTrades.facts(villager, null, values);
-        assertEquals(64, ((Evidence.JsonArray) values.get("offers")).values().size());
+        var trade = ((Evidence.JsonObject) values.get("offers")).values();
+        assertEquals(64, ((Evidence.JsonArray) trade.get("entries")).values().size());
         assertEquals(new Evidence.JsonString("bounded"), values.get("offersStatus"));
         assertEquals(number(67), values.get("offerCount"));
 
@@ -215,7 +229,8 @@ class MinecraftTradesTest {
         offers.add(offer());
         values.clear();
         MinecraftTrades.facts(villager, null, values);
-        assertEquals(1, ((Evidence.JsonArray) values.get("offers")).values().size());
+        trade = ((Evidence.JsonObject) values.get("offers")).values();
+        assertEquals(1, ((Evidence.JsonArray) trade.get("entries")).values().size());
         assertEquals(number(1), values.get("offerCount"));
         assertFalse(values.containsKey("offersStatus"));
 

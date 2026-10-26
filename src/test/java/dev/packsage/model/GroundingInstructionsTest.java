@@ -57,8 +57,11 @@ class GroundingInstructionsTest {
         var text = GroundingInstructions.defaultInstructions();
         for (var definition : PackSageTools.definitions()) {
             // Track C carries command policy in its tool description until the combined prompt is integrated.
-            assertTrue(java.util.regex.Pattern.compile("\\b" + definition.name() + "\\b")
-                    .matcher(text + (definition.name().equals("run_command") ? definition.description() : "")).find(), definition.name());
+            if (definition.name().equals("run_command")) {
+                assertTrue(definition.description().contains("only when the player asks for an action"));
+                continue;
+            }
+            assertTrue(java.util.regex.Pattern.compile("\\b" + definition.name() + "\\b").matcher(text).find(), definition.name());
         }
         assertEquals(List.of(), PackSageToolsTest.undefinedToolNames(text));
     }

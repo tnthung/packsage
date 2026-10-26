@@ -79,7 +79,6 @@ public final class AssistantScreen extends Screen {
     private final Map<ConversationKey, ConversationUiState> conversationStates = new HashMap<>();
     private final Set<ConversationKey> deletedConversationKeys = new HashSet<>();
     private final Map<ChatContracts.RequestId, CachedSourceLabels> sourceLabelCache = new HashMap<>();
-    private final Set<String> expandedWorlds = new HashSet<>();
     private int sidebarScroll;
     private int sidebarContentHeight;
     private long catalogGeneration;
@@ -606,11 +605,13 @@ public final class AssistantScreen extends Screen {
             }
         }
         String body = (toolName == null ? "" : "Tool: " + toolName + "\n") + detail + "\nParameters:\n" + parameters;
-        if (body.length() <= ACTIVITY_ARGUMENTS_DISPLAY_LIMIT) return body;
-        String marker = "… [truncated]";
-        int end = ACTIVITY_ARGUMENTS_DISPLAY_LIMIT - marker.length();
-        if (Character.isHighSurrogate(body.charAt(end - 1)) && Character.isLowSurrogate(body.charAt(end))) end--;
-        return body.substring(0, end) + marker;
+        if (body.length() > ACTIVITY_ARGUMENTS_DISPLAY_LIMIT) {
+            String marker = "… [truncated]";
+            int end = ACTIVITY_ARGUMENTS_DISPLAY_LIMIT - marker.length();
+            if (Character.isHighSurrogate(body.charAt(end - 1)) && Character.isLowSurrogate(body.charAt(end))) end--;
+            body = body.substring(0, end) + marker;
+        }
+        return body + (step.resultDetail() == null || step.resultDetail().isBlank() ? "" : "\nResult:\n" + step.resultDetail());
     }
 
     void toggleActivity(String key) {

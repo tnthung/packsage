@@ -44,6 +44,17 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void expandedToolShowsSavedResultAndLegacyToolsOmitIt() {
+        var screen = new AssistantScreen(new FakeActions());
+        var step = new ChatContracts.ActivityStep("tool:result", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, "{}", "read_evidence", "Coverage: COMPLETE; records: 1",
+                600L, "Loaded fixture\nLantern\nitem: minecraft:lantern");
+        assertTrue(screen.activityBody(step, List.of()).contains("Result:\nLoaded fixture\nLantern\nitem: minecraft:lantern"));
+        assertFalse(screen.activityBody(new ChatContracts.ActivityStep("tool:old", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED), List.of()).contains("Result:"));
+    }
+
+    @Test
     void initializationShowsTheScreenBeforeSelectingHistoryForRendering() {
         FakeActions actions = new FakeActions();
         var screen = new AssistantScreen(actions);

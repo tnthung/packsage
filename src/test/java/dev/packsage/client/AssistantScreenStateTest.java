@@ -21,6 +21,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void expandedToolFieldsUseMutedLabelsAndNormalValues() throws Exception {
+        var screen = new AssistantScreen(new FakeActions());
+        var step = new ChatContracts.ActivityStep("tool:result", "Reading", "Failed",
+                ChatContracts.ActivityStatus.FAILED, "{}", "read_evidence", "Coverage: COMPLETE", 600L, "Result text");
+        var method = AssistantScreen.class.getDeclaredMethod("activityBodyLines", ChatContracts.ActivityStep.class, List.class);
+        method.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        var lines = (List<ScreenText.InlineLine>) method.invoke(screen, step, List.of());
+        assertEquals(List.of("Tool:", "Parameter:", "Error:", "Elapsed:"),
+                lines.stream().map(line -> line.spans().getFirst().text()).toList());
+        for (var line : lines) {
+            assertEquals(ModernUi.MUTED, line.spans().getFirst().color());
+            assertEquals(ModernUi.TEXT, line.spans().getLast().color());
+        }
+        var completed = new ChatContracts.ActivityStep("tool:result", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, "{}", "read_evidence", "Coverage: COMPLETE", 600L, "Result text");
+        @SuppressWarnings("unchecked")
+        var result = (List<ScreenText.InlineLine>) method.invoke(screen, completed, List.of());
+        assertEquals("Result:", result.get(2).spans().getFirst().text());
+        assertEquals(ModernUi.TEXT, result.get(2).spans().getLast().color());
+    }
+
+    @Test
     void sidebarListStartsFourPixelsAfterNewChat() {
         var actions = new FakeActions();
         actions.sessions = CompletableFuture.completedFuture(List.of(new ChatContracts.SessionSummary(

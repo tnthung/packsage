@@ -26,10 +26,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import it.unimi.dsi.fastutil.objects.AbstractObjectSet;
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectIterator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -256,6 +253,19 @@ class MinecraftStatisticsTest {
     }
 
     @Test
+    void aSameSizeCounterRehashBetweenStepsKeepsEveryCounterOnce() {
+        var map = new Object2IntOpenHashMap<Stat<?>>();
+        for (var item : BuiltInRegistries.ITEM) map.put(Stats.ITEM_CRAFTED.get(item), 1);
+        var slice = statistics.statistics(() -> map, List.of("crafted"), KindFilter.ANY);
+        assertTrue(slice.step());
+        map.ensureCapacity(100_000);
+        while (slice.step()) {
+        }
+        assertEquals(map.size(), slice.result().size());
+        assertEquals(map.size(), slice.result().stream().map(Statistic::subject).distinct().count());
+    }
+
+    @Test
     void anEntryBatchLeavesNamedZeroWorkForTheNextStep() {
         var map = new Object2IntOpenHashMap<Stat<?>>();
         BuiltInRegistries.ITEM.stream().limit(MinecraftStatistics.STEP_ENTRIES).forEach(item -> map.put(Stats.ITEM_CRAFTED.get(item), 1));
@@ -290,37 +300,9 @@ class MinecraftStatisticsTest {
         var visited = new AtomicInteger();
         var map = new Object2IntOpenHashMap<Stat<?>>() {
             @Override
-            public Object2IntMap.FastEntrySet<Stat<?>> object2IntEntrySet() {
-                var entries = super.object2IntEntrySet();
-                class Entries extends AbstractObjectSet<Object2IntMap.Entry<Stat<?>>> implements Object2IntMap.FastEntrySet<Stat<?>> {
-                    @Override
-                    public ObjectIterator<Object2IntMap.Entry<Stat<?>>> fastIterator() {
-                        return iterator();
-                    }
-
-                    @Override
-                    public int size() {
-                        return entries.size();
-                    }
-
-                    @Override
-                    public ObjectIterator<Object2IntMap.Entry<Stat<?>>> iterator() {
-                        var iterator = entries.iterator();
-                        return new ObjectIterator<>() {
-                            @Override
-                            public boolean hasNext() {
-                                return iterator.hasNext();
-                            }
-
-                            @Override
-                            public Object2IntMap.Entry<Stat<?>> next() {
-                                visited.incrementAndGet();
-                                return iterator.next();
-                            }
-                        };
-                    }
-                }
-                return new Entries();
+            public int getInt(Object key) {
+                visited.incrementAndGet();
+                return super.getInt(key);
             }
         };
         for (var item : BuiltInRegistries.ITEM) map.put(Stats.ITEM_CRAFTED.get(item), 1);

@@ -35,6 +35,68 @@ public final class ProgressTools implements KnowledgeProvider {
     private final ServerWork work;
     private final ProgressNavigation navigation;
     private final Minecraft client;
+    private final Map<String, ListingRead<?>> cursors = new LinkedHashMap<>();
+
+    /** Retains acquisition position and then the copied snapshot; an output offset never reacquires live data. */
+    private final class ListingRead<T> implements ServerWork.Slice<T> {
+        private final PackSageTools.ReadRequest request;
+        private final MinecraftServer current;
+        private final ServerWork.Slice<T> source;
+        private final java.util.function.BiFunction<T, Integer, Evidence.Result> listing;
+        private boolean complete;
+        private T value;
+        private int offset;
+
+        ListingRead(PackSageTools.ReadRequest request, MinecraftServer current, ServerWork.Slice<T> source,
+                    java.util.function.BiFunction<T, Integer, Evidence.Result> listing) {
+            this.request = request;
+            this.current = current;
+            this.source = source;
+            this.listing = listing;
+        }
+
+        @Override
+        public boolean step() {
+            complete = !source.step();
+            if (complete) value = source.result();
+            return !complete;
+        }
+
+        @Override
+        public T result() { return value; }
+
+        @Override
+        public boolean stopEarly() {
+            // Do not terminate the inner reader: its next step resumes the exact acquisition position.
+            return true;
+        }
+
+        CompletionStage<Evidence.Result> next() {
+            return (complete ? CompletableFuture.completedFuture(value)
+                    : ServerReads.run(work, worker, () -> server.get() == current && current.isRunning()
+                            && request.scope().equals(scope.get()), this)).thenApply(snapshot -> {
+                if (server.get() != current || !current.isRunning() || !request.scope().equals(scope.get())) {
+                    throw new Failure(Code.INVALID_CURSOR, "world changed during the progress/statistics read; restart without a cursor");
+                }
+                var page = complete ? listing.apply(snapshot, offset) : ProgressTools.result(List.of(), Evidence.Coverage.PARTIAL, null,
+                        "server work budget reached; continue acquisition with the cursor");
+                if (complete && page.nextCursor() == null) return page;
+                if (complete) offset = Integer.parseInt(page.nextCursor());
+                var token = "progress:" + java.util.UUID.randomUUID();
+                synchronized (cursors) {
+                    cursors.values().removeIf(read -> read.current != current || !read.request.scope().equals(request.scope()));
+                    cursors.put(token, this);
+                    // Abandoned cursors retain at most sixteen acquisition/snapshot states.
+                    while (cursors.size() > 16) cursors.remove(cursors.keySet().iterator().next());
+                }
+                return ProgressTools.result(page.records(), page.coverage(), token, page.detail());
+            }).exceptionally(failure -> {
+                while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
+                if (failure instanceof Failure typed) throw typed;
+                throw new Failure(Code.EXTRACTION_FAILED, failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
+            });
+        }
+    }
 
     public ProgressTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work) {
         this(client, client::getSingleplayerServer, server -> {
@@ -83,12 +145,29 @@ public final class ProgressTools implements KnowledgeProvider {
     public CompletionStage<Evidence.Result> handle(PackSageTools.ReadRequest request, Context context) {
         try {
             return switch (request.tool()) {
-                case "list_progress" -> listProgress(request);
+                case "list_progress", "list_statistics" -> {
+                    var cursor = request.arguments().values().get("cursor");
+                    if (cursor == null || cursor instanceof Evidence.JsonNull) {
+                        yield request.tool().equals("list_progress") ? listProgress(request) : listStatistics(request);
+                    }
+                    synchronized (cursors) {
+                        var read = cursor instanceof Evidence.JsonString token ? cursors.get(token.value()) : null;
+                        if (read == null || !read.request.tool().equals(request.tool())
+                                || !signature(read.request.arguments()).equals(signature(request.arguments()))) {
+                            throw new Failure(Code.INVALID_CURSOR, "cursor does not match this query or was consumed or evicted; restart without a cursor");
+                        }
+                        cursors.remove(((Evidence.JsonString) cursor).value());
+                        if (server.get() != read.current || !read.current.isRunning()
+                                || !read.request.scope().equals(request.scope()) || !request.scope().equals(scope.get())) {
+                            throw new Failure(Code.INVALID_CURSOR, "world changed during the progress/statistics read; restart without a cursor");
+                        }
+                        yield read.next();
+                    }
+                }
                 case "inspect_progress" -> {
                     if (!(request.arguments().values().get("id") instanceof Evidence.JsonString id)) throw new IllegalArgumentException("id must be a string");
                     yield inspect(ProgressId.parse(id.value()), request.scope());
                 }
-                case "list_statistics" -> listStatistics(request);
                 default -> CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, request.tool()));
             };
         } catch (Failure failure) {
@@ -148,10 +227,9 @@ public final class ProgressTools implements KnowledgeProvider {
         var filter = new ProgressListing.Filter(tree instanceof Evidence.JsonString id ? ProgressId.parse(id.value()) : null,
                 strings(arguments.get("status"), "status").stream().map(ProgressStatus::fromWire).collect(Collectors.toSet()),
                 text instanceof Evidence.JsonString string ? string.value() : null);
-        var offset = offset(request);
         var current = server();
         var readers = registry.progressReaders();
-        return ServerReads.run(work, worker, () -> server.get() == current && current.isRunning(), new ServerWork.Slice<List<ProgressSnapshot>>() {
+        return new ListingRead<>(request, current, new ServerWork.Slice<List<ProgressSnapshot>>() {
             private final List<ProgressSnapshot> snapshots = new ArrayList<>();
             private int index;
             private ServerWork.Slice<ProgressSnapshot> slice;
@@ -172,15 +250,7 @@ public final class ProgressTools implements KnowledgeProvider {
             public List<ProgressSnapshot> result() {
                 return List.copyOf(snapshots);
             }
-
-            @Override
-            public boolean stopEarly() {
-                if (slice == null || !slice.stopEarly()) return false;
-                snapshots.add(slice.result());
-                snapshots.add(new ProgressSnapshot(List.of(), List.of(), "server work budget reached; repeat list_progress"));
-                return true;
-            }
-        }).thenApply(snapshots -> {
+        }, (snapshots, offset) -> {
             var coverage = snapshots.stream().allMatch(snapshot -> snapshot.note() == null) ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
             java.util.function.Function<ProgressListing.Item, Evidence.Record> record = item -> {
                 if (item.tree() != null) {
@@ -200,12 +270,8 @@ public final class ProgressTools implements KnowledgeProvider {
             };
             var page = ProgressListing.page(snapshots, filter, offset, item -> PackSageTools.encodeRecord(record.apply(item))
                     .toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 1);
-            return result(page.items().stream().map(record).toList(), page.coverage(), page.nextCursor() == null ? null : page.nextCursor() + "." + Integer.toHexString(List.of(request.tool(), signature(request.arguments())).hashCode()), page.note());
-        }).exceptionally(failure -> {
-            while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
-            if (failure instanceof Failure typed) throw typed;
-            throw new Failure(Code.EXTRACTION_FAILED, failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
-        });
+            return result(page.items().stream().map(record).toList(), page.coverage(), page.nextCursor(), page.note());
+        }).next();
     }
 
     private CompletionStage<Evidence.Result> inspect(ProgressId id, Evidence.Scope scope) {
@@ -283,14 +349,14 @@ public final class ProgressTools implements KnowledgeProvider {
         } else {
             throw new IllegalArgumentException("subjects must be an object");
         }
-        return statistics(request.scope(), strings(request.arguments().values().get("categories"), "categories"), filter, offset(request), List.of(request.tool(), signature(request.arguments())).hashCode(), null);
+        return statistics(request, strings(request.arguments().values().get("categories"), "categories"), filter, null);
     }
 
-    private CompletionStage<Evidence.Result> statistics(Evidence.Scope scope, List<String> categories, KindFilter subjects, int offset, int signature, String adapter) {
+    private CompletionStage<Evidence.Result> statistics(PackSageTools.ReadRequest request, List<String> categories, KindFilter subjects, String adapter) {
         var current = server();
         var readers = registry.statisticReaders().stream().filter(reader -> adapter == null || adapter.equals(reader.adapterId())).toList();
         var notes = new ArrayList<String>();
-        return ServerReads.run(work, worker, () -> server.get() == current && current.isRunning(), new ServerWork.Slice<List<List<Statistic>>>() {
+        return new ListingRead<>(request, current, new ServerWork.Slice<List<List<Statistic>>>() {
             private final List<List<Statistic>> rows = new ArrayList<>();
             private int index;
             private ServerWork.Slice<List<Statistic>> slice;
@@ -320,29 +386,10 @@ public final class ProgressTools implements KnowledgeProvider {
                 return List.copyOf(rows);
             }
 
-            @Override
-            public boolean stopEarly() {
-                if (slice == null) return false;
-                try {
-                    if (!slice.stopEarly()) return false;
-                    rows.add(List.copyOf(slice.result()));
-                } catch (VirtualMachineError failure) {
-                    throw failure;
-                } catch (Throwable failure) {
-                    // The failing adapter is dropped and the remaining adapters keep stepping.
-                    fail(failure);
-                    slice = null;
-                    index++;
-                    return false;
-                }
-                notes.add("server work budget reached; repeat list_statistics");
-                return true;
-            }
-
             private void fail(Throwable failure) {
                 notes.add(readers.get(index).adapterId() + ": " + (failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage()));
             }
-        }).thenApply(rows -> {
+        }, (rows, offset) -> {
             var coverage = notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
             java.util.function.Function<Statistic, Evidence.Record> record = row -> {
                 var payload = new LinkedHashMap<String, Evidence.JsonValue>();
@@ -353,18 +400,13 @@ public final class ProgressTools implements KnowledgeProvider {
                 payload.put("value", new Evidence.JsonNumber(BigDecimal.valueOf(row.value())));
                 payload.put("unit", new Evidence.JsonString(row.unit().name().toLowerCase(Locale.ROOT)));
                 payload.put("raw", new Evidence.JsonNumber(BigDecimal.valueOf(row.raw())));
-                return evidence(scope, "stat|" + row.adapter() + "|" + row.category() + "|" + row.subject(), Evidence.RecordKind.OTHER,
+                return evidence(request.scope(), "stat|" + row.adapter() + "|" + row.category() + "|" + row.subject(), Evidence.RecordKind.OTHER,
                         row.label() + " = " + BigDecimal.valueOf(row.value()).stripTrailingZeros().toPlainString(), payload, coverage, null);
             };
             var page = StatisticListing.page(rows, offset, notes, row -> PackSageTools.encodeRecord(record.apply(row))
                     .toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 1);
-            return result(page.items().stream().map(record).toList(), page.coverage(), page.nextCursor() == null ? null
-                    : page.nextCursor() + "." + Integer.toHexString(signature), page.note());
-        }).exceptionally(failure -> {
-            while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
-            if (failure instanceof Failure typed) throw typed;
-            throw new Failure(Code.EXTRACTION_FAILED, failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
-        });
+            return result(page.items().stream().map(record).toList(), page.coverage(), page.nextCursor(), page.note());
+        }).next();
     }
 
     private CompletionStage<Evidence.Result> reread(String handle, Evidence.Scope scope) {
@@ -385,7 +427,8 @@ public final class ProgressTools implements KnowledgeProvider {
         if (handle.startsWith("stat|")) {
             var parts = handle.split("\\|", -1);
             if (parts.length != 4 || parts[1].isEmpty() || parts[2].isEmpty() || parts[3].isEmpty()) throw new Failure(Code.INVALID_REFERENCE, "repeat list_statistics");
-            return statistics(scope, List.of(parts[2]), new KindFilter(List.of(parts[3]), List.of(), ""), 0, 0, parts[1]).thenApply(result -> {
+            return statistics(new PackSageTools.ReadRequest("list_statistics", new Evidence.JsonObject(Map.of()), scope),
+                    List.of(parts[2]), new KindFilter(List.of(parts[3]), List.of(), ""), parts[1]).thenApply(result -> {
                 var records = result.records().stream().filter(record -> record.source().sourceHandle().equals(handle)).toList();
                 if (records.isEmpty()) {
                     if (result.coverage() != Evidence.Coverage.COMPLETE) throw new Failure(Code.EXTRACTION_FAILED, result.detail());
@@ -423,22 +466,6 @@ public final class ProgressTools implements KnowledgeProvider {
             }
         });
         return new Evidence.JsonObject(values);
-    }
-
-    private static int offset(PackSageTools.ReadRequest request) {
-        var cursor = request.arguments().values().get("cursor");
-        if (cursor == null || cursor instanceof Evidence.JsonNull) return 0;
-        if (cursor instanceof Evidence.JsonString string) {
-            var parts = string.value().split("\\.", -1);
-            if (parts.length == 2 && parts[1].equals(Integer.toHexString(List.of(request.tool(), signature(request.arguments())).hashCode()))) {
-                try {
-                    var offset = Integer.parseInt(parts[0]);
-                    if (offset >= 0 && Integer.toString(offset).equals(parts[0])) return offset;
-                } catch (NumberFormatException ignored) {
-                }
-            }
-        }
-        throw new Failure(Code.INVALID_CURSOR, "cursor does not match this query; restart without a cursor");
     }
 
     private static Map<String, Evidence.JsonValue> entryPayload(ProgressHandle handle, String description) {

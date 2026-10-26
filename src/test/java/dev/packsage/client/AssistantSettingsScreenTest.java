@@ -60,7 +60,7 @@ class AssistantSettingsScreenTest {
             assertEquals(layout.left() + 16, layout.accountLeft());
             assertEquals(layout.width() - 32, layout.accountWidth());
             assertEquals(layout.width() >= 340 ? 40 : 68, layout.accountHeight());
-            assertEquals(26, layout.shortcutTop() - layout.behaviorTop() - 72);
+            assertEquals(26, layout.shortcutTop() - layout.behaviorTop() - 98);
             assertFalse(screen.mouseClicked(layout.left() + 20, layout.behaviorTop() + 22, 0));
             assertEquals(ModelBackend.ReasoningEffort.DEFAULT, settings.reasoningEffort());
         }
@@ -80,6 +80,11 @@ class AssistantSettingsScreenTest {
         assertFalse(settings.automaticWebSearch());
         assertTrue(screen.mouseClicked(layout.left() + 20, layout.behaviorTop() + 62, 0));
         assertFalse(settings.hideInactiveAdapters());
+        assertTrue(screen.mouseClicked(layout.left() + 20, layout.behaviorTop() + 88, 0));
+        assertTrue(settings.showChatsFromOtherSessions());
+        screen.close();
+        settings.flushAndClose(temporaryDirectory.resolve("settings.properties")).join();
+        assertTrue(PackSageSettings.load(temporaryDirectory.resolve("settings.properties")).showChatsFromOtherSessions());
     }
 
     @Test

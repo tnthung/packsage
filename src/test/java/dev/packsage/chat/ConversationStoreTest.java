@@ -53,7 +53,7 @@ class ConversationStoreTest {
                 Instant.parse("2026-10-13T01:02:03Z"), List.of(new ChatContracts.ActivityStep("tool:call-1",
                 "Reading evidence", "Completed", ChatContracts.ActivityStatus.COMPLETED,
                 "{\"filters\":[null,{\"item\":\"packsage:fixture_lantern\"}] }", "lookup",
-                "Coverage: COMPLETE; records: 1\nLoaded fixture", 125L)),
+                "Coverage: COMPLETE; records: 1\nLoaded fixture", 125L, "Loaded fixture\nLantern\nitem: minecraft:lantern")),
                 List.of(new ChatContracts.SteeringMessage("Actually, here.", 5)), 1_250L);
 
         store.appendMedia(world, conversation.id(), screenshot, new byte[]{1, 2, 3}).toCompletableFuture().join();
@@ -113,7 +113,7 @@ class ConversationStoreTest {
     }
 
     @Test
-    void legacySummaryBackfillYieldsToSelectedConversationReads() throws Exception {
+    void legacySummaryListingNeverReadsUnclickedBodies() throws Exception {
         var world = new ChatContracts.WorldIdentity("world-a", "World");
         var setup = new ConversationStore(temporaryDirectory, DIRECT);
         var selected = setup.newConversation(world).toCompletableFuture().join();
@@ -138,7 +138,7 @@ class ConversationStoreTest {
         assertTrue(opened.isDone());
         assertFalse(backfill.isDone());
         while (!pending.isEmpty()) pending.removeFirst().run();
-        assertTrue(backfill.join().stream().anyMatch(summary -> summary.title().equals("question 2")));
+        assertTrue(backfill.join().stream().allMatch(summary -> summary.title().equals("Saved chat")));
     }
 
     @Test

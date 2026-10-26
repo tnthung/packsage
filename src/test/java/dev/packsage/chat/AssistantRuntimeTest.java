@@ -55,13 +55,14 @@ class AssistantRuntimeTest {
                 "Question", "Answer", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
         List<Runnable> pending = new ArrayList<>();
-        var store = new ConversationStore(root, pending::add);
+        List<Runnable> catalogTasks = new ArrayList<>();
+        var store = new ConversationStore(root, pending::add, catalogTasks::add);
         var runtime = new AssistantRuntime(store, new FakeBackend(), captureFactory(), DIRECT, DIRECT,
                 current -> new KnowledgeService(List.of(), current), turn -> turn.tokenCount(),
                 ignored -> { throw new AssertionError("No request expected"); }, ignored -> 512, ignored -> { }, ignored -> { });
+        var catalog = runtime.sessions().toCompletableFuture();
         runtime.enterWorld(WORLD, SCOPE);
         var screen = runtime.openScreen();
-        var catalog = runtime.sessions().toCompletableFuture();
         assertTrue(screen.view().readOnly());
 
         pending.removeFirst().run();
@@ -71,6 +72,43 @@ class AssistantRuntimeTest {
         assertEquals(conversation.id(), screen.view().conversation().id());
         assertEquals("Answer", screen.view().conversation().turns().getLast().answer());
         while (!pending.isEmpty()) pending.removeFirst().run();
+        while (!catalogTasks.isEmpty()) catalogTasks.removeFirst().run();
+    }
+
+    @Test
+    void stalledSelectedReadLeavesLoadingWithAnError() throws Exception {
+        var store = new ConversationStore(Files.createTempDirectory("packsage-stalled-open"), ignored -> { });
+        var runtime = new AssistantRuntime(store, new FakeBackend(), captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                ignored -> { throw new AssertionError("No request expected"); }, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        var screen = runtime.openScreen();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(7);
+        while (screen.view().activity().equals("Loading session...") && System.nanoTime() < deadline) Thread.sleep(10);
+        assertFalse(screen.view().activity().equals("Loading session..."));
+        assertTrue(screen.view().errors().stream().anyMatch(error -> error.contains("could not be opened")),
+                screen.view().errors().toString());
+    }
+
+    @Test
+    void completionDoesNotScanOtherWorlds() throws Exception {
+        var store = new ConversationStore(Files.createTempDirectory("packsage-completion-scope"), DIRECT);
+        var foreignWorld = new ChatContracts.WorldIdentity("foreign", "Foreign");
+        var foreign = store.newConversation(foreignWorld).toCompletableFuture().join();
+        Files.write(store.conversationPath(foreignWorld, foreign.id()), new byte[]{(byte) 0xff});
+        var backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        runtime.send("Question", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer", List.of())))), null));
+        assertTrue(store.errors().isEmpty(), store.errors().toString());
     }
 
     @Test
@@ -2849,6 +2887,11 @@ class AssistantRuntimeTest {
         assertFalse(storeTasks.isEmpty(), "the second completion metadata should be persisted before its list snapshot");
         storeTasks.removeFirst().run();
         assertFalse(storeTasks.isEmpty(), "the second completion list snapshot should be queued");
+        java.nio.file.Path stateFile = conversationFile.resolveSibling(conversationFile.getFileName().toString().replace(".jsonl", ".state.json"));
+        while (!Files.readString(stateFile).contains(secondRequestId)) {
+            assertFalse(storeTasks.isEmpty(), "completion metadata should be saved before its catalog snapshot");
+            storeTasks.removeFirst().run();
+        }
         Files.move(conversationFile, retainedConversationFile);
         try {
             storeTasks.removeFirst().run();

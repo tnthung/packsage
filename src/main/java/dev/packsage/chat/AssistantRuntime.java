@@ -144,7 +144,8 @@ public final class AssistantRuntime implements ChatActions {
         previous.forEach(holder -> { if (holder.controller != null) holder.controller.worldChanged(); });
         if (sessionActivityChanged) refreshSessionList();
         try {
-            store.openLatest(world).whenCompleteAsync((conversation, failure) -> {
+            store.openLatest(world).toCompletableFuture().orTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                    .whenCompleteAsync((conversation, failure) -> {
                 if (failure != null) {
                     boolean publish;
                     synchronized (stateLock) {
@@ -196,7 +197,6 @@ public final class AssistantRuntime implements ChatActions {
                             if (summary != null) loadingHolder.unreadRequestId = summary.unreadRequestId();
                         }
                     }
-                    refreshSessionList();
                 }, clientExecutor);
                 initializeHolder(loadingHolder).whenCompleteAsync((ignored, initializationFailure) -> {
                     Throwable setupFailure = initializationFailure;
@@ -257,7 +257,6 @@ public final class AssistantRuntime implements ChatActions {
                         currentEpoch = worldEpoch;
                     }
                     if (publish) publishCurrentView(currentEpoch);
-                    refreshSessionList();
                 }, clientExecutor);
             }, clientExecutor);
         } catch (RuntimeException failure) {
@@ -437,9 +436,24 @@ public final class AssistantRuntime implements ChatActions {
 
     @Override
     public CompletionStage<Void> loadSessions(Consumer<List<ChatContracts.SessionSummary>> refresh) {
-        return store.sessions().thenCompose(stored -> {
-            refresh.accept(mergeSessions(stored));
-            return store.loadSummaries(stored).thenAccept(loaded -> refresh.accept(mergeSessions(loaded)));
+        return sessionPage(0, settings().sessionsBeforeCollapse()).thenAccept(page -> refresh.accept(page.sessions()));
+    }
+
+    @Override
+    public CompletionStage<ConversationStore.SessionPage> sessionPage(int offset, int limit) {
+        ChatContracts.WorldIdentity currentWorld;
+        boolean otherWorlds;
+        synchronized (stateLock) {
+            currentWorld = world;
+            otherWorlds = settings.showChatsFromOtherSessions();
+        }
+        if (currentWorld == null) return CompletableFuture.completedFuture(new ConversationStore.SessionPage(List.of(), false));
+        return store.sessionPage(currentWorld, otherWorlds, offset, limit).thenApply(page -> {
+            Set<HolderKey> listed = page.sessions().stream().map(session -> new HolderKey(session.world().worldOrServer(), session.id()))
+                    .collect(java.util.stream.Collectors.toSet());
+            return new ConversationStore.SessionPage(mergeSessions(page.sessions()).stream()
+                    .filter(session -> listed.contains(new HolderKey(session.world().worldOrServer(), session.id()))).toList(),
+                    page.hasMore(), page.nextOffset());
         });
     }
 
@@ -635,7 +649,7 @@ public final class AssistantRuntime implements ChatActions {
             } catch (RuntimeException failure) {
                 opening = CompletableFuture.failedFuture(failure);
             }
-            opening.whenCompleteAsync((conversation, openFailure) -> {
+            opening.toCompletableFuture().orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).whenCompleteAsync((conversation, openFailure) -> {
                 Throwable loadFailure = openFailure;
                 Evidence.Scope attachmentScope = null;
                 synchronized (stateLock) {
@@ -1505,9 +1519,9 @@ public final class AssistantRuntime implements ChatActions {
                     && !(latest.active() && expectedUnread.value().equals(latest.activeRequestId()))) {
                 holder.unreadRequestId = null;
             }
-            sessionListChanged = wasActive != holder.active || wasLoaded != holder.loaded
+            sessionListChanged = selected != null && (wasActive != holder.active || wasLoaded != holder.loaded
                     || wasLoading != holder.loading || wasCreating != holder.creating
-                    || !oldId.equals(holder.id) || !Objects.equals(oldUnreadRequestId, holder.unreadRequestId);
+                    || !oldId.equals(holder.id) || !Objects.equals(oldUnreadRequestId, holder.unreadRequestId));
             isSelected = selected == holder;
             epoch = isSelected ? worldEpoch : 0;
             publication = isSelected ? publicationEpoch : 0;
@@ -1554,13 +1568,10 @@ public final class AssistantRuntime implements ChatActions {
                 if (publish) publishCurrentView(epoch);
                 return;
             }
-            store.sessions().whenCompleteAsync((summaries, summaryFailure) -> {
+            store.summary(holder.world, holder.id).whenCompleteAsync((summary, summaryFailure) -> {
                 boolean notify = false;
                 boolean publish;
                 long epoch;
-                ChatContracts.SessionSummary summary = summaryFailure == null ? summaries.stream()
-                        .filter(value -> value.world().worldOrServer().equals(holder.world.worldOrServer())
-                                && value.id().equals(holder.id)).findFirst().orElse(null) : null;
                 synchronized (stateLock) {
                     if (holder.deleting || holders.get(new HolderKey(holder.world.worldOrServer(), holder.id)) != holder) {
                         holder.requestAuthEpochs.remove(turn.requestId());
@@ -1603,12 +1614,12 @@ public final class AssistantRuntime implements ChatActions {
             generation = ++sessionListGeneration;
         }
         if (screen == null) return;
-        loadSessions(values -> clientExecutor.execute(() -> {
+        clientExecutor.execute(() -> {
             synchronized (stateLock) {
                 if (generation != sessionListGeneration || screen != currentScreen) return;
             }
-            screen.refreshSessions(values);
-        }));
+            screen.loadSessions();
+        });
     }
 
     private List<ChatContracts.SessionSummary> mergeSessions(List<ChatContracts.SessionSummary> stored) {
@@ -1684,8 +1695,8 @@ public final class AssistantRuntime implements ChatActions {
         ChatContracts.Conversation conversation = holder == null ? view.conversation() : holder.loaded
                 ? view.conversation() : new ChatContracts.Conversation(holder.id, holder.world, List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null));
-        List<Evidence.Source> sources = new ArrayList<>();
-        List<Evidence.NavigationTarget> targets = new ArrayList<>();
+        Set<Evidence.Source> sources = new LinkedHashSet<>();
+        Set<Evidence.NavigationTarget> targets = new LinkedHashSet<>();
         if (!loading && !readOnly) {
             view.sources().forEach(source -> {
                 if (source.scope().equals(currentScope) && sources.stream().noneMatch(existing ->
@@ -1701,8 +1712,8 @@ public final class AssistantRuntime implements ChatActions {
         }
         if (!loading && currentWorld != null && (readOnly || currentWorld.worldOrServer().equals(conversation.world().worldOrServer()))) {
             conversation.turns().forEach(turn -> {
-                turn.sources().forEach(source -> { if (!sources.contains(source)) sources.add(source); });
-                turn.navigationTargets().forEach(target -> { if (!targets.contains(target)) targets.add(target); });
+                sources.addAll(turn.sources());
+                targets.addAll(turn.navigationTargets());
             });
         }
         if (!loading && currentWorld != null && (readOnly || currentWorld.worldOrServer().equals(conversation.world().worldOrServer()))) {
@@ -1750,12 +1761,12 @@ public final class AssistantRuntime implements ChatActions {
         }
         if (readOnly) {
             return new ChatContracts.View(false, currentSignIn, paused, conversation,
-                    new ChatContracts.Context("", null, currentScope), sources, targets, errors, "",
+                    new ChatContracts.Context("", null, currentScope), List.copyOf(sources), List.copyOf(targets), errors, "",
                     loading ? "Loading session..." : "", activeWorld, true);
         }
         return new ChatContracts.View(view.active(), currentSignIn, paused, conversation,
                 holder == null || holder.loaded ? view.context() : new ChatContracts.Context("", null, currentScope),
-                sources, targets, errors, view.streamingAnswer(), view.activity(), activeWorld, false, view.activeQuestion(),
+                List.copyOf(sources), List.copyOf(targets), errors, view.streamingAnswer(), view.activity(), activeWorld, false, view.activeQuestion(),
                 view.activeSentAt(), view.activities(), view.activeRequestId(), view.activeSteeringMessages());
     }
 

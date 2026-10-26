@@ -100,7 +100,7 @@ public final class AssistantSettingsScreen extends Screen {
         int accountTop = y;
         y += accountHeight + 28;
         int behaviorTop = y;
-        y += 72 + 26;
+        y += 98 + 26;
         int shortcutTop = y;
         y += 46 + 26;
         int confirmationTop = y;
@@ -196,8 +196,9 @@ public final class AssistantSettingsScreen extends Screen {
         }
         graphics.drawString(font, Component.literal("Behavior").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
                 x, layout.behaviorTop() - 20, ModernUi.TEXT, false);
-        for (int index = 0; index < 3; index++) {
-            boolean checked = index == 0 ? settings.openPaused() : index == 1 ? settings.automaticWebSearch() : settings.hideInactiveAdapters();
+        for (int index = 0; index < 4; index++) {
+            boolean checked = index == 0 ? settings.openPaused() : index == 1 ? settings.automaticWebSearch()
+                    : index == 2 ? settings.hideInactiveAdapters() : settings.showChatsFromOtherSessions();
             int y = layout.behaviorTop() + index * 26;
             ModernUi.surface(graphics, x, y, x + rowWidth, y + 20,
                     mouseX >= x && mouseX < x + rowWidth && mouseY >= y && mouseY < y + 20 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
@@ -205,7 +206,8 @@ public final class AssistantSettingsScreen extends Screen {
             if (checked) graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/check.png"),
                     x + 8, y + 4, 12, 12, 0f, 0f, 64, 64, 64, 64);
             graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(index == 0 ? "Open paused"
-                            : index == 1 ? "Allow web search when needed" : "Hide inactive adapters")
+                            : index == 1 ? "Allow web search when needed" : index == 2 ? "Hide inactive adapters"
+                            : "Show chats from other sessions")
                             .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, rowWidth - 42))),
                     x + 30, y + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
@@ -281,7 +283,7 @@ public final class AssistantSettingsScreen extends Screen {
             int y = layout.top() + scrollOffset * (track - thumb) / maxScroll;
             graphics.fill(layout.left() + layout.width() - 3, y, layout.left() + layout.width(), y + thumb, ModernUi.BORDER);
         }
-        for (int index = 0; index < 3; index++) {
+        for (int index = 0; index < 4; index++) {
             int y = layout.behaviorTop() + index * 26;
             if (mouseX < x || mouseX >= x + rowWidth || mouseY < Math.max(y, layout.top())
                     || mouseY >= Math.min(y + 20, layout.bottom())) continue;
@@ -289,7 +291,8 @@ public final class AssistantSettingsScreen extends Screen {
             var lines = font.split(Component.literal(index == 0
                             ? "Pause the game when opening PackSage in a private singleplayer world. Multiplayer and worlds opened to LAN cannot be paused."
                             : index == 1 ? "Let the model decide when web search is needed. When off, you can still ask for a search in your message. The Search button above the chat input requires a search either way."
-                            : "Hide adapters that are unavailable in this world or client.")
+                            : index == 2 ? "Hide adapters that are unavailable in this world or client."
+                            : "Show chats from other Minecraft worlds in the sidebar.")
                     .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, tooltipWidth - 20));
             int tooltipHeight = Math.min(height - 8, 12 + Math.max(0, lines.size() - 1) * 14 + font.lineHeight);
             int left = Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
@@ -353,6 +356,10 @@ public final class AssistantSettingsScreen extends Screen {
             }
             if (mouseY >= layout.behaviorTop() + 52 && mouseY < layout.behaviorTop() + 72) {
                 settings.setHideInactiveAdapters(!settings.hideInactiveAdapters());
+                return true;
+            }
+            if (mouseY >= layout.behaviorTop() + 78 && mouseY < layout.behaviorTop() + 98) {
+                settings.setShowChatsFromOtherSessions(!settings.showChatsFromOtherSessions());
                 return true;
             }
             if (mouseY >= layout.shortcutTop() && mouseY < layout.shortcutTop() + 20) {

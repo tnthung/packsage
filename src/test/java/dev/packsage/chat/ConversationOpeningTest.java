@@ -62,7 +62,7 @@ class ConversationOpeningTest {
         long callerMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - callerStarted);
         assertFalse(sessions.isDone());
         assertFalse(latest.isDone());
-        assertEquals(1, queued.size(), "expected first store read to be queued before it is released");
+        assertEquals(2, queued.size(), "catalog and selected reads must be independently scheduled");
 
         Path recordingPath = temporaryDirectory.resolve("opening.jfr");
         CountDownLatch drained = new CountDownLatch(2);

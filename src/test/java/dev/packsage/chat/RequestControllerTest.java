@@ -56,6 +56,16 @@ class RequestControllerTest {
     Path temporaryDirectory;
 
     @Test
+    void legacyActivityStepConstructorsDefaultResultDetailToNull() {
+        assertNull(new ChatContracts.ActivityStep("eight", "title", "", ChatContracts.ActivityStatus.COMPLETED,
+                null, null, null, null).resultDetail());
+        assertNull(new ChatContracts.ActivityStep("five", "title", "", ChatContracts.ActivityStatus.COMPLETED, null)
+                .resultDetail());
+        assertNull(new ChatContracts.ActivityStep("four", "title", "", ChatContracts.ActivityStatus.COMPLETED)
+                .resultDetail());
+    }
+
+    @Test
     void stopAtAcceptedLogSettlesBeforeTargetAndCaptureSetup() {
         ConversationStore store = new ConversationStore(temporaryDirectory.resolve("accepted-stop"), DIRECT);
         ChatContracts.Conversation seeded = store.newConversation(WORLD_A).toCompletableFuture().join();
@@ -1740,7 +1750,8 @@ class RequestControllerTest {
                 .filter(step -> step.id().equals("tool:call-1")).findFirst().orElseThrow().serializedArguments());
 
         response.complete(new ChatContracts.ToolResponse(new ModelBackend.ToolResult("call-1",
-                "{\"coverage\":\"PARTIAL\",\"records\":[{},{}],\"detail\":\"Reached the page limit\"}", false),
+                "{\"coverage\":\"PARTIAL\",\"records\":[{\"title\":\"Lantern\",\"payload\":{\"id\":\"minecraft:lantern\"}},"
+                        + "{\"title\":\"Torch\",\"payload\":{\"id\":\"minecraft:torch\"}}],\"detail\":\"Reached the page limit\"}", false),
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
         ChatContracts.ActivityStep completed = controller.view().activities().stream()
                 .filter(step -> step.id().equals("tool:call-1")).findFirst().orElseThrow();
@@ -1750,6 +1761,8 @@ class RequestControllerTest {
         assertTrue(completed.resultSummary().contains("PARTIAL"));
         assertTrue(completed.resultSummary().contains("records: 2"));
         assertTrue(completed.resultSummary().contains("Reached the page limit"));
+        assertTrue(completed.resultDetail().contains("Lantern"), completed.resultDetail());
+        assertTrue(completed.resultDetail().contains("minecraft:lantern"), completed.resultDetail());
         assertTrue(completed.durationMillis() != null);
         assertTrue(completed.durationMillis() >= 0);
 
@@ -1760,6 +1773,46 @@ class RequestControllerTest {
         assertEquals(ChatContracts.OutcomeStatus.COMPLETED, saved.outcome().status());
         assertTrue(saved.durationMillis() != null);
         assertTrue(saved.durationMillis() >= completed.durationMillis());
+        assertEquals(completed.resultDetail(), saved.activities().stream()
+                .filter(step -> step.id().equals("tool:call-1")).findFirst().orElseThrow().resultDetail());
+    }
+
+    @Test
+    void toolResultDetailShowsFirstEightEvidenceRecordsAndBoundsTheText() {
+        FakeBackend backend = new FakeBackend();
+        StringBuilder records = new StringBuilder("[ ");
+        for (int index = 0; index < 10; index++) {
+            if (index > 0) records.append(',');
+            records.append("{\"title\":\"Record ").append(index)
+                    .append(" ").append("t".repeat(300)).append("\",\"payload\":{\"id\":\"packsage:item_").append(index).append("i".repeat(300))
+                    .append("\",\"count\":").append(index + 1).append(",\"description\":[{\"label\":\"Nested payload\",\"amount\":2}],\"other\":\"")
+                    .append("y".repeat(300)).append("\"}} ");
+        }
+        records.append(']');
+        String result = "{\"coverage\":\"PARTIAL\",\"outcome\":\"PARTIAL\",\"detail\":\"More results available\",\"records\":"
+                + records + "}";
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                        new ModelBackend.ToolResult(request.call().callId(), result, false),
+                        new ChatContracts.EvidenceSelection(List.of(), List.of()))), ignored -> { });
+        controller.begin(submission("activity-result-records", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+
+        backend.emit("activity-result-records", toolEvent("call-1", "search_pack", "{}"));
+
+        String detail = controller.view().activities().getFirst().resultDetail();
+        assertTrue(detail.contains("Record 0"), detail);
+        assertTrue(detail.contains("packsage:item_0"), detail);
+        assertTrue(detail.contains("Nested payload"), detail);
+        assertTrue(detail.contains("amount: 2"), detail);
+        assertTrue(detail.contains("Record 7"), detail);
+        assertFalse(detail.contains("Record 8"), detail);
+        assertTrue(detail.contains("and 2 more"), detail);
+        assertTrue(detail.contains("More results available"), detail);
+        assertTrue(detail.length() <= 4096);
+        assertFalse(detail.startsWith("{"));
     }
 
     @Test
@@ -1869,6 +1922,7 @@ class RequestControllerTest {
         assertEquals(ChatContracts.ActivityStatus.FAILED, controller.view().activities().getFirst().status());
         assertEquals(ChatContracts.ActivityStatus.RUNNING, controller.view().activities().get(1).status());
         assertFalse(controller.view().activities().getFirst().detail().contains("raw-result"));
+        assertEquals("Could not complete", controller.view().activities().getFirst().resultDetail());
 
         backend.emit("activity-parallel", new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null,
                 List.of(), "failure"));
@@ -1901,6 +1955,11 @@ class RequestControllerTest {
         assertTrue(detail.contains("NOT_FOUND"), detail);
         assertFalse(detail.contains("PRIVATE"));
         assertFalse(detail.startsWith("{"));
+        String resultDetail = controller.view().activities().getFirst().resultDetail();
+        assertTrue(resultDetail.contains("Missing recipe entry"), resultDetail);
+        assertTrue(resultDetail.contains("NOT_FOUND"), resultDetail);
+        assertFalse(resultDetail.contains("PRIVATE"));
+        assertTrue(resultDetail.length() <= 4096);
 
         backend.emit("activity-tool-error", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null,
                 List.of(), List.of(), null));
@@ -1926,6 +1985,7 @@ class RequestControllerTest {
         assertTrue(detail.contains("registry closed"), detail);
         assertFalse(detail.contains("tool failed:"), detail);
         assertFalse(detail.contains("\n"), detail);
+        assertTrue(controller.view().activities().getFirst().resultDetail().contains("registry closed"));
     }
 
     @Test

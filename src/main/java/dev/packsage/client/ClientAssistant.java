@@ -127,6 +127,11 @@ public final class ClientAssistant {
             thread.setDaemon(true);
             return thread;
         });
+        // Initialize the text tokenizer during client startup instead of blocking the first chat frame.
+        workerExecutor.execute(() -> GroundingInstructions.historyTokenCounts(new ChatContracts.Turn(
+                new ChatContracts.RequestId("tokenizer-warmup"), "", "", List.of(),
+                new ChatContracts.Context("", null, new Evidence.Scope("none", "none", "none", "none", 0)), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0)));
         journal = new Journal(workerExecutor);
         new JournalHooks(journal, client::getSingleplayerServer).register(NeoForge.EVENT_BUS);
         locale = client.getLanguageManager().getSelected();
@@ -134,7 +139,12 @@ public final class ClientAssistant {
         settings = PackSageSettings.load(settingsPath);
         var backend = new ChatGptBackend(new ChatGptAuth(ChatGptAuth.defaultCredentialFile()));
         runtime = new AssistantRuntime(
-                new ConversationStore(client.gameDirectory.toPath().resolve("packsage"), workerExecutor), backend,
+                new ConversationStore(client.gameDirectory.toPath().resolve("packsage"), workerExecutor,
+                        Executors.newSingleThreadExecutor(runnable -> {
+                            var thread = new Thread(runnable, "packsage-chat-catalog");
+                            thread.setDaemon(true);
+                            return thread;
+                        })), backend,
                 scope -> GameplayContextCapture.forMinecraft(clientExecutor, scope), workerExecutor, clientExecutor,
                 this::knowledge, GroundingInstructions::historyTextBudget, GroundingInstructions::build,
                 model -> model.outputTokens() == null ? 4096 : Math.min(4096, model.outputTokens()),

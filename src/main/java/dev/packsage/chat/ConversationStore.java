@@ -76,13 +76,19 @@ public final class ConversationStore {
 
     private final Path root;
     private final Executor ioExecutor;
+    private final Executor catalogExecutor;
     private final Object writeLock = new Object();
     private CompletableFuture<Void> writes = CompletableFuture.completedFuture(null);
     private final List<String> errors = new ArrayList<>();
 
     public ConversationStore(Path root, Executor ioExecutor) {
+        this(root, ioExecutor, ioExecutor);
+    }
+
+    public ConversationStore(Path root, Executor ioExecutor, Executor catalogExecutor) {
         this.root = root;
         this.ioExecutor = ioExecutor;
+        this.catalogExecutor = catalogExecutor;
     }
 
     CompletionStage<HistoryPage> searchHistory(ChatContracts.WorldIdentity world, String text,
@@ -510,7 +516,7 @@ public final class ConversationStore {
     }
 
     public CompletionStage<List<ChatContracts.SessionSummary>> sessions() {
-        return enqueueRead(() -> {
+        return enqueueCatalogRead(() -> {
             List<ChatContracts.SessionSummary> summaries = new ArrayList<>();
             if (!Files.isDirectory(root)) return summaries;
             try (var paths = Files.walk(root, 2)) {
@@ -541,6 +547,64 @@ public final class ConversationStore {
         });
     }
 
+    public record SessionPage(List<ChatContracts.SessionSummary> sessions, boolean hasMore, int nextOffset) {
+        public SessionPage(List<ChatContracts.SessionSummary> sessions, boolean hasMore) {
+            this(sessions, hasMore, sessions.size());
+        }
+
+        public SessionPage {
+            sessions = List.copyOf(sessions);
+        }
+    }
+
+    public CompletionStage<SessionPage> sessionPage(ChatContracts.WorldIdentity currentWorld, boolean otherWorlds,
+                                                    int offset, int limit) {
+        if (offset < 0 || limit < 1) throw new IllegalArgumentException("invalid session page");
+        return enqueueCatalogRead(() -> {
+            List<java.util.Map.Entry<Path, Long>> files = new ArrayList<>();
+            List<Path> directories = new ArrayList<>();
+            try {
+                if (otherWorlds) {
+                    if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS) || !safePath(root)) return new SessionPage(List.of(), false);
+                    try (var paths = Files.list(root)) {
+                        directories.addAll(paths.filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)
+                                && safePath(path)).toList());
+                    }
+                } else {
+                    Path directory = worldDirectory(currentWorld);
+                    if (Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS) && safePath(directory)) directories.add(directory);
+                }
+                for (Path directory : directories) {
+                    try (var paths = Files.list(directory)) {
+                        for (Path file : paths.filter(path -> path.getFileName().toString().endsWith(".jsonl")).toList()) {
+                            var attributes = Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                            if (attributes.isRegularFile()) files.add(java.util.Map.entry(file, attributes.lastModifiedTime().toMillis()));
+                        }
+                    }
+                }
+                files.sort(java.util.Map.Entry.<Path, Long>comparingByValue().reversed()
+                        .thenComparing(entry -> entry.getKey().getFileName().toString()));
+                List<ChatContracts.SessionSummary> summaries = new ArrayList<>();
+                int end = (int) Math.min(files.size(), (long) offset + limit);
+                for (int index = offset; index < end; index++) {
+                    Path file = files.get(index).getKey();
+                    try {
+                        if (!safePath(file)) continue;
+                        ChatContracts.SessionSummary summary = readSummary(file,
+                                file.getParent().equals(worldDirectory(currentWorld)) ? currentWorld : null, false);
+                        if (summary != null) summaries.add(summary);
+                    } catch (IOException | RuntimeException failure) {
+                        report(failure);
+                    }
+                }
+                return new SessionPage(summaries, end < files.size(), end);
+            } catch (IOException | RuntimeException failure) {
+                report(failure);
+                throw new RuntimeException(failure);
+            }
+        });
+    }
+
     public CompletionStage<ChatContracts.SessionSummary> summary(ChatContracts.WorldIdentity world, String conversationId) {
         return enqueueRead(() -> {
             try {
@@ -556,7 +620,13 @@ public final class ConversationStore {
         List<ChatContracts.SessionSummary> loaded = new ArrayList<>();
         CompletionStage<Void> pending = CompletableFuture.completedFuture(null);
         for (ChatContracts.SessionSummary session : sessions) {
-            pending = pending.thenCompose(ignored -> summary(session.world(), session.id()).handle((summary, failure) -> {
+            pending = pending.thenCompose(ignored -> enqueueCatalogRead(() -> {
+                try {
+                    return readSummary(findConversation(session.world(), session.id()), session.world(), false);
+                } catch (IOException failure) {
+                    throw new RuntimeException(failure);
+                }
+            }).handle((summary, failure) -> {
                 loaded.add(failure == null && summary != null ? summary : session);
                 return null;
             }));
@@ -573,7 +643,8 @@ public final class ConversationStore {
                 JsonObject saved = JsonParser.parseString(Files.readString(summaryFile, StandardCharsets.UTF_8)).getAsJsonObject();
                 saved.get("title").getAsString();
                 saved.get("lastMessage").getAsString();
-                if (saved.get("world").getAsString().equals(world.worldOrServer())
+                if ((world == null || saved.get("world").getAsString().equals(world.worldOrServer()))
+                        && file.getParent().getFileName().toString().endsWith("-" + digest(saved.get("world").getAsString()))
                         && (safeName(saved.get("id").getAsString()) + "-" + digest(saved.get("id").getAsString()) + ".jsonl")
                         .equals(file.getFileName().toString())
                         && saved.get("size").getAsLong() == Files.size(file)
@@ -584,6 +655,10 @@ public final class ConversationStore {
             if (!loadTurns) {
                 try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
                     JsonObject header = JsonParser.parseString(reader.readLine()).getAsJsonObject();
+                    if (!"conversation".equals(header.get("type").getAsString())
+                            || world != null && !world.worldOrServer().equals(header.get("world").getAsString())) return null;
+                    if (world == null) world = new ChatContracts.WorldIdentity(header.get("world").getAsString(),
+                            header.has("label") ? header.get("label").getAsString() : header.get("world").getAsString());
                     String id = header.get("id").getAsString();
                     if (!(safeName(id) + "-" + digest(id) + ".jsonl").equals(file.getFileName().toString())) return null;
                     return new ChatContracts.SessionSummary(world, id, "Saved chat", "", Instant.ofEpochMilli(modifiedAt(file)));
@@ -593,8 +668,11 @@ public final class ConversationStore {
             if (conversation == null) return null;
             value = writeSummary(file, conversation);
         }
-        CompletionState state = readCompletionState(file);
+        if (world == null) world = new ChatContracts.WorldIdentity(value.get("world").getAsString(),
+                value.has("label") ? value.get("label").getAsString()
+                        : file.getParent().getFileName().toString().replaceFirst("-[0-9a-f]{16}$", "").replace('_', ' '));
         String completed = value.has("latestCompletedRequestId") ? value.get("latestCompletedRequestId").getAsString() : null;
+        CompletionState state = completed == null ? new CompletionState(null, null) : readCompletionState(file);
         return new ChatContracts.SessionSummary(world, value.get("id").getAsString(), value.get("title").getAsString(),
                 value.get("lastMessage").getAsString(), Instant.ofEpochMilli(value.get("modifiedAt").getAsLong()), false,
                 completed != null && completed.equals(state.latestCompletedRequestId())
@@ -604,6 +682,7 @@ public final class ConversationStore {
     private JsonObject writeSummary(Path file, ChatContracts.Conversation conversation) throws IOException {
         JsonObject value = new JsonObject();
         value.addProperty("world", conversation.world().worldOrServer());
+        value.addProperty("label", conversation.world().readableLabel());
         value.addProperty("id", conversation.id());
         String title = conversation.turns().isEmpty() ? "New chat" : conversation.turns().getFirst().question();
         String preview = conversation.turns().isEmpty() ? "" : conversation.turns().getLast().answer();
@@ -899,6 +978,13 @@ public final class ConversationStore {
         }
     }
 
+    private <T> CompletableFuture<T> enqueueCatalogRead(Supplier<T> operation) {
+        synchronized (writeLock) {
+            // Catalog reads observe prior saves, but never become a dependency of a selected-chat read or save.
+            return writes.handle((ignored, failure) -> null).thenApplyAsync(ignored -> operation.get(), catalogExecutor);
+        }
+    }
+
     private Path findConversation(ChatContracts.WorldIdentity world, String conversationId) {
         try {
             Path file = conversationPath(world, conversationId);
@@ -1015,6 +1101,7 @@ public final class ConversationStore {
             if (step.toolName() != null) item.addProperty("toolName", step.toolName());
             if (step.resultSummary() != null) item.addProperty("resultSummary", step.resultSummary());
             if (step.durationMillis() != null) item.addProperty("durationMillis", step.durationMillis());
+            if (step.resultDetail() != null) item.addProperty("resultDetail", step.resultDetail());
             activities.add(item);
         });
         value.add("activities", activities);
@@ -1202,7 +1289,8 @@ public final class ConversationStore {
                             ? item.get("serializedArguments").getAsString() : null,
                     item.has("toolName") ? item.get("toolName").getAsString() : null,
                     item.has("resultSummary") ? item.get("resultSummary").getAsString() : null,
-                    item.has("durationMillis") ? item.get("durationMillis").getAsLong() : null));
+                    item.has("durationMillis") ? item.get("durationMillis").getAsLong() : null,
+                    item.has("resultDetail") && !item.get("resultDetail").isJsonNull() ? item.get("resultDetail").getAsString() : null));
         });
         List<ChatContracts.SteeringMessage> steeringMessages = new ArrayList<>();
         if (value.has("steeringMessages")) value.getAsJsonArray("steeringMessages").forEach(message -> {
@@ -1221,7 +1309,7 @@ public final class ConversationStore {
                         && result.error() && result.callId().equals(callId)) {
                     activities.set(i, new ChatContracts.ActivityStep(activity.id(), activity.title(),
                             ActivityLabels.toolError(result.serializedResult()), activity.status(), activity.serializedArguments(),
-                            activity.toolName(), activity.resultSummary(), activity.durationMillis()));
+                            activity.toolName(), activity.resultSummary(), activity.durationMillis(), activity.resultDetail()));
                     break;
                 }
             }

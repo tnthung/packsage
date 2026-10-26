@@ -21,6 +21,81 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void refreshRequestedDuringShowMoreRunsAfterThePageFinishes() {
+        var actions = new FakeActions();
+        actions.settings.setSessionsBeforeCollapse(3);
+        var sessions = new ArrayList<ChatContracts.SessionSummary>();
+        for (int index = 0; index < 20; index++) sessions.add(new ChatContracts.SessionSummary(
+                actions.view.activeWorld(), "chat-" + index, "Question " + index, "", Instant.EPOCH));
+        actions.sessions = CompletableFuture.completedFuture(sessions);
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 900;
+        ScreenTestHost.initialize(screen);
+        var pendingPage = new CompletableFuture<List<ChatContracts.SessionSummary>>();
+        actions.sessions = pendingPage;
+        var more = screen.sessionRows().stream().filter(AssistantScreen.SessionRow::expand).findFirst().orElseThrow();
+        screen.mouseClicked(24, more.top() + 5, 0);
+        actions.sessions = CompletableFuture.completedFuture(sessions.subList(1, sessions.size()));
+        screen.loadSessions();
+        pendingPage.complete(sessions);
+        assertTrue(screen.sessionRows().stream().filter(row -> row.session() != null)
+                .noneMatch(row -> row.session().id().equals("chat-0")));
+    }
+
+    @Test
+    void changingOtherSessionsSettingDiscardsAnOlderPendingPage() {
+        var actions = new FakeActions();
+        var oldPage = new CompletableFuture<List<ChatContracts.SessionSummary>>();
+        actions.sessions = oldPage;
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        actions.settings.setShowChatsFromOtherSessions(true);
+        actions.sessions = CompletableFuture.completedFuture(List.of(new ChatContracts.SessionSummary(
+                new ChatContracts.WorldIdentity("other", "Other"), "new", "Other world", "", Instant.EPOCH)));
+        screen.loadSessions();
+        oldPage.complete(List.of(new ChatContracts.SessionSummary(actions.view.activeWorld(), "old", "Old", "", Instant.EPOCH)));
+        assertEquals(List.of("new"), screen.sessionRows().stream().filter(row -> row.session() != null)
+                .map(row -> row.session().id()).toList());
+    }
+
+    @Test
+    void sidebarLoadsConfiguredCountThenTenMorePerClick() {
+        var actions = new FakeActions();
+        actions.settings.setSessionsBeforeCollapse(3);
+        var sessions = new ArrayList<ChatContracts.SessionSummary>();
+        for (int index = 0; index < 26; index++) sessions.add(new ChatContracts.SessionSummary(
+                actions.view.activeWorld(), "chat-" + index, "Question " + index, "preview", Instant.EPOCH));
+        actions.sessions = CompletableFuture.completedFuture(sessions);
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 900;
+        ScreenTestHost.initialize(screen);
+        assertEquals(3, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        for (int expected : List.of(13, 23, 26)) {
+            var more = screen.sessionRows().stream().filter(AssistantScreen.SessionRow::expand).findFirst().orElseThrow();
+            screen.mouseScrolled(50, 200, 0, -100);
+            more = screen.sessionRows().stream().filter(AssistantScreen.SessionRow::expand).findFirst().orElseThrow();
+            screen.mouseClicked(24, more.top() + 5, 0);
+            assertEquals(expected, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        }
+        assertTrue(screen.sessionRows().stream().noneMatch(AssistantScreen.SessionRow::expand));
+    }
+
+    @Test
+    void expandedToolShowsSavedResultAndLegacyToolsOmitIt() {
+        var screen = new AssistantScreen(new FakeActions());
+        var step = new ChatContracts.ActivityStep("tool:result", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, "{}", "read_evidence", "Coverage: COMPLETE; records: 1",
+                600L, "Loaded fixture\nLantern\nitem: minecraft:lantern");
+        assertTrue(screen.activityBody(step, List.of()).contains("Result:\nLoaded fixture\nLantern\nitem: minecraft:lantern"));
+        assertFalse(screen.activityBody(new ChatContracts.ActivityStep("tool:old", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED), List.of()).contains("Result:"));
+    }
+
+    @Test
     void initializationShowsTheScreenBeforeSelectingHistoryForRendering() {
         FakeActions actions = new FakeActions();
         var screen = new AssistantScreen(actions);
@@ -1122,7 +1197,7 @@ class AssistantScreenStateTest {
     }
 
     @Test
-    void sidebarGroupsCurrentWorldFirstExpandsAndScrollsToEverySession() {
+    void sidebarGroupsCurrentWorldFirstPagesAndScrollsToEverySession() {
         FakeActions actions = new FakeActions();
         actions.settings.setShowChatsFromOtherSessions(true);
         var activeWorld = actions.view.activeWorld();
@@ -1137,9 +1212,10 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
         assertEquals(activeWorld, screen.sessionRows().getFirst().world());
-        assertEquals(3, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        assertEquals(2, screen.sessionRows().stream().filter(row -> row.session() != null).count());
         actions.settings.setSessionsBeforeCollapse(4);
-        assertEquals(5, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        screen.loadSessions();
+        assertEquals(4, screen.sessionRows().stream().filter(row -> row.session() != null).count());
         actions.settings.setSessionsBeforeCollapse(2);
         var expand = screen.sessionRows().stream().filter(AssistantScreen.SessionRow::expand).findFirst().orElseThrow();
         screen.mouseClicked(24, expand.top() + 5, 0);
@@ -1154,7 +1230,7 @@ class AssistantScreenStateTest {
     }
 
     @Test
-    void sidebarOtherSessionsToggleFiltersAndSavesFromTheSidebar() {
+    void sidebarDoesNotToggleOtherSessions() {
         FakeActions actions = new FakeActions();
         actions.sessions = CompletableFuture.completedFuture(List.of(
                 new ChatContracts.SessionSummary(actions.view.activeWorld(), "here", "Here", "", Instant.EPOCH),
@@ -1163,17 +1239,11 @@ class AssistantScreenStateTest {
         var screen = new AssistantScreen(actions);
         screen.width = 640;
         screen.height = 480;
-        int[] saves = {0};
-        screen.setSettingsSaver(() -> saves[0]++);
         ScreenTestHost.initialize(screen);
 
         assertEquals(List.of("here"), screen.sessionRows().stream().filter(row -> row.session() != null)
                 .map(row -> row.session().id()).toList());
-        assertTrue(screen.mouseClicked(24, 90, 0));
-        assertTrue(actions.settings.showChatsFromOtherSessions());
-        assertEquals(2, screen.sessionRows().stream().filter(row -> row.session() != null).count());
-        assertEquals(1, saves[0]);
-        assertTrue(screen.mouseClicked(24, 90, 0));
+        assertFalse(screen.mouseClicked(24, 90, 0));
         assertFalse(actions.settings.showChatsFromOtherSessions());
         assertEquals(1, screen.sessionRows().stream().filter(row -> row.session() != null).count());
     }
@@ -1190,7 +1260,11 @@ class AssistantScreenStateTest {
         assertTrue(body.contains("PARTIAL"));
         assertTrue(body.contains("records: 2"));
         assertTrue(body.contains("Route limit reached"));
-        assertTrue(body.contains("125 ms"));
+        assertTrue(body.contains("0.1 s"));
+        assertTrue(screen.activityBody(new ChatContracts.ActivityStep("tool:two", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, null, "search", null, 4_200L), List.of()).contains("Duration: 4.2 s"));
+        assertTrue(screen.activityBody(new ChatContracts.ActivityStep("tool:three", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, null, "search", null, 99L), List.of()).contains("Duration: <0.1 s"));
     }
 
     @Test

@@ -30480,7 +30480,7 @@ Final GET /prompt: {"text":null,"matchesCandidate8":true}.
 
 Date: 2026-10-26. Branch `feat/packsage-v2`; installed HEAD `9e9b775139000b3588b21cf429a5dfc72e24d885` (includes merge `c48608d`); installed JAR SHA-256 `B53DDECB51F7E4A485FC6F378C17B74CC1B0F52ACFE960E02C6F1174D6C5FA92`. [Install metadata](../../build/native-readiness-live/round2/install-metadata.json), [build/install log](../../build/native-readiness-live/round2/build-install.log).
 
-PackSage was closed with Save and Quit to Title, then Quit Game. No PackSage javaw remained before scripts/build.ps1 completed with exit 0; its test/build tasks were up to date. Two unrelated Java processes were left running, so the literal all-javaw-absent prerequisite was not met; the instance-specific installer guard passed. Built and installed hashes match. CurseForge launch input was interrupted by a physical Escape; the player then volunteered to open the instance. [Preinstall observation](../../build/native-readiness-live/round2/preinstall.json), [interruption](../../build/native-readiness-live/round2/computer-interruption.json). No source edits, branch changes or worktrees.
+PackSage was closed with Save and Quit to Title, then Quit Game. No PackSage javaw remained before scripts/build.ps1 completed with exit 0; its test/build tasks were up to date. Two unrelated Java processes were left running, so the literal all-javaw-absent prerequisite was not met; the instance-specific installer guard passed. Built and installed hashes match. CurseForge launch input was interrupted by a physical Escape; the player then volunteered to open the instance. [Preinstall observation](../../build/native-readiness-live/round2/preinstall.json), [interruption](../../build/native-readiness-live/round2/computer-interruption.json). The one delayed desktop recovery attempt still returned the same stopped-helper error; subsequent work used the bridge only. No source edits, branch changes or worktrees were made by this tester. During the round the checkout advanced with external source commits `6a2604c` (pending-loot registry classification) and `903d93a` (retained-tail record handling); the installed hash stayed unchanged. This acceptance applies to installed HEAD `9e9b775`, not those later fixes.
 
 Round-1 controller rulings apply: J14 stores origin on notes; the plain current-biome answer may use context, and W19 separately asks for tags. Candidate 9 is temporary for J12r/N1 only. Raw evidence and the token-free [HTTP ledger](../../build/native-readiness-live/round2/http.jsonl) are under build/native-readiness-live/round2. Failures are retained without rerunning to obtain a pass. Call groups are provider rounds derived from timing events.
 
@@ -30491,7 +30491,7 @@ Round-1 controller rulings apply: J14 stores origin on notes; the plain current-
 | B1 | FAIL | Advancement query stops at 64 records with a nextCall; statistics completes 36 records. |
 | D1 | NOT RUN | Master-librarian offers were not populated; trader offers had not been generated. |
 | C1 | FAIL | Bridge request_built captures tools=28 but toolNames is truncated to [search_recipe,. |
-| M5 | NOT RUN | Pending execution. |
+| M5 | NOT RUN | 2,000 breaks and TNT recorded correctly; world-close metrics and continuous visual stall check blocked. |
 | J8 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
 | J9 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
 | J13 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
@@ -30499,13 +30499,13 @@ Round-1 controller rulings apply: J14 stores origin on notes; the plain current-
 | W11 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
 | W15 | FAIL | Unloaded job-site memory returned with COMPLETE and no unavailable/PARTIAL section note. |
 | W17 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
-| W18 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
+| W18 | NOT RUN | No-pack descriptionStatus=not_provided verified; activating the resource pack is blocked. |
 | U1 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
 | U2 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
 | W12r | FAIL | All three chests stay sealed; replies omit table IDs/seeds, and known table is reported undefined. |
 | W19 | FAIL | No tool read; reply incorrectly says biome tags cannot be read. |
-| J12r | NOT RUN | Pending execution. |
-| N1 | NOT RUN | Pending execution. |
+| J12r | PASS | Deleted note stays withdrawn even after history lookup; old link is unavailable. |
+| N1 | PASS | One note follows the move, recall uses the new place, questions are not saved, and replies avoid saving chatter. |
 
 ### Passing checks and checks not run
 
@@ -30638,6 +30638,102 @@ The wandering trader at **(2305, 250, 2300)** hasn’t generated its trade offer
 Timing: {"wallMs":19139,"modelTerminalMs":"15188","toolWallMs":"132","persistMs":"1186"}.
 
 
+#### M5 - NOT RUN
+
+2,000 breaks and TNT recorded correctly; world-close metrics and continuous visual stall check blocked.
+
+All 2,000 distinct /player/break calls succeeded, at concurrency four, in 8,602 ms (maximum HTTP request 52 ms), with no transport errors/retries. The sole question returns COMPLETE and exactly 2,000 sand plus the TNT explosion breaking nine stone; all three targets open. An initial setup guard stopped on an expected no-op fill of the already-stone round-1 platform, before any break/model request; the populated fixture was reused. Save and Quit cannot be performed after desktop recovery failed, so no installed world-close journal summary, overflowed count or slowest-tick threshold is claimed. Throughput/screenshot are not substituted for continuous visual observation.
+
+Evidence: [m5-fixture-initial.json](../../build/native-readiness-live/round2/m5-fixture-initial.json).
+
+Evidence: [m5-break-all.json](../../build/native-readiness-live/round2/m5-break-all.json).
+
+Evidence: [m5-break-timing.json](../../build/native-readiness-live/round2/m5-break-timing.json).
+
+Evidence: [m5-explosion.json](../../build/native-readiness-live/round2/m5-explosion.json).
+
+Evidence: [m5-after-screenshot-path.json](../../build/native-readiness-live/round2/m5-after-screenshot-path.json).
+
+Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+Question: `what did I just dig up and blow up?`
+
+Request `340248af-5f2a-4833-9cb2-700a6a22a6d9`; conversation `c652b899-47f8-45bb-b209-905e203f2bac`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/m5-journal.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 15
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break",
+          "explosion"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You just dug up **2,000 sand blocks** across the area from (1500, 250, 1500) to (1519, 250, 1599). [journal:event:111]
+
+Then **TNT exploded** at (1534, 254, 1506), destroying **9 stone blocks** nearby. [journal:event:112] [journal:event:113]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|1533,253,1506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1534,254,1506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1500,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":19382,"modelTerminalMs":"14467","toolWallMs":"12","persistMs":"1190"}.
+
+
 #### J8 - NOT RUN
 
 Required desktop action blocked after one delayed recovery attempt.
@@ -30706,13 +30802,60 @@ Evidence: [computer-retry.json](../../build/native-readiness-live/round2/compute
 
 #### W18 - NOT RUN
 
-Required desktop action blocked after one delayed recovery attempt.
+No-pack descriptionStatus=not_provided verified; activating the resource pack is blocked.
 
-The resource pack adding the exact Speed description key was created under the instance resourcepacks folder. Activation/reload through the game screen could not be performed; with-pack branch not run.
+The fixture resource pack adds effect.minecraft.speed.description with a unique Round 2 description. It is present under the instance resourcepacks directory but is not selected in options.txt. Under default candidate 8 the no-pack question reads search_registry(mob_effect, Speed), returns descriptionStatus=not_provided and the 20 percent movement-speed modifier. The with-pack question was not submitted because desktop activation/reload is blocked. Speed was cleared afterwards.
+
+Evidence: [w18-resource-pack-fixture.json](../../build/native-readiness-live/round2/w18-resource-pack-fixture.json).
 
 Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
 
 Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+Question: `what does Speed do?`
+
+Request `b230f116-2f2b-444f-8a5b-e5b126e23dbf`; conversation `c7a6a3a3-2b3e-4e8d-9574-636d94158a4d`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/w18-baseline.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "mob_effect",
+      "filter": {
+        "text": "Speed",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 64,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+**Speed makes you move faster.** In this pack, Speed I increases movement speed by 20%, Speed II by 40%, and each additional level adds another 20%. [native:mob_effect:minecraft:speed]
+```
+
+`/navigate` results (none; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":13872,"modelTerminalMs":"9985","toolWallMs":"11","persistMs":"1300"}.
 
 
 #### U1 - NOT RUN
@@ -30735,6 +30878,634 @@ Settings-screen save and shutdown overlap cannot be performed. No shutdown-order
 Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
 
 Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+
+#### J12r - PASS
+
+Deleted note stays withdrawn even after history lookup; old link is unavailable.
+
+Exact candidate-9 text was posted from a JSON file and verified against both text and effectiveText. remember creates amber relay note n7d24afdf. forget_note deletes it. Recall finds prior report/delete chats through search_history but states no saved place remains, without restoring coordinates. Each question is a fresh conversation. No answer retry.
+
+Evidence: [candidate-9-body.json](../../build/native-readiness-live/round2/candidate-9-body.json).
+
+Evidence: [candidate-9-check.json](../../build/native-readiness-live/round2/candidate-9-check.json).
+
+Question: `I built an amber relay here`
+
+Request `31d3d130-4dd4-4bb1-b53f-238f1e1c4159`; conversation `90fdc268-06b3-4509-9349-f4f1c11c5624`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/j12r-report.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "remember",
+    "arguments": {
+      "text": "I built an amber relay here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "amber_relay"
+      ]
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Nice—an amber relay here!
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n7d24afdf",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":14920,"modelTerminalMs":"11048","toolWallMs":"22","persistMs":"1256"}.
+
+Question: `delete my amber relay note`
+
+Request `713a8134-161d-4f56-af32-b3733bdd74de`; conversation `e1eabb6c-af36-44ca-9446-71c07220515c`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/j12r-delete.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": [
+          "note"
+        ],
+        "subjects": null,
+        "text": "amber relay",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "forget_note",
+    "arguments": {
+      "id": "n7d24afdf"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "note n7d24afdf forgotten",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Deleted your amber relay note.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n7d24afdf",
+    "result": {
+      "status": "UNAVAILABLE",
+      "detail": "Navigation target is no longer available"
+    }
+  }
+]
+```
+
+Timing: {"wallMs":21181,"modelTerminalMs":"14319","toolWallMs":"14","persistMs":"1160"}.
+
+Question: `where is my amber relay?`
+
+Request `1d0b16a2-92c0-4b9d-909e-f4bbaf160eb3`; conversation `2e2a8254-8219-4ca4-835e-7bdbb82d3ab7`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/j12r-recall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "find_items",
+    "arguments": {
+      "filter": {
+        "ids": null,
+        "tags": null,
+        "text": "amber relay",
+        "tooltip": null
+      },
+      "center": null,
+      "radius": null,
+      "includeNested": true,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "item",
+      "filter": {
+        "text": "amber relay",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 64,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "amber relay",
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "3",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "amber",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "4",
+    "name": "search_history",
+    "arguments": {
+      "text": "amber relay",
+      "limit": 16,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "Conversation session limit reached.",
+    "recordCount": 2,
+    "nextCursor": "72db5073-4ca6-4799-8594-da805352e981",
+    "nextCall": {
+      "name": "search_history",
+      "arguments": {
+        "text": "amber relay",
+        "limit": 16,
+        "cursor": "72db5073-4ca6-4799-8594-da805352e981"
+      }
+    }
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I can’t locate your amber relay from the current records. You asked me to delete its location note, so I no longer have a saved place for it. [history:bb6e5a7b-2242-49ef-8815-ed925560e9f0]
+```
+
+`/navigate` results (none; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":39743,"modelTerminalMs":"32842","toolWallMs":"487","persistMs":"1220"}.
+
+
+#### N1 - PASS
+
+One note follows the move, recall uses the new place, questions are not saved, and replies avoid saving chatter.
+
+remember creates indigo orchard n1899bc0b at (2320,250,2320). update_note modifies that same ID using at=player and clearPlace=null after the move. Recall returns exactly one orchard note at (2350,250,2320). The plain beacon question only calls search_registry; the memory question only calls search_journal and lists the orchard once as the player report. All returned navigation targets open. No reply says it saved the reports. Each question uses a fresh chat. Candidate 9 was then cleared; GET /prompt text=null and effectiveText exactly equals candidate 8.
+
+Evidence: [candidate-9-check.json](../../build/native-readiness-live/round2/candidate-9-check.json).
+
+Evidence: [n1-move-fixture.json](../../build/native-readiness-live/round2/n1-move-fixture.json).
+
+Evidence: [candidate-8-restored-check.json](../../build/native-readiness-live/round2/candidate-8-restored-check.json).
+
+Question: `I built an indigo orchard here`
+
+Request `46c8b2e6-12de-460f-838d-a5762635aaa3`; conversation `3c158a81-acce-48ba-b641-8c7fe33ec58e`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/n1-report.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "remember",
+    "arguments": {
+      "text": "I built an indigo orchard here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "orchard"
+      ]
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Nice—an indigo orchard at (2320, 250, 2320)!
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n1899bc0b",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":12668,"modelTerminalMs":"9063","toolWallMs":"28","persistMs":"1228"}.
+
+Question: `I moved my indigo orchard`
+
+Request `235d77c0-e2a2-48ee-9834-c1f3859aa2ba`; conversation `b5808050-4618-47a4-9cde-dd0d3c617f81`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/n1-move.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "indigo orchard",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "update_note",
+    "arguments": {
+      "text": "I moved my indigo orchard here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "orchard"
+      ],
+      "id": "n1899bc0b",
+      "clearPlace": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Got it—your indigo orchard is at the new spot.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n1899bc0b",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":20314,"modelTerminalMs":"14031","toolWallMs":"38","persistMs":"1144"}.
+
+Question: `where is my indigo orchard?`
+
+Request `a12a01ac-84d2-4d72-b089-4f6acc257a36`; conversation `b23a503d-da90-4742-9c50-e81a010342ea`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/n1-recall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "indigo orchard",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You told me you moved your **indigo orchard** to **(2350, 250, 2320)** in the Overworld. [Go to your orchard](journal:note:n1899bc0b)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n1899bc0b",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":17539,"modelTerminalMs":"10754","toolWallMs":"2","persistMs":"1126"}.
+
+Question: `what is a beacon?`
+
+Request `78f3b22f-528a-403d-9472-516be98243b9`; conversation `c16a26e3-a160-4ef5-be31-81f32c6b87cf`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/n1-question.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "block",
+      "filter": {
+        "text": "beacon",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 10,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "item",
+      "filter": {
+        "text": "beacon",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 10,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+A **beacon** is a block that can mark a location with a beam of light and give nearby players helpful effects. To get those effects, place it on a pyramid of mineral blocks; the pyramid’s size determines which effects you can choose. Your pack has the Beacon block, though the effect explanation here comes from Minecraft’s guide rather than a read of a placed beacon. [native:block:minecraft:beacon] ([minecraft.net](https://www.minecraft.net/nl-nl/article/ten-rare-recipes))
+```
+
+`/navigate` results (none; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":27166,"modelTerminalMs":"21690","toolWallMs":"8","persistMs":"1119"}.
+
+Question: `what do you remember about me?`
+
+Request `5b3d1163-f501-4a21-aaf4-50281dd11015`; conversation `d35f7855-a426-4e9f-b79d-9fc04eb2b081`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/n1-memories.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": null,
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 9,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I remember what you’ve **told me about your Minecraft world**, rather than personal details about you. These are your reports, not builds I’ve verified:
+
+- You moved your **indigo orchard** to (2350, 250, 2320) [journal:note:n1899bc0b].
+- You described an **amber observatory archive** with an east reading alcove, a copper clock over the entrance, numbered shelves, a dry map room, and a blue lantern by its telescope. You said its last page names the brass comet as the final marker [journal:note:n17c90a15].
+- You reported an **iron farm** at (1003, 250, 1008) [journal:note:n40ef0da1], and a separate iron-farm note says you later moved it without specifying the new location [journal:note:n02e8ca4d].
+- You reported **cactus farms** at (1055, 250, 1014) [journal:note:n75d1c514], (1025, 250, 1044) [journal:note:n6a1d5dcc], (1025, 250, 1094) [journal:note:nd9b5d340], and (1025, 250, 1134) [journal:note:nd08a7cde]. You asked why they were slow.
+- You reported a **sugar cane farm** at (1025, 250, 1011), also asking why it was slow [journal:note:n41b94cb6].
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n1899bc0b",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-note|nd08a7cde",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-note|nd9b5d340",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-note|n6a1d5dcc",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-note|n75d1c514",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-note|n41b94cb6",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-note|n40ef0da1",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":23487,"modelTerminalMs":"16662","toolWallMs":"3","persistMs":"1186"}.
 
 
 ### Failures
@@ -30790,7 +31561,7 @@ Calls (exact arguments, groups, coverage/detail and continuation):
 
 Verbatim reply:
 
-```text
+````text
 To craft a beacon, put **5 glass, 1 Nether Star, and 3 obsidian** in a crafting table like this: [native:plan|minecraft:beacon|1|2|0|minecraft:beacon]
 
 ```text
@@ -30800,7 +31571,7 @@ Obsidian   Obsidian     Obsidian
 ```
 
 That recipe produces **one beacon**. [native:plan|minecraft:beacon|1|2|0|minecraft:beacon]
-```
+````
 
 `/navigate` results (none; see assessment):
 
@@ -30855,7 +31626,7 @@ Calls (exact arguments, groups, coverage/detail and continuation):
 
 Verbatim reply:
 
-```text
+````text
 Craft **64 enchanting tables** in a crafting table. The loaded recipe makes one table from **1 book, 2 diamonds, and 4 obsidian**, so for 64 crafts, gather **64 books, 128 diamonds, and 256 obsidian** (assuming the ingredients are consumed normally). [native:minecraft:enchanting_table]
 
 ```text
@@ -30865,7 +31636,7 @@ Craft **64 enchanting tables** in a crafting table. The loaded recipe makes one 
 ```
 
 Repeat the recipe 64 times. [native:minecraft:enchanting_table]
-```
+````
 
 `/navigate` results (none; see assessment):
 
@@ -31381,6 +32152,8 @@ The timing capture contains only the first space-delimited piece of the list. No
 
 Evidence: [c1-request-built.json](../../build/native-readiness-live/round2/c1-request-built.json).
 
+Evidence: [c1-log-observation.json](../../build/native-readiness-live/round2/c1-log-observation.json).
+
 
 #### W15 - FAIL
 
@@ -31618,3 +32391,36 @@ You’re in **minecraft:plains**, but I can’t read this pack’s biome-tag reg
 ```
 
 Timing: {"wallMs":19294,"modelTerminalMs":"13374","toolWallMs":"0","persistMs":"1184"}.
+
+
+### Final state
+
+```json
+{
+  "world": "PackSage Adapter Filter Live Test",
+  "save": "PackSage Adapter Filter Live Test",
+  "paused": false,
+  "running": true,
+  "screen": null,
+  "dimension": "minecraft:overworld",
+  "position": [
+    1191.5,
+    250,
+    1057.5
+  ],
+  "yaw": -90,
+  "pitch": 9.090277,
+  "health": 20,
+  "gamemode": "creative",
+  "gameTime": 1425860,
+  "dayTime": 78152,
+  "selectedHotbarSlot": 0,
+  "crosshairTarget": null,
+  "riddenEntity": null,
+  "menuId": 0
+}
+```
+
+Final GET /prompt: {"text":null,"matchesCandidate8":true}.
+
+[Final installed/configuration verification](../../build/native-readiness-live/round2/final-verification.json), [final screenshot](../../build/native-readiness-live/round2/final-state.png), [evidence completeness](../../build/native-readiness-live/round2/evidence-completeness.json). All 23 submitted questions have completed saved responses, exact inputs, navigation results and wall timings. The temporary Speed effect and 21 force-loaded fixture chunks were cleared; the W18 resource-pack folder remains available but inactive.

@@ -30475,3 +30475,38 @@ Final GET /prompt: {"text":null,"matchesCandidate8":true}.
 - **J12: FAIL, prompt.** After an explicit delete, the model restated the note's place from search_history. Candidate 9 adds one rule to the note-keeping paragraph: a note the player had you forget or delete is withdrawn and is not restored from history. Round 2 tests it.
 - **W12: FAIL, code.** list_items and inspect_block name a pending table but not its seed or whether that table is known, unknown or empty, and they do not point to read_loot. A fix is queued.
 - **The 12 NOT RUN checks** go to round 2. Most stopped when desktop control did.
+
+## Native readiness round 2
+
+Date: 2026-10-26. Branch `feat/packsage-v2`; installed HEAD `9e9b775139000b3588b21cf429a5dfc72e24d885` (includes merge `c48608d`); installed JAR SHA-256 `B53DDECB51F7E4A485FC6F378C17B74CC1B0F52ACFE960E02C6F1174D6C5FA92`. [Install metadata](../../build/native-readiness-live/round2/install-metadata.json), [build/install log](../../build/native-readiness-live/round2/build-install.log).
+
+PackSage was closed with Save and Quit to Title, then Quit Game. No PackSage javaw remained before scripts/build.ps1 completed with exit 0; its test/build tasks were up to date. Two unrelated Java processes were left running, so the literal all-javaw-absent prerequisite was not met; the instance-specific installer guard passed. Built and installed hashes match. CurseForge launch input was interrupted by a physical Escape; the player then volunteered to open the instance. [Preinstall observation](../../build/native-readiness-live/round2/preinstall.json), [interruption](../../build/native-readiness-live/round2/computer-interruption.json). No source edits, branch changes or worktrees.
+
+Round-1 controller rulings apply: J14 stores origin on notes; the plain current-biome answer may use context, and W19 separately asks for tags. Candidate 9 is temporary for J12r/N1 only. Raw evidence and the token-free [HTTP ledger](../../build/native-readiness-live/round2/http.jsonl) are under build/native-readiness-live/round2. Failures are retained without rerunning to obtain a pass. Call groups are provider rounds derived from timing events.
+
+| Check | Status | Observation |
+|---|---|---|
+| A1 | NOT RUN | Pending execution. |
+| A2 | NOT RUN | Pending execution. |
+| B1 | NOT RUN | Pending execution. |
+| D1 | NOT RUN | Pending execution. |
+| C1 | NOT RUN | Pending execution. |
+| M5 | NOT RUN | Pending execution. |
+| J8 | NOT RUN | Pending execution. |
+| J9 | NOT RUN | Pending execution. |
+| J13 | NOT RUN | Pending execution. |
+| P9/J7 | NOT RUN | Pending execution. |
+| W11 | NOT RUN | Pending execution. |
+| W15 | NOT RUN | Pending execution. |
+| W17 | NOT RUN | Pending execution. |
+| W18 | NOT RUN | Pending execution. |
+| U1 | NOT RUN | Pending execution. |
+| U2 | NOT RUN | Pending execution. |
+| W12r | NOT RUN | Pending execution. |
+| W19 | NOT RUN | Pending execution. |
+| J12r | NOT RUN | Pending execution. |
+| N1 | NOT RUN | Pending execution. |
+
+### Passing checks and checks not run
+
+### Failures

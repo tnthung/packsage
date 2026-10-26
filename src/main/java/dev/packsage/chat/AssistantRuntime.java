@@ -435,6 +435,14 @@ public final class AssistantRuntime implements ChatActions {
     }
 
     @Override
+    public CompletionStage<Void> loadSessions(Consumer<List<ChatContracts.SessionSummary>> refresh) {
+        return store.sessions().thenCompose(stored -> {
+            refresh.accept(mergeSessions(stored));
+            return store.loadSummaries(stored).thenAccept(loaded -> refresh.accept(mergeSessions(loaded)));
+        });
+    }
+
+    @Override
     public void markRead(ChatContracts.SessionSummary session, ChatContracts.RequestId expectedCompletion) {
         Objects.requireNonNull(session);
         Objects.requireNonNull(expectedCompletion);
@@ -1578,13 +1586,12 @@ public final class AssistantRuntime implements ChatActions {
             generation = ++sessionListGeneration;
         }
         if (screen == null) return;
-        sessions().whenCompleteAsync((values, failure) -> {
-            if (failure != null) return;
+        loadSessions(values -> clientExecutor.execute(() -> {
             synchronized (stateLock) {
                 if (generation != sessionListGeneration || screen != currentScreen) return;
             }
             screen.refreshSessions(values);
-        }, clientExecutor);
+        }));
     }
 
     private List<ChatContracts.SessionSummary> mergeSessions(List<ChatContracts.SessionSummary> stored) {

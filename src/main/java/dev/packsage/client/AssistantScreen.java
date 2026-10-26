@@ -153,7 +153,7 @@ public final class AssistantScreen extends Screen {
     private void loadSessions() {
         long generation = ++catalogGeneration;
         try {
-            actions.sessions().thenAccept(values -> {
+            actions.loadSessions(values -> {
                 Runnable update = () -> {
                     if (generation == catalogGeneration) sessions = List.copyOf(values);
                 };

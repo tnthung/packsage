@@ -526,7 +526,7 @@ public final class ConversationStore {
                         if (!"conversation".equals(header.get("type").getAsString())) continue;
                         ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity(header.get("world").getAsString(),
                                 header.has("label") ? header.get("label").getAsString() : header.get("world").getAsString());
-                        ChatContracts.SessionSummary summary = readSummary(file, world);
+                        ChatContracts.SessionSummary summary = readSummary(file, world, false);
                         if (summary != null) summaries.add(summary);
                     } catch (IOException exception) {
                         report(exception);
@@ -544,7 +544,7 @@ public final class ConversationStore {
     public CompletionStage<ChatContracts.SessionSummary> summary(ChatContracts.WorldIdentity world, String conversationId) {
         return enqueueRead(() -> {
             try {
-                return readSummary(findConversation(world, conversationId), world);
+                return readSummary(findConversation(world, conversationId), world, true);
             } catch (IOException exception) {
                 report(exception);
                 throw new RuntimeException(exception);
@@ -552,13 +552,27 @@ public final class ConversationStore {
         });
     }
 
-    private ChatContracts.SessionSummary readSummary(Path file, ChatContracts.WorldIdentity world) throws IOException {
+    public CompletionStage<List<ChatContracts.SessionSummary>> loadSummaries(List<ChatContracts.SessionSummary> sessions) {
+        List<ChatContracts.SessionSummary> loaded = new ArrayList<>();
+        CompletionStage<Void> pending = CompletableFuture.completedFuture(null);
+        for (ChatContracts.SessionSummary session : sessions) {
+            pending = pending.thenCompose(ignored -> summary(session.world(), session.id()).handle((summary, failure) -> {
+                loaded.add(failure == null && summary != null ? summary : session);
+                return null;
+            }));
+        }
+        return pending.thenApply(ignored -> List.copyOf(loaded));
+    }
+
+    private ChatContracts.SessionSummary readSummary(Path file, ChatContracts.WorldIdentity world, boolean loadTurns) throws IOException {
         Path summaryFile = file.resolveSibling(file.getFileName().toString().replaceFirst("\\.jsonl$", ".summary.json"));
         JsonObject value = null;
         if (safePath(summaryFile) && Files.isRegularFile(summaryFile, LinkOption.NOFOLLOW_LINKS)
                 && Files.size(summaryFile) <= 65_536) {
             try {
                 JsonObject saved = JsonParser.parseString(Files.readString(summaryFile, StandardCharsets.UTF_8)).getAsJsonObject();
+                saved.get("title").getAsString();
+                saved.get("lastMessage").getAsString();
                 if (saved.get("world").getAsString().equals(world.worldOrServer())
                         && (safeName(saved.get("id").getAsString()) + "-" + digest(saved.get("id").getAsString()) + ".jsonl")
                         .equals(file.getFileName().toString())
@@ -567,6 +581,14 @@ public final class ConversationStore {
             } catch (RuntimeException ignored) { }
         }
         if (value == null) {
+            if (!loadTurns) {
+                try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                    JsonObject header = JsonParser.parseString(reader.readLine()).getAsJsonObject();
+                    String id = header.get("id").getAsString();
+                    if (!(safeName(id) + "-" + digest(id) + ".jsonl").equals(file.getFileName().toString())) return null;
+                    return new ChatContracts.SessionSummary(world, id, "Saved chat", "", Instant.ofEpochMilli(modifiedAt(file)));
+                }
+            }
             ChatContracts.Conversation conversation = readConversation(file, world);
             if (conversation == null) return null;
             value = writeSummary(file, conversation);

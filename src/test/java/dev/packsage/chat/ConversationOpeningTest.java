@@ -5,9 +5,12 @@ import dev.packsage.model.ModelBackend;
 import jdk.jfr.Recording;
 import jdk.jfr.consumer.RecordingFile;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -29,8 +32,9 @@ class ConversationOpeningTest {
     @TempDir
     Path temporaryDirectory;
 
-    @Test
-    void listingSessionsReadsOnlySmallFilesAndDefersFullBodiesToIoThread() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void listingSessionsReadsOnlySmallFilesAndDefersFullBodiesToIoThread(boolean legacy) throws Exception {
         Path root = temporaryDirectory.resolve("conversations");
         var world = new ChatContracts.WorldIdentity("opening-world", "Opening World");
         var setup = new ConversationStore(root, Runnable::run);
@@ -43,6 +47,11 @@ class ConversationOpeningTest {
                     new ChatContracts.Context("context", null, SCOPE), List.of(), List.of(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1,
                     Instant.parse("2026-10-01T00:00:00Z"))).toCompletableFuture().join();
+        }
+        if (legacy) {
+            try (var files = Files.walk(root)) {
+                for (Path summary : files.filter(path -> path.toString().endsWith(".summary.json")).toList()) Files.delete(summary);
+            }
         }
 
         BlockingQueue<Runnable> queued = new LinkedBlockingQueue<>();
@@ -104,8 +113,8 @@ class ConversationOpeningTest {
         }
         List<Path> largeReads = bytesByFile.entrySet().stream().filter(entry -> entry.getValue() > 64 * 1024)
                 .map(Map.Entry::getKey).toList();
-        System.out.printf("Conversation opening: caller scheduling=%dms, sessions=%dms, selected=%dms, sessions+selected wall=%dms, "
-                + "JFR bytes=%d, files over 64KB=%d/%d%n", callerMillis, operationMillis[0], operationMillis[1], readsWallMillis, totalBytes,
+        System.out.printf("Conversation opening legacy=%s: caller scheduling=%dms, sessions=%dms, selected=%dms, sessions+selected wall=%dms, "
+                + "JFR bytes=%d, files over 64KB=%d/%d%n", legacy, callerMillis, operationMillis[0], operationMillis[1], readsWallMillis, totalBytes,
                 largeReads.size(), 24);
         assertTrue(largeReads.size() <= 1, "full conversation bodies read: " + largeReads);
     }

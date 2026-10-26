@@ -113,6 +113,35 @@ class ConversationStoreTest {
     }
 
     @Test
+    void legacySummaryBackfillYieldsToSelectedConversationReads() throws Exception {
+        var world = new ChatContracts.WorldIdentity("world-a", "World");
+        var setup = new ConversationStore(temporaryDirectory, DIRECT);
+        var selected = setup.newConversation(world).toCompletableFuture().join();
+        for (int index = 0; index < 3; index++) {
+            var conversation = setup.newConversation(world).toCompletableFuture().join();
+            setup.appendTurn(world, SCOPE, conversation.id(), simpleTurn("question " + index)).toCompletableFuture().join();
+        }
+        try (var files = Files.walk(temporaryDirectory)) {
+            for (Path summary : files.filter(path -> path.toString().endsWith(".summary.json")).toList()) Files.delete(summary);
+        }
+        List<Runnable> pending = new java.util.ArrayList<>();
+        var store = new ConversationStore(temporaryDirectory, pending::add);
+        var listed = store.sessions().toCompletableFuture();
+        pending.removeFirst().run();
+        assertEquals(4, listed.join().size());
+        assertTrue(listed.join().stream().allMatch(summary -> summary.title().equals("Saved chat")));
+
+        var backfill = store.loadSummaries(listed.join()).toCompletableFuture();
+        var opened = store.openConversation(world, selected.id()).toCompletableFuture();
+        pending.removeFirst().run();
+        pending.removeFirst().run();
+        assertTrue(opened.isDone());
+        assertFalse(backfill.isDone());
+        while (!pending.isEmpty()) pending.removeFirst().run();
+        assertTrue(backfill.join().stream().anyMatch(summary -> summary.title().equals("question 2")));
+    }
+
+    @Test
     void loadingFailedToolActivityEnrichesOnlyGenericDetailsFromSavedReplayResults() {
         ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
         ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "Readable World");

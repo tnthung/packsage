@@ -21,6 +21,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void sidebarListStartsFourPixelsAfterNewChat() {
+        var actions = new FakeActions();
+        actions.sessions = CompletableFuture.completedFuture(List.of(new ChatContracts.SessionSummary(
+                actions.view.activeWorld(), "chat", "Question", "", Instant.EPOCH)));
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        assertEquals(84, screen.sessionRows().getFirst().top());
+    }
+
+    @Test
     void repeatedScreenPreparationReusesLayoutAndRefreshInvalidatesIt() throws Exception {
         var actions = new FakeActions();
         var screen = new AssistantScreen(actions);

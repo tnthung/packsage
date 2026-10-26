@@ -27,6 +27,7 @@ class PackSageSettingsTest {
         assertTrue(settings.openPaused());
         assertTrue(settings.automaticWebSearch());
         assertTrue(settings.hideInactiveAdapters());
+        assertFalse(settings.showChatsFromOtherSessions());
         assertEquals(10, settings.historyTurns());
         assertEquals(12_000, settings.historicalTokens());
         assertEquals(PackSageSettings.SendShortcut.ENTER, settings.sendShortcut());
@@ -50,6 +51,7 @@ class PackSageSettingsTest {
         assertFalse(loaded.openPaused());
         assertFalse(loaded.automaticWebSearch());
         assertFalse(loaded.hideInactiveAdapters());
+        assertFalse(loaded.showChatsFromOtherSessions());
         assertEquals(25, loaded.historyTurns());
         assertEquals(20_000, loaded.historicalTokens());
         assertEquals(PackSageSettings.SendShortcut.CTRL_ENTER, loaded.sendShortcut());
@@ -62,6 +64,23 @@ class PackSageSettingsTest {
         assertFalse(loaded.setSessionsBeforeCollapse(0));
         assertFalse(loaded.setSessionsBeforeCollapse(PackSageSettings.MAX_SESSIONS_BEFORE_COLLAPSE + 1));
         assertEquals(5, loaded.sessionsBeforeCollapse());
+    }
+
+    @Test
+    void showChatsFromOtherSessionsDefaultsWhenAbsentAndPersistsBothValues() throws Exception {
+        Path legacy = temporaryDirectory.resolve("legacy-settings.properties");
+        Files.writeString(legacy, "openPaused=false\n");
+        assertFalse(PackSageSettings.load(legacy).showChatsFromOtherSessions());
+
+        Path path = temporaryDirectory.resolve("other-sessions.properties");
+        PackSageSettings settings = PackSageSettings.defaults();
+        settings.setShowChatsFromOtherSessions(true);
+        settings.save(path).join();
+        assertTrue(PackSageSettings.load(path).showChatsFromOtherSessions());
+
+        settings.setShowChatsFromOtherSessions(false);
+        settings.save(path).join();
+        assertFalse(PackSageSettings.load(path).showChatsFromOtherSessions());
     }
 
     @Test

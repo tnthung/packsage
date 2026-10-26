@@ -102,11 +102,11 @@ public final class RecipeCardModels {
             var texts = new ArrayList<RecipeCardModel.Text>();
             if (List.of(RecipeCardModel.Category.SMELTING, RecipeCardModel.Category.BLASTING, RecipeCardModel.Category.SMOKING, RecipeCardModel.Category.CAMPFIRE).contains(category)) {
                 if (payload.has("cookingTime") && payload.get("cookingTime").getAsInt() > 0)
-                    texts.add(new RecipeCardModel.Text(payload.get("cookingTime").getAsInt() / 20 + "s", 82, category == RecipeCardModel.Category.CAMPFIRE ? 36 : 46, true));
+                    texts.add(new RecipeCardModel.Text(payload.get("cookingTime").getAsInt() / 20 + "s", RecipeCardLayouts.COOKING_TEXT_X, category == RecipeCardModel.Category.CAMPFIRE ? RecipeCardLayouts.CAMPFIRE_TIME_Y : RecipeCardLayouts.COOKING_TIME_Y, true));
                 if (category != RecipeCardModel.Category.CAMPFIRE && payload.has("experience") && payload.get("experience").getAsFloat() > 0)
-                    texts.add(new RecipeCardModel.Text(payload.get("experience").getAsFloat() + " XP", 82, 0, true));
+                    texts.add(new RecipeCardModel.Text(payload.get("experience").getAsFloat() + " XP", RecipeCardLayouts.COOKING_TEXT_X, RecipeCardLayouts.EXPERIENCE_Y, true));
             }
-            if (category == RecipeCardModel.Category.BREWING) texts.add(new RecipeCardModel.Text("Steps: ?", 70, 28, false));
+            if (category == RecipeCardModel.Category.BREWING) texts.add(new RecipeCardModel.Text("Steps: ?", RecipeCardLayouts.BREWING_STEPS_X, RecipeCardLayouts.BREWING_STEPS_Y, false));
             return Optional.of(new RecipeCardModel(category, layout.width(), layout.height(), List.copyOf(slots), layout.caption(), List.copyOf(texts)));
         } catch (RuntimeException failure) {
             return Optional.empty();

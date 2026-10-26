@@ -36,6 +36,7 @@ import java.util.Set;
 public final class AssistantScreen extends Screen {
     public record RuntimeState(boolean privateSingleplayer, boolean integratedServer, boolean published) { }
     public static final int QUESTION_MAX_LENGTH = 1000;
+    private static final int SESSION_LIST_TOP = 84;
     private static final int ACTIVITY_ARGUMENTS_INPUT_LIMIT = 16_384;
     private static final int ACTIVITY_ARGUMENTS_DISPLAY_LIMIT = 2_048;
     private static final Gson ACTIVITY_ARGUMENTS_JSON = new GsonBuilder().serializeNulls().disableHtmlEscaping().create();
@@ -279,8 +280,8 @@ public final class AssistantScreen extends Screen {
     @Override
     public Component getNarrationMessage() {
         List<String> unread = sessionRows().stream().filter(row -> row.session() != null
-                        && row.session().unreadRequestId() != null && row.top() + row.height() > 104
-                        && row.top() < Math.max(105, height - 56))
+                        && row.session().unreadRequestId() != null && row.top() + row.height() > SESSION_LIST_TOP
+                        && row.top() < Math.max(SESSION_LIST_TOP + 1, height - 56))
                 .map(row -> "Unread completed response in " + row.label()).toList();
         if (unread.isEmpty()) return super.getNarrationMessage();
         return Component.literal(super.getNarrationMessage().getString() + ". " + String.join(". ", unread));
@@ -378,7 +379,7 @@ public final class AssistantScreen extends Screen {
         List<Map.Entry<String, List<ChatContracts.SessionSummary>>> ordered = new ArrayList<>(groups.entrySet());
         ordered.sort((first, second) -> Boolean.compare(!first.getKey().equals(view.activeWorld().worldOrServer()),
                 !second.getKey().equals(view.activeWorld().worldOrServer())));
-        int y = 108 - sidebarScroll;
+        int y = SESSION_LIST_TOP - sidebarScroll;
         List<SessionRow> rows = new ArrayList<>();
         for (Map.Entry<String, List<ChatContracts.SessionSummary>> group : ordered) {
             ChatContracts.WorldIdentity world = group.getKey().equals(view.activeWorld().worldOrServer())
@@ -396,21 +397,21 @@ public final class AssistantScreen extends Screen {
             rows.add(new SessionRow(view.activeWorld(), null, sessionsLoading ? "Loading chats..." : "Show more", y, 24, true));
             y += 24;
         }
-        sidebarContentHeight = y + sidebarScroll - 108;
+        sidebarContentHeight = y + sidebarScroll - SESSION_LIST_TOP;
         return rows;
     }
 
     private void drawSessionGroups(GuiGraphics graphics, int mouseX, int mouseY) {
         List<SessionRow> rows = sessionRows();
-        int bottom = Math.max(105, height - 56);
-        int maxScroll = Math.max(0, sidebarContentHeight - (bottom - 104));
+        int bottom = Math.max(SESSION_LIST_TOP + 1, height - 56);
+        int maxScroll = Math.max(0, sidebarContentHeight - (bottom - SESSION_LIST_TOP));
         if (sidebarScroll > maxScroll) {
             sidebarScroll = maxScroll;
             rows = sessionRows();
         }
-        graphics.enableScissor(0, 104, sidebarWidth, bottom);
+        graphics.enableScissor(0, SESSION_LIST_TOP, sidebarWidth, bottom);
         for (SessionRow row : rows) {
-            if (row.top() + row.height() <= 104 || row.top() >= bottom) continue;
+            if (row.top() + row.height() <= SESSION_LIST_TOP || row.top() >= bottom) continue;
             if (row.session() == null) {
                 if (!row.expand()) graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/globe.png"),
                         16, row.top() + (row.height() - 14) / 2, 14, 14, 0.0F, 0.0F, 64, 64, 64, 64);
@@ -464,9 +465,9 @@ public final class AssistantScreen extends Screen {
         }
         graphics.disableScissor();
         if (maxScroll > 0) {
-            int track = bottom - 104;
+            int track = bottom - SESSION_LIST_TOP;
             int thumb = Math.max(12, track * track / (track + maxScroll));
-            int y = 104 + sidebarScroll * (track - thumb) / maxScroll;
+            int y = SESSION_LIST_TOP + sidebarScroll * (track - thumb) / maxScroll;
             graphics.fill(sidebarWidth - 3, y, sidebarWidth - 1, y + thumb, ModernUi.BORDER);
         }
     }
@@ -1424,9 +1425,9 @@ public final class AssistantScreen extends Screen {
         if (inputEditor != null && inputEditor.isMouseOver(mouseX, mouseY)) return inputEditor.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (sessionSearchEditor != null && sessionSearchEditor.isMouseOver(mouseX, mouseY)) return sessionSearchEditor.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (mouseX < sidebarWidth) {
-            if (mouseY >= 104 && mouseY < height - 56) {
+            if (mouseY >= SESSION_LIST_TOP && mouseY < height - 56) {
                 sessionRows();
-                sidebarScroll = Math.max(0, Math.min(Math.max(0, sidebarContentHeight - (height - 160)), sidebarScroll - (int) (scrollY * 28)));
+                sidebarScroll = Math.max(0, Math.min(Math.max(0, sidebarContentHeight - (height - 56 - SESSION_LIST_TOP)), sidebarScroll - (int) (scrollY * 28)));
                 return true;
             }
             return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
@@ -1478,7 +1479,7 @@ public final class AssistantScreen extends Screen {
         setFocused(null);
         if (mouseX < sidebarWidth) {
             if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 60 && mouseY < 80) { newChat(); return true; }
-            if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 104 && mouseY < height - 56) {
+            if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= SESSION_LIST_TOP && mouseY < height - 56) {
                 for (SessionRow row : sessionRows()) {
                     if (mouseY < row.top() || mouseY >= row.top() + row.height()) continue;
                     if (row.expand()) {

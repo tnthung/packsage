@@ -1518,7 +1518,7 @@ public final class AssistantScreen extends Screen {
     private void saveConversationState(ConversationKey key) {
         if (inputEditor != null) input = inputEditor.value();
         if (!deletedConversationKeys.contains(key)) conversationStates.put(key, new ConversationUiState(input, editingRequest,
-                resendingRequest, scrollOffset, followBottom, followOnCompletion, Map.copyOf(activityExpansion),
+                resendingRequest, scrollOffset, visibleTurnCount, followBottom, followOnCompletion, Map.copyOf(activityExpansion),
                 awaitingRequestView, pendingQuestion, pendingSentAt));
     }
 
@@ -1529,6 +1529,7 @@ public final class AssistantScreen extends Screen {
             editingRequest = null;
             resendingRequest = null;
             scrollOffset = 0;
+            visibleTurnCount = 4;
             followBottom = true;
             followOnCompletion = true;
             activityExpansion.clear();
@@ -1540,6 +1541,7 @@ public final class AssistantScreen extends Screen {
             editingRequest = state.editingRequest();
             resendingRequest = state.resendingRequest();
             scrollOffset = state.scrollOffset();
+            visibleTurnCount = state.visibleTurnCount();
             followBottom = state.followBottom();
             followOnCompletion = state.followOnCompletion();
             activityExpansion.clear();
@@ -1564,15 +1566,12 @@ public final class AssistantScreen extends Screen {
         if (selectionChanged) {
             saveConversationState(previousKey);
             restoreConversationState(nextKey);
+            historyPrepended = false;
         }
         boolean completed = !selectionChanged && view.active() && !next.active();
         boolean sessionsChanged = selectionChanged || completed;
         boolean historyLoaded = selectionChanged
                 || view.activity().equals("Loading session...") && !next.activity().equals("Loading session...");
-        if (historyLoaded) {
-            visibleTurnCount = 4;
-            historyPrepended = false;
-        }
         if (selectionChanged) sourceLabelCache.clear();
         view = next;
         history = null;
@@ -1741,7 +1740,7 @@ public final class AssistantScreen extends Screen {
     private record ActivityExpansion(ChatContracts.ActivityStatus status, boolean expanded) { }
     private record ConversationKey(String worldOrServer, String id) { }
     private record ConversationUiState(String input, ChatContracts.RequestId editingRequest,
-                                       ChatContracts.RequestId resendingRequest, int scrollOffset,
+                                       ChatContracts.RequestId resendingRequest, int scrollOffset, int visibleTurnCount,
                                        boolean followBottom, boolean followOnCompletion,
                                        Map<String, ActivityExpansion> activityExpansion,
                                        boolean awaitingRequestView, String pendingQuestion, Instant pendingSentAt) { }

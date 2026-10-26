@@ -919,6 +919,36 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void conversationSwitchRestoresBackfilledHistoryWindowAndScrollPosition() {
+        FakeActions actions = new FakeActions();
+        ChatContracts.View original = actions.view;
+        actions.view = new ChatContracts.View(false, original.signIn(), false,
+                new ChatContracts.Conversation(original.conversation().id(), original.conversation().world(),
+                        java.util.Collections.nCopies(12, original.conversation().turns().getFirst()), original.conversation().outcome()),
+                original.context(), original.sources(), original.navigationTargets(), List.of());
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        screen.tick();
+        screen.tick();
+        screen.updateContentMetrics(2_000, 200);
+        screen.mouseScrolled(400, 200, 0, 5);
+        int offset = screen.scrollOffset();
+
+        ChatContracts.View other = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT, false,
+                new ChatContracts.Conversation("other", original.conversation().world(), List.of(),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                original.context(), List.of(), List.of(), List.of(), "", "");
+        screen.refresh(other);
+        screen.refresh(actions.view);
+        screen.tick();
+        screen.updateContentMetrics(2_400, 200);
+
+        assertEquals(offset, screen.scrollOffset());
+    }
+
+    @Test
     void loadingReopenPreservesEditTargetUntilTheLoadedViewCanResend() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);

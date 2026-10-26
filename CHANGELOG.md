@@ -4,6 +4,7 @@
 
 ### 2026-10-26
 
+- Smithing recipes now report their template, base and addition. Trim results are dynamic, so trim recipes are PARTIAL. Only crafting recipes report remainders, and a failed component encoding makes a recipe PARTIAL. The bridge now names menus that have no registered type, so opening a mount's inventory returns normally.
 - Recipe plans now expand intermediate recipes. Vanilla crafting, cooking, stonecutting and smithing recipes mark their ingredients consumed and report remainders such as empty buckets, and tag ingredients expand to up to 16 member items. Every PARTIAL plan names its reasons, such as raw materials with no recipe or the depth bound.
 - The debug bridge can leave and open worlds, join a server, open a mount's inventory, open the adapter, settings and chat screens, select resource packs and quit the game, so live checks no longer need desktop control.
 - The assistant no longer brings back a note the player asked it to forget or delete from earlier chats (prompt candidate 9, live J12r/N1 passed).

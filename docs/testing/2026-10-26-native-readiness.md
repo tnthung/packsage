@@ -89,3 +89,19 @@ Run on the installed current `feat/packsage-v2`. The installed default prompt is
 | W19r | "where is the nearest forest?" | locate uses a biome tag such as `#minecraft:is_forest` or forest biome ids, and returns a sampled place with a link |
 | D1 | Repeat D1 with a correctly built master librarian (`/data` on a villager standing on solid ground with the world unpaused) and a wandering trader after a player interaction has generated its offers | every offer with prices and correct item facts; not trimmed |
 | M5, J8, J9, J13, P9/J7, W11, W17, W18, U1, U2 | As listed above, using the bridge operations | as listed above |
+
+## Round 4
+
+Install the current `feat/packsage-v2`. `GET /prompt` must show the candidate 9 default first. Then set `build/prompt-candidates/candidate-10.txt` with `POST /prompt` for every question in this round, and clear it at the end.
+
+| Id | Steps | Pass when |
+|---|---|---|
+| A3r | "what do I need to make a beacon from scratch?" and "how many logs do I need for 10 pistons?" | the expansion follows the returned batches; obsidian and the other recipe-less materials are said to be obtained, not crafted |
+| A1r2 | Repeat A1 | as in round 3 |
+| W12r3 | The three sealed chests | the missing table's reply says opening it generates nothing, or that the table is undefined; the known and empty tables as in round 3 |
+| J8r | Ride a chested donkey, open its inventory with `/player/open` and `openInventory`, deposit and then withdraw items with `/player/menu/move`, close it. Ask "what did I put in my donkey today?" and "what did I take out of chests today?" | the donkey deposit and withdrawal appear with the donkey's link and coordinates; "today" follows playerLocalTime |
+| W11r | Open a donkey's inventory screen with the crosshair on something else: "what's in this?" | list_items opened, or another read that returns the open screen's contents |
+| M5r | M5 again; read logs/latest.log after `/world/leave` | the `PackSage journal:` summary line is present, with overflowed 0 and slowest tick under 1,000 us; request_built lines are present too |
+| W18r | W18 with `/resourcepacks` | the pack's Speed description is returned; disable it afterwards |
+| P9/J7r | Copy every jar in the instance's mods folder except packsage into the server's mods folder, start it, join with `/server/connect` and ask the three P9/J7 questions | the progress, statistics and journal tools report unavailable, and the replies say so |
+| N2 | With candidate 10 set: report a build, move it, recall it, and ask one plain question | as N1 |

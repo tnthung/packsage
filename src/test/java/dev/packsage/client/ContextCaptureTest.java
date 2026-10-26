@@ -304,6 +304,9 @@ class ContextCaptureTest {
         assertEquals("hovered-one", firstJson.get("hovered").getAsString());
         assertEquals("hovered-two", previewJson.get("hovered").getAsString());
         assertEquals("crimson_forest", previewJson.get("biome").getAsString());
+        var local = java.time.OffsetDateTime.parse(actualJson.get("playerLocalTime").getAsString());
+        assertEquals(java.time.Instant.parse(actualJson.get("capturedAt").getAsString()).getEpochSecond(), local.toEpochSecond());
+        assertEquals(java.time.ZoneId.systemDefault().getRules().getOffset(local.toInstant()), local.getOffset());
         assertNull(preview.screenshot());
         assertNull(actual.context().screenshot());
         assertEquals(3, observationReads.get());

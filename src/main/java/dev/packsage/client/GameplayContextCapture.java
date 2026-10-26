@@ -485,7 +485,12 @@ public final class GameplayContextCapture {
         if (observation.openedMenuTitle() != null) json.addProperty("openedMenuTitle", observation.openedMenuTitle());
         json.addProperty("targetedHolder", observation.targetedHolder() == null ? "unavailable" : observation.targetedHolder());
         json.addProperty("ridden", observation.ridden() == null ? "none" : observation.ridden());
-        if (capturedAt != null) json.addProperty("capturedAt", capturedAt.toString());
+        if (capturedAt != null) {
+            json.addProperty("capturedAt", capturedAt.toString());
+            // The player's own clock and offset, so day words such as today follow their calendar, not UTC.
+            json.addProperty("playerLocalTime", capturedAt.atZone(java.time.ZoneId.systemDefault()).toOffsetDateTime()
+                    .truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString());
+        }
         return new ChatContracts.Context(json.toString(), screenshot, currentScope);
     }
 }

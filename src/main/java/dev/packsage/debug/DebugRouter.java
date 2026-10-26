@@ -15,7 +15,8 @@ import java.util.concurrent.TimeoutException;
 public final class DebugRouter {
     public enum Operation {
         STATE, COMMAND, LOOK, BREAK, OPEN, MENU_MOVE, MENU_CLOSE, CHAT, CHAT_STATUS, PROMPT_GET, PROMPT_SET,
-        NAVIGATE, SCREENSHOT, CHAT_SCREEN, WORLD_LEAVE, WORLD_OPEN, SERVER_CONNECT, SCREEN_OPEN, RESOURCEPACKS, GAME_QUIT
+        NAVIGATE, SCREENSHOT, CHAT_SCREEN, WORLD_LEAVE, WORLD_OPEN, SERVER_CONNECT, SCREEN_OPEN, RESOURCEPACKS, GAME_QUIT,
+        COMMANDS_PENDING, COMMANDS_DECIDE, SETTINGS
     }
 
     @FunctionalInterface
@@ -59,10 +60,14 @@ public final class DebugRouter {
                 case "/screen/open" -> Operation.SCREEN_OPEN;
                 case "/resourcepacks" -> Operation.RESOURCEPACKS;
                 case "/game/quit" -> Operation.GAME_QUIT;
+                case "/commands/pending" -> Operation.COMMANDS_PENDING;
+                case "/commands/decide" -> Operation.COMMANDS_DECIDE;
+                case "/settings" -> Operation.SETTINGS;
                 default -> request.path().matches("/chat/[A-Za-z0-9_-]+") ? Operation.CHAT_STATUS : null;
             };
             if (operation == null) return DebugHttp.error(404, "Unknown endpoint");
-            String method = operation == Operation.STATE || operation == Operation.CHAT_STATUS || operation == Operation.PROMPT_GET ? "GET" : "POST";
+            String method = operation == Operation.STATE || operation == Operation.CHAT_STATUS || operation == Operation.PROMPT_GET
+                    || operation == Operation.COMMANDS_PENDING ? "GET" : "POST";
             if (!method.equals(request.method())) return DebugHttp.error(405, "Method not allowed");
             JsonObject body = new JsonObject();
             if (!request.body().isBlank()) {
@@ -156,6 +161,22 @@ public final class DebugRouter {
                         }
                     }
                     if (enable.stream().anyMatch(disable::contains)) throw new IllegalArgumentException("a pack cannot be enabled and disabled in one request");
+                }
+                case COMMANDS_DECIDE -> { require(body, "id", "string"); require(body, "run", "boolean"); }
+                case SETTINGS -> {
+                    if (body.has("commandConfirmation")) {
+                        require(body, "commandConfirmation", "string");
+                        if (!java.util.Set.of("always", "risky", "direct").contains(body.get("commandConfirmation").getAsString())) {
+                            throw new IllegalArgumentException("commandConfirmation must be always, risky or direct");
+                        }
+                    }
+                    if (body.has("verbosity")) {
+                        require(body, "verbosity", "string");
+                        if (!java.util.Set.of("concise", "normal", "detailed").contains(body.get("verbosity").getAsString())) {
+                            throw new IllegalArgumentException("verbosity must be concise, normal or detailed");
+                        }
+                    }
+                    if (body.has("showChatsFromOtherSessions")) require(body, "showChatsFromOtherSessions", "boolean");
                 }
                 default -> { }
             }

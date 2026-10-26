@@ -94,3 +94,9 @@ Navigation targets belong to the requested reply, including when several turns s
 For the pause-preference check, start with pause on lost focus enabled, enable the bridge, then open Minecraft's options, change another option and leave the menu. Confirm `options.txt` still has the original `pauseOnLostFocus` value. After normal shutdown, confirm it again, and restart with the bridge disabled to check normal focus-loss behavior. These game checks remain pending; automated tests do not establish options-screen or shutdown behavior in a running client.
 
 Missing or wrong tokens return 401, unknown routes 404, wrong methods 405, invalid arguments/JSON 400, unavailable game state 409, oversized bodies 413 and game timeouts 504. Bodies are limited to 1 MiB, headers to 64 and 16 KiB total, and reading a request has a 10-second deadline. Client/server handoffs and asynchronous game operations have 10-second waits. Screenshots and actual navigation, journal effects and background play still need live acceptance; hovering and other mouse-driven UI behavior are outside this bridge.
+
+## Command confirmations and settings
+
+- `GET /commands/pending` lists waiting command confirmations as `{id, requestId, command}`.
+- `POST /commands/decide {"id": "...", "run": true|false}` chooses Run or Cancel, as the chat buttons do.
+- `POST /settings` changes any of `commandConfirmation` (`always`, `risky` or `direct`), `verbosity` (`concise`, `normal` or `detailed`) and `showChatsFromOtherSessions` (a boolean), saves them, and returns the current values.

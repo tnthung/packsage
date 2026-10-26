@@ -507,6 +507,47 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                 json.addProperty("stopping", true);
                 yield json;
             }
+            case COMMANDS_PENDING -> call(client, () -> {
+                var pending = new com.google.gson.JsonArray();
+                for (var confirmation : runtime.commandConfirmations()) {
+                    var entry = new JsonObject();
+                    entry.addProperty("id", confirmation.id());
+                    entry.addProperty("requestId", confirmation.requestId());
+                    entry.addProperty("command", confirmation.command());
+                    pending.add(entry);
+                }
+                var json = new JsonObject();
+                json.add("pending", pending);
+                return json;
+            });
+            case COMMANDS_DECIDE -> call(client, () -> {
+                String id = body.get("id").getAsString();
+                boolean known = runtime.commandConfirmations().stream().anyMatch(value -> value.id().equals(id));
+                if (!known) throw new IllegalArgumentException("No pending command confirmation with that id");
+                runtime.confirmCommand(id, body.get("run").getAsBoolean());
+                var json = new JsonObject();
+                json.addProperty("decided", true);
+                return json;
+            });
+            case SETTINGS -> {
+                call(client, () -> {
+                    var settings = runtime.settings();
+                    if (body.has("commandConfirmation")) settings.setCommandConfirmation(PackSageSettings.CommandConfirmation.valueOf(
+                            body.get("commandConfirmation").getAsString().toUpperCase(java.util.Locale.ROOT)));
+                    if (body.has("verbosity")) settings.setVerbosity(PackSageSettings.Verbosity.valueOf(
+                            body.get("verbosity").getAsString().toUpperCase(java.util.Locale.ROOT)));
+                    if (body.has("showChatsFromOtherSessions")) settings.setShowChatsFromOtherSessions(body.get("showChatsFromOtherSessions").getAsBoolean());
+                    return settings.save(settingsPath);
+                }).get(10, TimeUnit.SECONDS);
+                yield call(client, () -> {
+                    var settings = runtime.settings();
+                    var json = new JsonObject();
+                    json.addProperty("commandConfirmation", settings.commandConfirmation().name().toLowerCase(java.util.Locale.ROOT));
+                    json.addProperty("verbosity", settings.verbosity().name().toLowerCase(java.util.Locale.ROOT));
+                    json.addProperty("showChatsFromOtherSessions", settings.showChatsFromOtherSessions());
+                    return json;
+                });
+            }
         };
     }
 

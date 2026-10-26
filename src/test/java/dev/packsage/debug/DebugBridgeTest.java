@@ -100,7 +100,10 @@ class DebugBridgeTest {
                 {"POST", "/server/connect", "{\"address\":\"127.0.0.1:25565\"}"},
                 {"POST", "/screen/open", "{\"screen\":\"adapters\"}"},
                 {"POST", "/resourcepacks", "{\"enable\":[\"file/Example\"],\"disable\":[]}"},
-                {"POST", "/game/quit", ""}
+                {"POST", "/game/quit", ""},
+                {"GET", "/commands/pending", ""},
+                {"POST", "/commands/decide", "{\"id\":\"c-1\",\"run\":false}"},
+                {"POST", "/settings", "{\"commandConfirmation\":\"risky\",\"verbosity\":\"concise\",\"showChatsFromOtherSessions\":true}"}
         };
         for (String[] request : requests) {
             var response = router.route(new DebugHttp.Request(request[0], request[1], Map.of("authorization", "Bearer secret"), request[2]));
@@ -130,7 +133,9 @@ class DebugBridgeTest {
                 {"/screen/open", "{\"screen\":\"settings\",\"conversationId\":\"saved\"}"},
                 {"/resourcepacks", "{}"},
                 {"/resourcepacks", "{\"enable\":[\"other/Example\"],\"disable\":[]}"},
-                {"/resourcepacks", "{\"enable\":[\"file/Example\"],\"disable\":[\"file/Example\"]}"} }) {
+                {"/resourcepacks", "{\"enable\":[\"file/Example\"],\"disable\":[\"file/Example\"]}"},
+                {"/commands/decide", "{\"id\":\"c-1\"}"}, {"/settings", "{\"verbosity\":\"loud\"}"},
+                {"/settings", "{\"commandConfirmation\":true}"} }) {
             assertEquals(400, router.route(new DebugHttp.Request("POST", request[0], Map.of("authorization", "Bearer secret"), request[1])).status(), request[0] + request[1]);
         }
         assertEquals(405, router.route(new DebugHttp.Request("GET", "/world/leave", Map.of("authorization", "Bearer secret"), "")).status());

@@ -42355,3 +42355,183 @@ Minecraft remains **running and unpaused in PackSage Adapter Filter Live Test**,
 Final settings equal their initial values: commandConfirmation=always, verbosity=normal, showChatsFromOtherSessions=false. There are no pending confirmations. The prompt override remains null and the effective default still matches candidate 13 exactly. The installed JAR hash and bridge pid remain unchanged. Chat history, command/journal records and normal ticking remain as test effects. [settings-initial.json](../../build/feedback-live/recheck/settings-initial.json), [settings-final.json](../../build/feedback-live/recheck/settings-final.json), [commands-final.json](../../build/feedback-live/recheck/commands-final.json), [prompt-final-check.json](../../build/feedback-live/recheck/prompt-final-check.json), [installed-final.json](../../build/feedback-live/recheck/installed-final.json).
 
 No authorization header or token was printed or written to evidence. The exact-token scan covers the raw evidence and validation file and records zero matches in [secret-scan.json](../../build/feedback-live/recheck/secret-scan.json). Local tester issues are retained in [tester-notes.json](../../build/feedback-live/recheck/tester-notes.json): the unavailable Python launcher failed before any HTTP request; the first U3 PNG copy hit EBUSY, then the same original image was copied after its writer released it. Neither caused a new screenshot or question. Expanded-row UI labels remain the sole bridge-only NOT RUN subcheck; V2 remains a recorded failure.
+
+
+## Chat opening and display recheck
+
+Date: 2026-10-26 (Asia/Taipei). **O2, U4, U5 and U6 PASS.** Installed-game checks used real computer-use key presses and clicks plus the [debug bridge](../testing/2026-10-25-debug-bridge.md), following the [real opening-path timing contract](2026-10-26-chat-open-real-path.md). Every prescribed opening trial is retained. No trial, question or click check was repeated to obtain a pass; desktop input was not interrupted.
+
+### Setup and scope
+
+Checkout: feat/packsage-v2 at **0f39fb2f**; initially clean index and working tree. Installed C:/Users/hung1/curseforge/minecraft/Instances/Packsage/mods/packsage.jar SHA-256 before launch and after the checks: **6B70CD5CF8D24BEC875CA857B7F73E8DCD806844F28A2B85F4FD13E3DBE7CB50**. Minecraft was initially closed. Computer use clicked Play for the **Packsage** instance in CurseForge, observed the Minecraft 1.21.1 / NeoForge 21.1.259 title screen, then POST /world/open {"save":"PackSage Adapter Filter Live Test"} opened the existing world. Bridge pid **48056** stayed unchanged. [launch-title.png](../../build/feedback-live/recheck2/launch-title.png), [state-title.json](../../build/feedback-live/recheck2/state-title.json), [world-open.json](../../build/feedback-live/recheck2/world-open.json), [bridge-identity.json](../../build/feedback-live/recheck2/bridge-identity.json), [installed-initial.json](../../build/feedback-live/recheck2/installed-initial.json), [installed-final.json](../../build/feedback-live/recheck2/installed-final.json).
+
+options.txt has key_key.packsage.open:key.keyboard.p, so all five key trials used the real **P** key through computer use. Initial settings: commandConfirmation=always, verbosity=normal, showChatsFromOtherSessions=false, sessionsBeforeCollapse=5. The unchanged window was 1026 x 800 including its title bar. No source edits, build, reinstall, worktree, formatter, model requests, prompt changes or fixture commands were used. Only this validation file is included in the commit; screenshots and raw evidence remain in build/feedback-live/recheck2/. [settings-config.txt](../../build/feedback-live/recheck2/settings-config.txt), [settings-initial.json](../../build/feedback-live/recheck2/settings-initial.json), [state-initial.json](../../build/feedback-live/recheck2/state-initial.json), [http.jsonl](../../build/feedback-live/recheck2/http.jsonl).
+
+### Result summary
+
+| Check | Result | Observation |
+|---|---|---|
+| O2 - real key | PASS | Five P opens: 50.383 / 12.918 / 12.701 / 11.153 / 11.849 ms from logged key-handler entry to completed first render. The selected answer is already rendered in each first frame; all loading=false. |
+| O2 - bridge | PASS | Five explicit-ID opens: 33.009 / 25.454 / 30.397 / 24.586 / 26.132 ms from bridge dispatch to completed first render. The cold selection initially has loading=true, is prepared at 43.546 ms and is visibly populated in the PNG saved within 140 ms of host HTTP dispatch. |
+| U4 - display | PASS | Real click expands plan_recipe. Tool / Parameter / Result / Elapsed labels use a distinct muted gray accent; values use normal light text. Elapsed is 40 ms. Assistant and player use matching rounded slate message bubbles; assistant sent time is visible. |
+| U5 - sidebar | PASS | No large gap below New chat. Initially exactly the newest 5 chats; one Show more click adds 10, ending at the fifteenth chat, op me, before the next Show more. |
+| U6 - settings | PASS | Show chats from other sessions is present in Settings; Command confirmation and Answer detail sections are both visible. |
+
+### O2 - ten opening timings - PASS
+
+Each trial closes the chat first. Key trials reopen the runtime's selected saved conversation e4c715a4-6fd0-48c8-821c-548baf386844 (the one-turn set the time to day answer). Bridge trials POST /chat-screen {"open":true,"conversationId":"7730f3ed-121c-49ff-8001-8c7b3f0ccd43"}, the same one-turn beacon chat used by O1. The first bridge selection loads that body for the first time in this process; the remaining four reuse it. There are five trials per route, with one unchanged game process and no discarded sample. State readbacks confirm AssistantScreen, running=true and paused=false. [O2-timings.json](../../build/feedback-live/recheck2/O2-timings.json), [O2-key-saved.jsonl](../../build/feedback-live/recheck2/O2-key-saved.jsonl), [U4-saved.jsonl](../../build/feedback-live/recheck2/U4-saved.jsonl).
+
+Key-to-first-frame and key-to-selected-chat-visible below start at **client_open_request**, the common opening-method entry reached by the actual P key. They end at **first_frame_rendered**; all five include the selected conversation with loading=false. The additional host-dispatch column starts before sky.press_key and uses the log's local wall timestamp, so it includes automation delivery overhead and has millisecond wall-clock precision. It provides a conservative 97-140 ms bound for these actual key actions. Exact physical key-down and GPU presentation timestamps are not instrumented. screen_prepare_done is CPU preparation, not presentation; it is not substituted for a rendered selected-chat time.
+
+| Key trial | Key handler to first frame (ms) | Key handler to selected chat visible (ms) | Host key dispatch to first-frame log (ms) | Screenshot / exact stages |
+|---|---:|---:|---:|---|
+| 1 | 50.383 | 50.383 | 140 | [O2-key-1.png](../../build/feedback-live/recheck2/O2-key-1.png) / [O2-key-1-stage.log](../../build/feedback-live/recheck2/O2-key-1-stage.log) |
+| 2 | 12.918 | 12.918 | 97 | [O2-key-2.png](../../build/feedback-live/recheck2/O2-key-2.png) / [O2-key-2-stage.log](../../build/feedback-live/recheck2/O2-key-2-stage.log) |
+| 3 | 12.701 | 12.701 | 97 | [O2-key-3.png](../../build/feedback-live/recheck2/O2-key-3.png) / [O2-key-3-stage.log](../../build/feedback-live/recheck2/O2-key-3-stage.log) |
+| 4 | 11.153 | 11.153 | 97 | [O2-key-4.png](../../build/feedback-live/recheck2/O2-key-4.png) / [O2-key-4-stage.log](../../build/feedback-live/recheck2/O2-key-4-stage.log) |
+| 5 | 11.849 | 11.849 | 101 | [O2-key-5.png](../../build/feedback-live/recheck2/O2-key-5.png) / [O2-key-5-stage.log](../../build/feedback-live/recheck2/O2-key-5-stage.log) |
+
+For the bridge table, the origin is the outer **bridge_request operation=chat_screen** start_ns, including scoped selection. Selected-visible equals first-frame completion only when loading=false. Trial 1's first frame still shows loading, so its selected-visible entry is an upper bound from the first captured, populated screenshot: PNG mtime minus the host HTTP-dispatch timestamp is 139.133 ms, rounded up to 140 ms. This includes request delivery, capture and PNG saving; it is not an exact first-populated-frame timestamp. The screenshot visibly shows the requested beacon question and answer. No extra opening or replacement screenshot was used to pass the cold trial.
+
+| Bridge trial | Dispatch to first frame (ms) | Selected CPU prepared (ms) | Selected chat visible (ms) | HTTP response (ms) | First frame loading | Screenshot / exact stages |
+|---|---:|---:|---:|---:|---|---|
+| 1 | 33.009 | 43.546 | <=140 (screenshot bound) | 20.877 | true | [O2-bridge-1.png](../../build/feedback-live/recheck2/O2-bridge-1.png) / [O2-bridge-1-stage.log](../../build/feedback-live/recheck2/O2-bridge-1-stage.log) |
+| 2 | 25.454 | 17.236 | 25.454 | 18.277 | false | [O2-bridge-2.png](../../build/feedback-live/recheck2/O2-bridge-2.png) / [O2-bridge-2-stage.log](../../build/feedback-live/recheck2/O2-bridge-2-stage.log) |
+| 3 | 30.397 | 20.097 | 30.397 | 20.343 | false | [O2-bridge-3.png](../../build/feedback-live/recheck2/O2-bridge-3.png) / [O2-bridge-3-stage.log](../../build/feedback-live/recheck2/O2-bridge-3-stage.log) |
+| 4 | 24.586 | 14.558 | 24.586 | 15.052 | false | [O2-bridge-4.png](../../build/feedback-live/recheck2/O2-bridge-4.png) / [O2-bridge-4-stage.log](../../build/feedback-live/recheck2/O2-bridge-4-stage.log) |
+| 5 | 26.132 | 17.768 | 26.132 | 19.188 | false | [O2-bridge-5.png](../../build/feedback-live/recheck2/O2-bridge-5.png) / [O2-bridge-5-stage.log](../../build/feedback-live/recheck2/O2-bridge-5-stage.log) |
+
+All selected chats are visible well under one second; none remains blank or loading. Key render range: 11.153-50.383 ms. Bridge first-render range: 24.586-33.009 ms. HTTP responses are reported separately and are not treated as history readiness. The cold bridge readiness log is false at response, then body read/attachment and preparation complete asynchronously. The raw opening-stage log also retains construction, initialization, sidebar paging, body-read and attachment stages. [opening-stages.log](../../build/feedback-live/recheck2/opening-stages.log).
+
+#### Exact stage log quotes
+
+The following lines are quoted verbatim from this process's logs/latest.log. Complete per-trial excerpts are linked above. Table durations subtract correlated monotonic event_ns and the route's start_ns, rather than reusing a screen-construction elapsed_ms with a different origin.
+
+Trial key 1:
+
+```text
+[26Oct2026 22:40:00.862] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=250690012178700 event_ns=250690012178700 elapsed_ms=0
+[26Oct2026 22:40:00.885] [Render thread/INFO] [PackSage/]: PackSage timing opening=250690015034000 phase=screen_prepare_done conversation=e4c715a4-6fd0-48c8-821c-548baf386844 start_ns=250690024724300 event_ns=250690034841300 elapsed_ms=10.117 opening_ms=19.8073 turns=1
+[26Oct2026 22:40:00.913] [Render thread/INFO] [PackSage/]: PackSage timing opening=250690015034000 phase=first_frame_rendered conversation=e4c715a4-6fd0-48c8-821c-548baf386844 start_ns=250690015034000 event_ns=250690062561400 elapsed_ms=47.5274 loading=false
+```
+
+Trial key 2:
+
+```text
+[26Oct2026 22:40:22.909] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=250712059128200 event_ns=250712059128200 elapsed_ms=0
+[26Oct2026 22:40:22.915] [Render thread/INFO] [PackSage/]: PackSage timing opening=250712059483900 phase=screen_prepare_done conversation=e4c715a4-6fd0-48c8-821c-548baf386844 start_ns=250712063115300 event_ns=250712063919700 elapsed_ms=0.8044 opening_ms=4.4358 turns=1
+[26Oct2026 22:40:22.922] [Render thread/INFO] [PackSage/]: PackSage timing opening=250712059483900 phase=first_frame_rendered conversation=e4c715a4-6fd0-48c8-821c-548baf386844 start_ns=250712059483900 event_ns=250712072046200 elapsed_ms=12.5623 loading=false
+```
+
+Trial key 3:
+
+```text
+[26Oct2026 22:40:37.207] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=250726356918300 event_ns=250726356918300 elapsed_ms=0
+[26Oct2026 22:40:37.211] [Render thread/INFO] [PackSage/]: PackSage timing opening=250726357132600 phase=screen_prepare_done conversation=e4c715a4-6fd0-48c8-821c-548baf386844 start_ns=250726360605100 event_ns=250726361104400 elapsed_ms=0.4993 opening_ms=3.9718 turns=1
+[26Oct2026 22:40:37.220] [Render thread/INFO] [PackSage/]: PackSage timing opening=250726357132600 phase=first_frame_rendered conversation=e4c715a4-6fd0-48c8-821c-548baf386844 start_ns=250726357132600 event_ns=250726369619300 elapsed_ms=12.4867 loading=false
+```
+
+Trial key 4:
+
+```text
+[26Oct2026 22:40:49.206] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=250738355650800 event_ns=250738355650800 elapsed_ms=0
+[26Oct2026 22:40:49.210] [Render thread/INFO] [PackSage/]: PackSage timing opening=250738355873800 phase=screen_prepare_done conversation=e4c715a4-6fd0-48c8-821c-548baf386844 start_ns=250738358939400 event_ns=250738359528200 elapsed_ms=0.5888 opening_ms=3.6544 turns=1
+[26Oct2026 22:40:49.216] [Render thread/INFO] [PackSage/]: PackSage timing opening=250738355873800 phase=first_frame_rendered conversation=e4c715a4-6fd0-48c8-821c-548baf386844 start_ns=250738355873800 event_ns=250738366804000 elapsed_ms=10.9302 loading=false
+```
+
+Trial key 5:
+
+```text
+[26Oct2026 22:41:16.105] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=250765253892800 event_ns=250765253892800 elapsed_ms=0
+[26Oct2026 22:41:16.109] [Render thread/INFO] [PackSage/]: PackSage timing opening=250765254211700 phase=screen_prepare_done conversation=e4c715a4-6fd0-48c8-821c-548baf386844 start_ns=250765257555900 event_ns=250765258321900 elapsed_ms=0.766 opening_ms=4.1102 turns=1
+[26Oct2026 22:41:16.116] [Render thread/INFO] [PackSage/]: PackSage timing opening=250765254211700 phase=first_frame_rendered conversation=e4c715a4-6fd0-48c8-821c-548baf386844 start_ns=250765254211700 event_ns=250765265742200 elapsed_ms=11.5305 loading=false
+```
+
+Trial bridge 1:
+
+```text
+[26Oct2026 22:41:30.836] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=41392a18-b56d-4b8e-bd31-edb270f5daa4 phase=bridge_request operation=chat_screen start_ns=250779985306200 event_ns=250779985306200 elapsed_ms=0
+[26Oct2026 22:41:30.846] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=745e9159-abb8-4e46-9acb-60dbff79a514 phase=bridge_selection conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250779989225000 event_ns=250779995654900 elapsed_ms=6 found=true
+[26Oct2026 22:41:30.852] [Render thread/INFO] [PackSage/]: PackSage timing request=745e9159-abb8-4e46-9acb-60dbff79a514 phase=bridge_readiness conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 ready=false start_ns=250779985580500 event_ns=250780001194000 elapsed_ms=15
+[26Oct2026 22:41:30.852] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=41392a18-b56d-4b8e-bd31-edb270f5daa4 phase=bridge_response operation=chat_screen start_ns=250779985306200 event_ns=250780001385400 elapsed_ms=16 success=true
+[26Oct2026 22:41:30.869] [Render thread/INFO] [PackSage/]: PackSage timing opening=250779999760200 phase=first_frame_rendered conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250779999760200 event_ns=250780018315200 elapsed_ms=18.555 loading=true
+[26Oct2026 22:41:30.879] [Render thread/INFO] [PackSage/]: PackSage timing opening=250779999760200 phase=screen_prepare_done conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250780027032400 event_ns=250780028852600 elapsed_ms=1.8202 opening_ms=29.0924 turns=1
+```
+
+Trial bridge 2:
+
+```text
+[26Oct2026 22:41:48.049] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=aea832b6-f491-48c4-9364-f984f7b165a2 phase=bridge_request operation=chat_screen start_ns=250797197856000 event_ns=250797197856000 elapsed_ms=0
+[26Oct2026 22:41:48.058] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=f1ddfe67-7e44-4402-8f2c-5f463ea47f5c phase=bridge_selection conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250797202361900 event_ns=250797207502000 elapsed_ms=5 found=true
+[26Oct2026 22:41:48.062] [Render thread/INFO] [PackSage/]: PackSage timing request=f1ddfe67-7e44-4402-8f2c-5f463ea47f5c phase=bridge_readiness conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 ready=true start_ns=250797198205900 event_ns=250797212185900 elapsed_ms=13
+[26Oct2026 22:41:48.062] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=aea832b6-f491-48c4-9364-f984f7b165a2 phase=bridge_response operation=chat_screen start_ns=250797197856000 event_ns=250797212353700 elapsed_ms=14 success=true
+[26Oct2026 22:41:48.065] [Render thread/INFO] [PackSage/]: PackSage timing opening=250797210820100 phase=screen_prepare_done conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250797214423400 event_ns=250797215092500 elapsed_ms=0.6691 opening_ms=4.2724 turns=1
+[26Oct2026 22:41:48.073] [Render thread/INFO] [PackSage/]: PackSage timing opening=250797210820100 phase=first_frame_rendered conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250797210820100 event_ns=250797223310200 elapsed_ms=12.4901 loading=false
+```
+
+Trial bridge 3:
+
+```text
+[26Oct2026 22:41:55.737] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=80b4c25f-8458-4b4c-bbb6-cb8d04362371 phase=bridge_request operation=chat_screen start_ns=250804886608800 event_ns=250804886608800 elapsed_ms=0
+[26Oct2026 22:41:55.747] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=f41ed8a6-b2de-41ca-a847-ae9d54397b75 phase=bridge_selection conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250804891812000 event_ns=250804897036500 elapsed_ms=5 found=true
+[26Oct2026 22:41:55.753] [Render thread/INFO] [PackSage/]: PackSage timing request=f41ed8a6-b2de-41ca-a847-ae9d54397b75 phase=bridge_readiness conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 ready=true start_ns=250804886875900 event_ns=250804902530800 elapsed_ms=15
+[26Oct2026 22:41:55.753] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=80b4c25f-8458-4b4c-bbb6-cb8d04362371 phase=bridge_response operation=chat_screen start_ns=250804886608800 event_ns=250804902791000 elapsed_ms=16 success=true
+[26Oct2026 22:41:55.756] [Render thread/INFO] [PackSage/]: PackSage timing opening=250804900531200 phase=screen_prepare_done conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250804905666400 event_ns=250804906706000 elapsed_ms=1.0396 opening_ms=6.1748 turns=1
+[26Oct2026 22:41:55.768] [Render thread/INFO] [PackSage/]: PackSage timing opening=250804900531200 phase=first_frame_rendered conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250804900531200 event_ns=250804917005900 elapsed_ms=16.4747 loading=false
+```
+
+Trial bridge 4:
+
+```text
+[26Oct2026 22:42:24.472] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=d9629415-c328-4f1a-b23c-495a079e4c18 phase=bridge_request operation=chat_screen start_ns=250833622049200 event_ns=250833622049200 elapsed_ms=0
+[26Oct2026 22:42:24.479] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=4c10428f-9015-4376-8167-b31c5e1ea508 phase=bridge_selection conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250833623822900 event_ns=250833628829400 elapsed_ms=5 found=true
+[26Oct2026 22:42:24.484] [Render thread/INFO] [PackSage/]: PackSage timing request=4c10428f-9015-4376-8167-b31c5e1ea508 phase=bridge_readiness conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 ready=true start_ns=250833622226400 event_ns=250833633860900 elapsed_ms=11
+[26Oct2026 22:42:24.484] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=d9629415-c328-4f1a-b23c-495a079e4c18 phase=bridge_response operation=chat_screen start_ns=250833622049200 event_ns=250833634020900 elapsed_ms=11 success=true
+[26Oct2026 22:42:24.487] [Render thread/INFO] [PackSage/]: PackSage timing opening=250833632338800 phase=screen_prepare_done conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250833635804100 event_ns=250833636607200 elapsed_ms=0.8031 opening_ms=4.2684 turns=1
+[26Oct2026 22:42:24.497] [Render thread/INFO] [PackSage/]: PackSage timing opening=250833632338800 phase=first_frame_rendered conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250833632338800 event_ns=250833646635500 elapsed_ms=14.2967 loading=false
+```
+
+Trial bridge 5:
+
+```text
+[26Oct2026 22:42:37.102] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=350ea570-0ef0-4fd3-92d0-127767a30f71 phase=bridge_request operation=chat_screen start_ns=250846252412500 event_ns=250846252412500 elapsed_ms=0
+[26Oct2026 22:42:37.113] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=d724991a-0243-4931-8afc-42563152957b phase=bridge_selection conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250846257521200 event_ns=250846262607300 elapsed_ms=5 found=true
+[26Oct2026 22:42:37.118] [Render thread/INFO] [PackSage/]: PackSage timing request=d724991a-0243-4931-8afc-42563152957b phase=bridge_readiness conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 ready=true start_ns=250846252650000 event_ns=250846267826400 elapsed_ms=15
+[26Oct2026 22:42:37.118] [packsage-debug-request/INFO] [PackSage/]: PackSage timing request=350ea570-0ef0-4fd3-92d0-127767a30f71 phase=bridge_response operation=chat_screen start_ns=250846252412500 event_ns=250846267982800 elapsed_ms=15 success=true
+[26Oct2026 22:42:37.120] [Render thread/INFO] [PackSage/]: PackSage timing opening=250846266422000 phase=screen_prepare_done conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250846269674800 event_ns=250846270180300 elapsed_ms=0.5055 opening_ms=3.7583 turns=1
+[26Oct2026 22:42:37.129] [Render thread/INFO] [PackSage/]: PackSage timing opening=250846266422000 phase=first_frame_rendered conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=250846266422000 event_ns=250846278544100 elapsed_ms=12.1221 loading=false
+```
+
+### U4 - expanded tool display and assistant bubble - PASS
+
+Computer use clicked the **3 steps (done)** disclosure at window coordinate (504,253), then **Planning recipe: minecraft:beacon (step 1) (done)** at (633,300). These are actual clicks on the observed chat. The expanded body shows **Tool: plan_recipe**, **Parameter:** with {"identity":"minecraft:beacon","quantity":1,"depth":2}, and **Result:** with coverage/outcome PARTIAL. Labels are muted gray and values are normal light text. Scrolling the same expanded content to its end shows **Elapsed: 40 ms**, with label and value retaining their distinct colors. The long result requires scrolling; top, middle and bottom captures are retained. [U4-activity-expanded.png](../../build/feedback-live/recheck2/U4-activity-expanded.png), [U4-tool-expanded.png](../../build/feedback-live/recheck2/U4-tool-expanded.png), [U4-tool-elapsed.png](../../build/feedback-live/recheck2/U4-tool-elapsed.png), [U4-tool-elapsed-bottom.png](../../build/feedback-live/recheck2/U4-tool-elapsed-bottom.png).
+
+The assistant response uses the same rounded slate fill, border and normal text style as the player message. It displays **Oct 26, 21:54** below its bubble. The copied saved turn has request cf54bf2a-30ed-4b5b-a0b4-d1444e5e0806 and assistantSentAt=2026-10-26T13:54:46.845712Z, agreeing with local displayed time. The assistant is on the left and the player's message on the right; both visible bubbles use the matching message style. The original question was **how do I make a beacon?**; it was reopened, never resubmitted. [U4-saved.jsonl](../../build/feedback-live/recheck2/U4-saved.jsonl), [U4-activity-expanded.png](../../build/feedback-live/recheck2/U4-activity-expanded.png), [U4-tool-elapsed-bottom.png](../../build/feedback-live/recheck2/U4-tool-elapsed-bottom.png).
+
+Verbatim saved answer (underlying citation retained):
+
+```text
+To craft a beacon, put **5 glass** across the top row and on either side of the middle row, a **Nether Star** in the center, and **3 obsidian** across the bottom row. [native:plan|minecraft:beacon|1|2|0|minecraft:beacon]
+```
+
+### U5 - sidebar spacing and one paging click - PASS
+
+The New chat button's bottom is around window y=190; the world header immediately follows around y=214, without the previous large blank gap. Before paging there are exactly five chat entries, followed by Show more: set the time to day, then four how do I make a beacon? conversations. Their saved summary identities and ordering match rows 1-5 in the read-only newest-summary snapshot. [U5-sidebar-before.png](../../build/feedback-live/recheck2/U5-sidebar-before.png), [settings-config.txt](../../build/feedback-live/recheck2/settings-config.txt), [U5-newest-16.json](../../build/feedback-live/recheck2/U5-newest-16.json).
+
+One computer-use click on **Show more** at (109,669) adds exactly ten entries. The top capture now exposes row 6. The middle capture spans rows 5-11, including what am I looking at?, what light level am I standing in?, how many entities are rendered? and what's my FPS and TPS?. The bottom capture spans rows 10-15: FPS/TPS, nearest village, paper name, set time to night and biome, and op me, then the next Show more. Row 16, give me 3 apples, is not present. These overlapping captures establish 5 -> 15, rather than counting only rows that fit on screen. No second Show more click was made. [U5-show-more-click.png](../../build/feedback-live/recheck2/U5-show-more-click.png), [U5-sidebar-after-middle.png](../../build/feedback-live/recheck2/U5-sidebar-after-middle.png), [U5-sidebar-after-bottom.png](../../build/feedback-live/recheck2/U5-sidebar-after-bottom.png), [U5-newest-16.json](../../build/feedback-live/recheck2/U5-newest-16.json).
+
+### U6 - settings sections - PASS
+
+Computer use clicked the gear at (101,756). The first Settings capture shows **Show chats from other sessions**, unchecked, under Behavior and **Command confirmation** with Always selected. Scrolling the same page exposes all Command confirmation choices (Always / Risky commands / Direct) and **Answer detail** (Concise / Normal / Detailed), with Normal selected. The second capture also keeps the other-sessions toggle visible. No toggle or radio setting was changed. [U6-settings.png](../../build/feedback-live/recheck2/U6-settings.png), [U6-settings-answer-detail.png](../../build/feedback-live/recheck2/U6-settings-answer-detail.png), [settings-final.json](../../build/feedback-live/recheck2/settings-final.json).
+
+### Failures and limits
+
+No requested check failed or remained NOT RUN. No desktop interruption, one-minute recovery wait or retry was needed. The brief first bridge loading frame is retained and classified as normal asynchronous loading because the original trial's selected chat was visibly populated within 140 ms. Error rendering and all three elapsed-time unit branches were not separately exercised; this successful tool row displays the permitted ms unit. The checks cover the actual selected one-turn saved chats; they do not claim opening performance for the largest chat or GPU presentation latency. Earlier unrelated acceptance failures, including V2, are unchanged by this scoped recheck.
+
+### Final state and evidence integrity
+
+Minecraft is left **running and unpaused in PackSage Adapter Filter Live Test with chat and Settings closed**, screen=null, menuId=0, creative, health=20, no ridden entity and hotbar slot 0. Position (1170.340168972531,105,1055.6183049816364), yaw 50.085297 and pitch 32.5111 equal the initial snapshot. Natural ticking continued. No player movement, inventory/block fixture or command was issued. Settings remain commandConfirmation=always, verbosity=normal, showChatsFromOtherSessions=false and sessionsBeforeCollapse=5. Installed JAR hash and bridge pid are unchanged. Selection/unread history state can change from viewing saved chats. [state-initial.json](../../build/feedback-live/recheck2/state-initial.json), [state-final.json](../../build/feedback-live/recheck2/state-final.json), [world-final.png](../../build/feedback-live/recheck2/world-final.png), [settings-initial.json](../../build/feedback-live/recheck2/settings-initial.json), [settings-final.json](../../build/feedback-live/recheck2/settings-final.json), [installed-final.json](../../build/feedback-live/recheck2/installed-final.json).
+
+Closing /chat-screen while Settings was open returned open=false while leaving Settings present; the intermediate state is retained. A real Escape returned to chat, then /chat-screen {"open":false} closed it. Final state readback and screenshot confirm gameplay with no screen. This cleanup did not rerun a scored trial. [chat-final-close.json](../../build/feedback-live/recheck2/chat-final-close.json), [state-before-settings-close.json](../../build/feedback-live/recheck2/state-before-settings-close.json), [settings-escape.png](../../build/feedback-live/recheck2/settings-escape.png), [chat-final-close-after-settings.json](../../build/feedback-live/recheck2/chat-final-close-after-settings.json), [state-final.json](../../build/feedback-live/recheck2/state-final.json).
+
+No bridge token or authorization header was printed or saved. An exact-token scan of this round's evidence and the validation document found zero matches; linked local evidence files were checked for existence. [secret-scan.json](../../build/feedback-live/recheck2/secret-scan.json), [record-checks.json](../../build/feedback-live/recheck2/record-checks.json).

@@ -256,6 +256,19 @@ class MinecraftStatisticsTest {
     }
 
     @Test
+    void aSameSizeCounterRehashBetweenStepsKeepsEveryCounterOnce() {
+        var map = new Object2IntOpenHashMap<Stat<?>>();
+        for (var item : BuiltInRegistries.ITEM) map.put(Stats.ITEM_CRAFTED.get(item), 1);
+        var slice = statistics.statistics(() -> map, List.of("crafted"), KindFilter.ANY);
+        assertTrue(slice.step());
+        map.ensureCapacity(100_000);
+        while (slice.step()) {
+        }
+        assertEquals(map.size(), slice.result().size());
+        assertEquals(map.size(), slice.result().stream().map(Statistic::subject).distinct().count());
+    }
+
+    @Test
     void anEntryBatchLeavesNamedZeroWorkForTheNextStep() {
         var map = new Object2IntOpenHashMap<Stat<?>>();
         BuiltInRegistries.ITEM.stream().limit(MinecraftStatistics.STEP_ENTRIES).forEach(item -> map.put(Stats.ITEM_CRAFTED.get(item), 1));

@@ -1,6 +1,6 @@
 # PackSage v2: Minecraft-only baseline
 
-Updated: 2026-10-25.
+Updated: 2026-10-26.
 
 The `feat/packsage-v2` branch removes every non-Minecraft adapter so mod adapters can be rebuilt with a new strategy. The [tool roadmap](2026-10-13-todo.md) and [adapter feature checklist](2026-10-21-adapter-feature-todo.md) still describe the previous branch for removed adapters. Each now has a v2 section pointing here, and this note tracks v2 work.
 
@@ -21,7 +21,7 @@ The `feat/packsage-v2` branch removes every non-Minecraft adapter so mod adapter
 - Conversation history tools: `search_history` and `read_history`.
 - Config reader: `list_configs`, `search_config` and `read_config`.
 - Minecraft adapter: recipes and brewing, recipe planning, registries, effects, attributes, dimensions, and inventory, equipment and storage reading through the world tools.
-- Advancement progress and player statistics through `list_progress`, `inspect_progress` and `list_statistics` in singleplayer; installed P1–P8/P10 acceptance passed. P9/P11 remain NOT RUN.
+- Advancement progress and player statistics through `list_progress`, `inspect_progress` and `list_statistics` in singleplayer; installed P1–P11 acceptance passed, with P9 on a NeoForge dedicated server.
 
 ## World model
 
@@ -64,15 +64,16 @@ Stage 4's [plan](../plans/2026-10-22-v2-journal.md) is implemented. The [single 
 - [x] Restart recall: a persisted farm note is recalled with coordinates and an opening link (M1 persistence subcheck). The complete move sequence remains failed below.
 - [x] Honest coverage: candidate journal reads expose recordingSince and the historical gap as PARTIAL, rather than claiming nothing happened.
 - [x] Bulk behavioral subchecks: 2,000 actual sand breaks merge into one run, TNT and break runs are searchable, sampled frames/TPS show no visible stall (M5 subchecks only).
-- [ ] Move one existing note to the new place, preserving its id/link and avoiding duplicates: **M1 FAIL**, move used clearPlace and the old link became unavailable; two prior farm notes remain.
-- [ ] Bulk performance acceptance: **M5 NOT RUN overall**, world-close maxHookNanosPerTick <1 ms / overflowed=0 summary not captured. Completed mining/TNT subchecks do not prove these counters.
-- [ ] Multiplayer journal/note unavailability: **J7 NOT RUN**, vanilla localhost connection rejected; needs a NeoForge dedicated server.
-- [ ] Raids.raidMap access transformer and live raid polling; raid start/finish/outcome and first-observed-finished behavior were not established by Task 7.
-- [ ] Player placement, player kills, all death families/causes (player, named mob, tamed animal), profession changes, curing, zombie conversion, trades and first structure entry/re-entry: implemented, full event-family acceptance not captured. W2 verifies the villager-death subset only.
-- [ ] Withdrawal question and exceptional menu ownership: disconnected/cancelled/modded menus and keyed horse inventories remain unverified by J4's deposits-only question.
-- [ ] Note anchors, forget/delete/unavailable links, explicit other-dimension note links and questions/requests not being saved: full clauses not exercised. Restart recall and silent wording alone do not cover them.
-- [ ] First tool-using chat's persisted conversation/message origin was not audited in Task 7.
-- [ ] Flush all final queued events/open runs on immediate exit and rapid Save-and-Quit/rejoin: full clause unverified; restart recall is narrower.
+- [x] Move one existing note to the new place, preserving its id/link and avoiding duplicates: M1 PASS with prompt candidate 7 (installed recheck R1).
+- [x] Bulk performance acceptance: M5 passed in round 8 (overflowed 0, failed 0, 0 slow ticks after the first 200); the controller amended the criterion to steady state after a ten-second warm-up.
+- [x] Multiplayer journal/note unavailability: J7 passed on a NeoForge 21.1.202 dedicated server with the instance's mods (round 4).
+- [x] Raids start, finish and outcome (round 1 J11).
+- [x] Player placement, kills, deaths, profession changes, curing, zombie conversion, trades and first structure entry (round 1 J10; profession round 6/7 J10r).
+- [x] Withdrawal journaling and mount (donkey) menu ownership (round 4 J8r, round 6 J8r3 journal pass) and the disconnected-menu session (round 3 J9).
+- [ ] J8 withdrawal reply compliance: the reply omits the donkey amounts and coordinates although the journal is correct. Recorded failure.
+- [x] Note anchors, other-dimension links, forget/delete with links unavailable, and questions not saved (round 1 J12 partially, round 2 J12r/N1 with candidate 9 promoted, round 4 N2, round 5 N3).
+- [x] First tool-using chat origin on notes (round 1 J14 controller ruling).
+- [x] Flush on immediate exit and rapid Save-and-Quit/rejoin (round 3 J13).
 
 ### Progress and statistics
 
@@ -84,9 +85,10 @@ Stage 2's [plan](../plans/2026-10-22-v2-progress-statistics.md) is implemented. 
 - [x] Exact diamond/deepslate-diamond mined counts distinguished from drops (P2).
 - [x] Walking reported in blocks (P3), never-mined ancient debris explicitly zero (P4), play time sensibly converted from seconds (P6).
 - [x] A 2,000-advancement datapack read has no visible stall in sampled frame/tick evidence (P10).
-- [ ] Multiplayer progress/statistics unavailability: **P9 NOT RUN**, compatible NeoForge dedicated server required.
-- [ ] Retired read_progress offered-tool audit and old quest-source UI: **P11 NOT RUN**, logs contain a count rather than tool names and JSONL lacks definitions. Historical chest/advancement sources and links reopen (W7/P8), but this is not the complete P11 check.
-- [ ] Broader missing-destination, interrupted/failed read and health-unit branches have automated coverage; not all were exercised by these live questions.
+- [x] Multiplayer progress/statistics unavailability: P9 passed on a NeoForge 21.1.202 dedicated server with the instance's mods (round 4).
+- [x] Retired read_progress offered-tool audit: P11 passed (round 3 C1r: request_built lists 28 tools, no read_progress) and saved v1/legacy citations render with unavailable destinations (round 3 W17).
+- [x] Progress/statistics composite continuation passed by code and automated coverage (B1 ruling PASS; the acquisition-budget branch was not triggered live). The statistics one-step owned key copy is an accepted limitation (Astra accepted).
+- [ ] Missing-destination, interrupted/failed read and health-unit branches have automated coverage only; the progress acquisition-budget continuation branch cannot be set up live.
 
 ### Next plans
 
@@ -98,7 +100,8 @@ Stages 1–5 are implemented. Checked entries below describe the accepted scope,
   - [x] Open crafting menu inputs and excluded output preview (C2).
   - [x] Holder section/slot summaries and armor-slot facts appear in candidate equipment reads; all four pieces inspected (Q1/W3).
   - [x] Complete returned enchantment eligibility and tooltip-filter search (W3/C1/C4); source item facts support the answers.
-  - [ ] Other no-holder word branches, modded-menu PARTIAL sections, menu-close staleness, every potion/component/fingerprint variant and old inventory/storage handle rereads: no complete installed acceptance captured.
+  - [x] Other missing-holder cases, menu-close staleness (W10), the opened mount menu path (W11r), every potion/component/fingerprint variant with stale handle rereads (W9) and holder/progress-tree rereads (W16) passed live.
+  - [ ] Modded-menu PARTIAL sections: not exercised live.
   - [x] N2–N5 fixed with automated tests (internal; see world-reading backlog above).
 - [x] 2. Progress and statistics ([plan](../plans/2026-10-22-v2-progress-statistics.md)): singleplayer P1–P8 and P10 pass, including P5's fixed-build recheck. P9/P11 and broader clauses remain unchecked above.
 - [x] 3. More world knowledge ([plan](../plans/2026-10-25-v2-world-knowledge.md)): C5–C8 and L1/L2 pass within the following scope.
@@ -107,10 +110,10 @@ Stages 1–5 are implemented. Checked entries below describe the accepted scope,
   - [x] Fresh village prediction, visited found result, unchanged region listing and full-restart saved-place link (C7).
   - [x] Nether ground-view marker visibility/lifetime after depth-test fix at render distance 12, Overworld fixed-build visibility at 12 and earlier distance-8 visibility/expiry (L1/L2).
   - [x] Cheats-off /fill usage, argument types and permission restriction without execution (C8).
-  - [ ] Wandering trader; pending-container loot/seed without unpacking and unknown/empty tables; biome id/tag sampling and continuation; wider command discovery/continuation: implemented but not fully exercised by these checks.
-- [ ] 4. Journal and notes ([plan](../plans/2026-10-22-v2-journal.md)): J0/J4/J5/J6 and M1/M5 subchecks accepted; **M1 FAIL**, **M5/J7 NOT RUN** and the broader event/flush clauses above remain open.
+  - [x] Wandering trader (round 3 D1 ruling: full offers payload with shared item facts); pending-container loot table/seed and undefined/empty tables (round 4 W12r3 ruling); biome sampling/continuation and tag locate (round 1 W13, round 3 W19r); command discovery/continuation (W14).
+- [ ] 4. Journal and notes ([plan](../plans/2026-10-22-v2-journal.md)): every journal clause above is now accepted, including M1 and M5; only the J8 withdrawal reply-compliance failure (the reply omits donkey amounts and coordinates; the journal is correct) stays open.
 - [x] 5. Whole-policy prompt rewrite and promotion ([plan](../plans/2026-10-22-v2-prompt-acceptance.md)): six live rounds, C6 effectively 14/14 under the controller note-action ruling, compiled equality, installed default/override-clear verification and Task 7 results recorded.
-- [ ] Full acceptance: **E6 FAIL** for W8's missing mule coordinates; M1/M5/P9/J7/P11 remain as recorded. No seventh candidate was run.
+- [ ] Full acceptance: E6, M1, M5, P9, J7 and P11 now pass. Remaining: A3 and J8 reply compliance, the automated-only branches and the final review (rereview 12 in progress).
 - [x] Tool timing receipt/submission/summary logs and backend/tool-wall separation (E7), with independent active-effect/attribute overlap (E4).
 - [x] includeNested for list_items decided against by the controller: list one holder, then step into returned nested paths; find_items owns nested discovery.
 - [x] Removed-source prompt guidance tested: Q7/E2 brewing/piston answers use supported Minecraft recipes/plans without JEI, quest or guide wording; plan_recipe is acceptable for E2.
@@ -118,7 +121,9 @@ Stages 1–5 are implemented. Checked entries below describe the accepted scope,
 ## Open
 
 - Journal final-review fixes preserve recording-loss intervals across restarts with an additive schema-v1 table and keep byte-bounded pages resumable after their last delivered record. The [validation record](../validation/2026-10-26-v2-journal-final-review-fixes.md) records the follow-up shared encoder, marker retry/checkpoint and bounded-detail fixes with 1,079 passing tests, five skips and unverified live acceptance; these fixes do not close the broader journal checklist.
-Final review: Astra returned **READY** at 0e894ac after four re-review rounds (no Critical or Important findings); four installed recheck rounds are recorded in the [acceptance record](../validation/2026-10-25-v2-acceptance.md). The vanished-anchor note found in the fourth round is fixed in 744a96d.
+Final review: Astra returned **READY** at 0e894ac after four re-review rounds (no Critical or Important findings); four installed recheck rounds are recorded in the [acceptance record](../validation/2026-10-25-v2-acceptance.md). The vanished-anchor note found in the fourth round is fixed in 744a96d. Later native-readiness rereviews 5–11 are in `.superpowers/sdd/2026-10-25-v2-prompt-acceptance/astra-final-rereview-*.md`; rereview 12 is in progress, so the final review is still open and readiness is not claimed.
+
+Native readiness: final review in progress (rereview 12). The [native readiness checklist](../testing/2026-10-26-native-readiness.md) was run in eight live rounds ([acceptance record](../validation/2026-10-25-v2-acceptance.md), sections Native readiness round 1–8 and their controller rulings; [plan](../plans/2026-10-26-v2-native-readiness.md)). Everything except the items below passed live or by controller ruling; the remaining recorded failures are A3 and J8 reply compliance, and two branches are automated-only.
 
 Final client-review fixes have automated coverage for historical v1 citation chips and unavailable destinations, worker-side debug prompt saves with concurrent screen updates, and fresh holder/progress-tree evidence rereads. Their installed acceptance remains pending; the promoted prompt text is unchanged.
 
@@ -128,17 +133,19 @@ The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include 
 
 - [x] Fix E6 coordinates in located-entity answers and revalidate the changed prompt rule (candidate 8; installed R2 passed).
 - [x] Fix/retest M1 move semantics and deduplication with a clean, unambiguous fixture (candidate 7; installed R1 passed).
-- [ ] Capture M5 shutdown hook/overflow counters; run P9/J7 on a NeoForge dedicated server. Offered tool names now appear in the request_built log for P11; installed C1 pending.
-- [ ] Investigate Part B's unscored unsupported fortress link and locate cursor reuse with changed radius. Rendering acceptance does not resolve either prompt observation.
+- [x] M5 steady-state bulk performance (round 8: overflowed 0, failed 0, 0 slow ticks after the first 200; the controller amended the criterion to steady state after a ten-second warm-up), P9/J7 multiplayer unavailability (round 4, NeoForge 21.1.202 dedicated server with the instance's mods) and P11 offered tool names (round 3 C1r: request_built lists 28 tools, no read_progress).
+- [x] Part B prompt observations: the Overworld fortress question has no invented link (E8) and locate continuation keeps its arguments (E9).
 - [x] Return Section from EntityInspector so bounded trades/attributes can report PARTIAL (installed W4 passed).
-- [ ] Reduce duplicated offer components/enchantment/potion data: offers share one item-facts table (worst case about 220 KB to 25 KB); installed D1 pending.
-- [ ] Split WorldTools after the merges; run delegation is already complete.
-- [ ] Add continuation for progress/statistics composites: single-use acquisition cursors replace the repeat note; installed B1 pending.
+- [x] Reduce duplicated offer components/enchantment/potion data: offers share one item-facts table (worst case about 220 KB to 25 KB); installed D1 ruling passed with the full offers payload for the wandering trader and master librarian.
+- [x] Split WorldTools after the merges; run delegation was already complete.
+- [x] Add continuation for progress/statistics composites: single-use acquisition cursors replace the repeat note; code and automated coverage, and installed B1 ruled PASS (the acquisition-budget branch was not triggered live).
 - [ ] Task 2c: quiet routine test timing logs; deferred because ModDev forces its own Log4j configuration (about 153 timing lines after the summary follow-ups).
-- [ ] Consider caching detached command snapshots/usage if live timing warrants it; canUse/canRun duplication remains a review follow-up.
+- Not pursued: command snapshot caching. No live timing issue appeared in W14 or C8, so it stays unneeded unless timing evidence appears; the canUse/canRun duplication remains a review follow-up.
 - [x] Resolve the resource warning for packsage:font/OFL.txt: the license moved to assets/packsage/licenses/OFL.txt.
 - [x] Final-review Minors from the [READY verdict](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/astra-final-rereview-4.md): an oversized first record keeps later records and the continuation, a failed output replay discards its new tail, and a rejected server submission leaves the queue (automated regressions).
-- [ ] plan_recipe routes: the output-keyed lookup reaches every loaded recipe, fixing the zero routes for beacon, enchanting table and oak planks; installed A1/A2 pending.
-- [ ] Exercise the uncached-POI fallback, holder and progress-tree evidence rereads, saved v1 citations and the wandering trader live; they pass automated regressions only.
-- [ ] Complete the broader unchecked item/menu, world-knowledge, journal and progress clauses above before claiming their full acceptance.
+- [x] plan_recipe routes: the output-keyed lookup reaches every loaded recipe, fixing the zero routes for beacon, enchanting table and oak planks; installed A1r/A3 plan detail/W20/W21 passed with concrete PARTIAL details, intermediate expansion and smithing inputs (rounds 3–8).
+- [x] Holder and progress-tree evidence rereads (W16), saved v1 citations rendered with unavailable destinations (round 3 W17) and the wandering trader (round 3 D1 ruling) passed live.
+- [ ] Uncached-POI section branch of inspect_block and the progress acquisition-budget continuation branch cannot be set up live; they have automated coverage only.
+- [ ] Recorded reply-compliance failures: A3 (the from-scratch beacon reply does not say obsidian is obtained, though the plan detail is correct) and J8 (the withdrawal reply omits the donkey amounts and coordinates, though the journal is correct). Accepted limitation: the statistics one-step owned key copy (Astra accepted).
+- [ ] Modded-menu PARTIAL sections were not exercised live; the rest of the item/menu, world-knowledge, journal and progress clauses are accepted above.
 - The paused JEI recipe-planning tasks J3–J7 belong to feat/packsage-v1 and do not apply until a JEI adapter returns.

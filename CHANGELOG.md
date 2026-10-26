@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Native cooking recipe records include their cooking time and experience.
 - Button labels are centered. The command confirmation Run and Cancel buttons and the Developer settings buttons now center their labels, and all text buttons draw through one shared button helper.
 
 ### 2026-10-26

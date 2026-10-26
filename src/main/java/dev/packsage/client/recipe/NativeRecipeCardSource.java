@@ -4,6 +4,7 @@ import dev.packsage.client.ModernUi;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -140,7 +141,7 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
             for (var text : model.texts()) graphics.drawString(font, text.text(), rx + text.x() - (text.rightAligned() ? font.width(text.text()) : 0), ry + text.y(), 0xff808080, false);
             for (int i = 0; i < model.slots().size(); i++) {
                 var slot = model.slots().get(i);
-                if (!slots.get(i).isEmpty() && mouseX >= rx + slot.x() && mouseX < rx + slot.x() + 16 && mouseY >= ry + slot.y() && mouseY < ry + slot.y() + 16) graphics.fill(rx + slot.x(), ry + slot.y(), rx + slot.x() + 16, ry + slot.y() + 16, 0x80ffffff);
+                if (!slots.get(i).isEmpty() && mouseX >= rx + slot.x() && mouseX < rx + slot.x() + 16 && mouseY >= ry + slot.y() && mouseY < ry + slot.y() + 16) graphics.fillGradient(RenderType.guiOverlay(), rx + slot.x(), ry + slot.y(), rx + slot.x() + 16, ry + slot.y() + 16, 0x80ffffff, 0x80ffffff, 0);
             }
             graphics.drawString(font, Component.literal(model.caption()).withStyle(style -> style.withFont(ModernUi.FONT)), x, y + model.height() + 12, ModernUi.MUTED, false);
         }

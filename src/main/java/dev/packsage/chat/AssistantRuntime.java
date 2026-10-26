@@ -185,7 +185,7 @@ public final class AssistantRuntime implements ChatActions {
                 summaries.whenCompleteAsync((storedSessions, summaryFailure) -> {
                     synchronized (stateLock) {
                         if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
-                                || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                                || loadingHolder.loadGeneration != holderLoadGeneration
                                 || loadingHolder.deleting || world == null
                                 || !world.worldOrServer().equals(conversation.world().worldOrServer())) return;
                         if (summaryFailure == null && storedSessions != null) {
@@ -195,45 +195,27 @@ public final class AssistantRuntime implements ChatActions {
                             if (summary != null) loadingHolder.unreadRequestId = summary.unreadRequestId();
                         }
                     }
-                    initializeHolder(loadingHolder).whenCompleteAsync((ignored, initializationFailure) -> {
-                        Throwable setupFailure = initializationFailure;
-                        Evidence.Scope attachmentScope = null;
-                        if (setupFailure == null) {
-                            synchronized (stateLock) {
-                                if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
-                                        || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
-                                        || loadingHolder.deleting || world == null
-                                        || !world.worldOrServer().equals(conversation.world().worldOrServer())) return;
-                                attachmentScope = worldScope;
-                                loadingHolder.scope = attachmentScope;
-                            }
-                            try {
-                                loadingHolder.controller.showConversation(conversation, attachmentScope);
-                            } catch (RuntimeException attachFailure) {
-                                setupFailure = attachFailure;
-                            }
+                    refreshSessionList();
+                }, clientExecutor);
+                initializeHolder(loadingHolder).whenCompleteAsync((ignored, initializationFailure) -> {
+                    Throwable setupFailure = initializationFailure;
+                    Evidence.Scope attachmentScope = null;
+                    if (setupFailure == null) {
+                        synchronized (stateLock) {
+                            if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                                    || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                                    || loadingHolder.deleting || world == null
+                                    || !world.worldOrServer().equals(conversation.world().worldOrServer())) return;
+                            attachmentScope = worldScope;
+                            loadingHolder.scope = attachmentScope;
                         }
-                        if (setupFailure != null) {
-                            boolean publish;
-                            long currentEpoch;
-                            synchronized (stateLock) {
-                                if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
-                                        || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
-                                        || loadingHolder.deleting || world == null
-                                        || !world.worldOrServer().equals(conversation.world().worldOrServer())) return;
-                                loadingHolder.loading = false;
-                                if (selected == loadingHolder || selected == null && selectionGeneration == sessionSelectionGeneration) {
-                                    sessionLoading = false;
-                                    runtimeErrors.add("Knowledge providers could not be refreshed: " + failureMessage(setupFailure));
-                                } else {
-                                    loadingHolder.errors.add("Knowledge providers could not be refreshed: " + failureMessage(setupFailure));
-                                }
-                                publish = selected == loadingHolder || selected == null && selectionGeneration == sessionSelectionGeneration;
-                                currentEpoch = worldEpoch;
-                            }
-                            if (publish) publishCurrentView(currentEpoch);
-                            return;
+                        try {
+                            loadingHolder.controller.showConversation(conversation, attachmentScope);
+                        } catch (RuntimeException attachFailure) {
+                            setupFailure = attachFailure;
                         }
+                    }
+                    if (setupFailure != null) {
                         boolean publish;
                         long currentEpoch;
                         synchronized (stateLock) {
@@ -241,21 +223,40 @@ public final class AssistantRuntime implements ChatActions {
                                     || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
                                     || loadingHolder.deleting || world == null
                                     || !world.worldOrServer().equals(conversation.world().worldOrServer())) return;
-                            loadingHolder.loaded = true;
                             loadingHolder.loading = false;
-                            loadingHolder.creating = false;
-                            if (selected == loadingHolder) sessionLoading = false;
-                            else if (selectionGeneration == sessionSelectionGeneration && selected == null) {
-                                selected = loadingHolder;
+                            if (selected == loadingHolder || selected == null && selectionGeneration == sessionSelectionGeneration) {
                                 sessionLoading = false;
+                                runtimeErrors.add("Knowledge providers could not be refreshed: " + failureMessage(setupFailure));
+                            } else {
+                                loadingHolder.errors.add("Knowledge providers could not be refreshed: " + failureMessage(setupFailure));
                             }
-                            newChatPending = false;
-                            publish = selected == loadingHolder;
+                            publish = selected == loadingHolder || selected == null && selectionGeneration == sessionSelectionGeneration;
                             currentEpoch = worldEpoch;
                         }
                         if (publish) publishCurrentView(currentEpoch);
-                        refreshSessionList();
-                    }, clientExecutor);
+                        return;
+                    }
+                    boolean publish;
+                    long currentEpoch;
+                    synchronized (stateLock) {
+                        if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                                || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                                || loadingHolder.deleting || world == null
+                                || !world.worldOrServer().equals(conversation.world().worldOrServer())) return;
+                        loadingHolder.loaded = true;
+                        loadingHolder.loading = false;
+                        loadingHolder.creating = false;
+                        if (selected == loadingHolder) sessionLoading = false;
+                        else if (selectionGeneration == sessionSelectionGeneration && selected == null) {
+                            selected = loadingHolder;
+                            sessionLoading = false;
+                        }
+                        newChatPending = false;
+                        publish = selected == loadingHolder;
+                        currentEpoch = worldEpoch;
+                    }
+                    if (publish) publishCurrentView(currentEpoch);
+                    refreshSessionList();
                 }, clientExecutor);
             }, clientExecutor);
         } catch (RuntimeException failure) {

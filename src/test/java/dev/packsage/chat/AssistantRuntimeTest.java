@@ -47,6 +47,33 @@ class AssistantRuntimeTest {
             null, null, 16_000, 2_048);
 
     @Test
+    void selectedConversationAppearsBeforeTheQueuedSidebarCatalogIsRead() throws Exception {
+        var root = Files.createTempDirectory("packsage-opening-selected");
+        var setup = new ConversationStore(root, DIRECT);
+        var conversation = setup.newConversation(WORLD).toCompletableFuture().join();
+        setup.appendTurn(WORLD, SCOPE, conversation.id(), new ChatContracts.Turn(new ChatContracts.RequestId("saved"),
+                "Question", "Answer", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+        List<Runnable> pending = new ArrayList<>();
+        var store = new ConversationStore(root, pending::add);
+        var runtime = new AssistantRuntime(store, new FakeBackend(), captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(), current), turn -> turn.tokenCount(),
+                ignored -> { throw new AssertionError("No request expected"); }, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        var screen = runtime.openScreen();
+        var catalog = runtime.sessions().toCompletableFuture();
+        assertTrue(screen.view().readOnly());
+
+        pending.removeFirst().run();
+
+        assertFalse(catalog.isDone());
+        assertFalse(screen.view().readOnly());
+        assertEquals(conversation.id(), screen.view().conversation().id());
+        assertEquals("Answer", screen.view().conversation().turns().getLast().answer());
+        while (!pending.isEmpty()) pending.removeFirst().run();
+    }
+
+    @Test
     void trackedChatUsesTheScreensCurrentScreenshotAndSearchDefaults() throws Exception {
         for (boolean customized : List.of(false, true)) {
             var backend = new FakeBackend();

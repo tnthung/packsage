@@ -77,6 +77,31 @@ class ConversationStoreTest {
     }
 
     @Test
+    void preciseToolTimingSurvivesLoadingAndSavingAlongsideLegacyMilliseconds() throws Exception {
+        var store = new ConversationStore(temporaryDirectory, DIRECT);
+        var world = new ChatContracts.WorldIdentity("world-a", "World");
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), simpleTurn("precise")).toCompletableFuture().join();
+        Path file = store.conversationPath(world, conversation.id());
+        var lines = Files.readAllLines(file);
+        var value = com.google.gson.JsonParser.parseString(lines.getLast()).getAsJsonObject();
+        value.add("activities", com.google.gson.JsonParser.parseString("[{\"id\":\"tool:fast\",\"title\":\"Lookup\","
+                + "\"status\":\"COMPLETED\",\"durationMillis\":0,\"durationNanos\":480123},"
+                + "{\"id\":\"tool:old\",\"title\":\"Lookup\",\"status\":\"COMPLETED\",\"durationMillis\":6}]"));
+        lines.set(lines.size() - 1, value.toString());
+        Files.write(file, lines);
+        var loaded = store.openConversation(world, conversation.id()).toCompletableFuture().join().turns().getFirst();
+        store.replaceLatestTurn(world, SCOPE, conversation.id(), loaded.requestId(), loaded).toCompletableFuture().join();
+        var saved = com.google.gson.JsonParser.parseString(Files.readAllLines(file).getLast()).getAsJsonObject()
+                .getAsJsonArray("activities");
+        assertTrue(saved.get(0).getAsJsonObject().has("durationNanos"));
+        assertEquals(480123L, saved.get(0).getAsJsonObject().get("durationNanos").getAsLong());
+        assertEquals(6L, saved.get(1).getAsJsonObject().get("durationMillis").getAsLong());
+        assertEquals(loaded.activities(), store.openConversation(world, conversation.id()).toCompletableFuture().join()
+                .turns().getFirst().activities());
+    }
+
+    @Test
     void legacyTurnsWithoutTimingStillLoadWithoutInventedDurations() throws Exception {
         ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
         ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World");

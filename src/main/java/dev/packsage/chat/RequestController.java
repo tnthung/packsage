@@ -719,7 +719,7 @@ public final class RequestController {
                 }
                 request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                         : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
-                        step.serializedArguments()));
+                        step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis()));
                 request.activity = providerRetry ? "Retrying provider request…" : ActivityLabels.RETRYING_WITHOUT_WEB_SEARCH;
             } else if (event.kind() == ModelBackend.EventKind.REASONING) {
                 request.activity = ActivityLabels.THINKING;
@@ -891,7 +891,8 @@ public final class RequestController {
             request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                     : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(),
                     terminalActivity == ChatContracts.ActivityStatus.COMPLETED && id.startsWith("tool:")
-                            ? ChatContracts.ActivityStatus.CANCELLED : terminalActivity, step.serializedArguments()));
+                            ? ChatContracts.ActivityStatus.CANCELLED : terminalActivity, step.serializedArguments(),
+                    step.toolName(), step.resultSummary(), step.durationMillis()));
             markPersistencePending(request);
             active = null;
             if (request.submission.replacing() != null) pendingReplacement = request;
@@ -955,7 +956,7 @@ public final class RequestController {
             }
             request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                     : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
-                    step.serializedArguments()));
+                    step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis()));
             toolCalls = request.toolCalls.size();
             toolWallMs = ToolTiming.unionMillis(request.toolIntervals);
         }

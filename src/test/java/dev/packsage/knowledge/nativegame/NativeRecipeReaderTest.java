@@ -480,6 +480,26 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void smeltingRecordCarriesCookingTimeAndExperience() {
+        var smelting = new net.minecraft.world.item.crafting.SmeltingRecipe("", net.minecraft.world.item.crafting.CookingBookCategory.MISC,
+                Ingredient.of(Items.SAND), new ItemStack(Items.GLASS), 0.1f, 200);
+        var pattern = net.minecraft.world.item.crafting.ShapedRecipePattern.of(Map.of('P', Ingredient.of(Items.OAK_PLANKS)), "PP", "PP");
+        var shaped = new net.minecraft.world.item.crafting.ShapedRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                pattern, new ItemStack(Items.CRAFTING_TABLE));
+        var page = NativeRecipeReader.searchCandidates(List.of(
+                new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:glass"), smelting),
+                new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:table"), shaped)),
+                registries, ITEMS, null, null, null, 0, 10, SCOPE);
+
+        var cookingPayload = page.records().getFirst().payload().values();
+        assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(200)), cookingPayload.get("cookingTime"));
+        assertEquals(0.1, ((Evidence.JsonNumber) cookingPayload.get("experience")).value().doubleValue(), 0.000001);
+        var craftingPayload = page.records().get(1).payload().values();
+        assertFalse(craftingPayload.containsKey("cookingTime"));
+        assertFalse(craftingPayload.containsKey("experience"));
+    }
+
+    @Test
     void smeltingConsumesMilkBucketWithoutCraftingRemainder() {
         var recipe = new net.minecraft.world.item.crafting.SmeltingRecipe("", net.minecraft.world.item.crafting.CookingBookCategory.MISC,
                 Ingredient.of(Items.MILK_BUCKET), new ItemStack(Items.STONE), 0, 200);

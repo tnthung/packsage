@@ -40,6 +40,9 @@ public final class AssistantScreen extends Screen {
     private static final int ACTIVITY_ARGUMENTS_DISPLAY_LIMIT = 2_048;
     private static final Gson ACTIVITY_ARGUMENTS_JSON = new GsonBuilder().serializeNulls().disableHtmlEscaping().create();
     private final ChatActions actions;
+    private final long openingStartNs = System.nanoTime();
+    private boolean firstFrameRendered;
+    private String preparedConversationId;
     private final CommandConfirmationPanel commandConfirmation;
     private final PackSageSettings settings;
     private ChatContracts.View view;
@@ -130,6 +133,9 @@ public final class AssistantScreen extends Screen {
         commandConfirmation = new CommandConfirmationPanel(actions);
         this.settings = actions.settings();
         this.view = actions.view();
+        long eventNs = System.nanoTime();
+        dev.packsage.PackSageLog.LOGGER.info("PackSage timing opening={} phase=screen_constructed conversation={} start_ns={} event_ns={} elapsed_ms={}",
+                openingStartNs, view.conversation().id(), openingStartNs, eventNs, (eventNs - openingStartNs) / 1_000_000.0);
     }
 
     @Override
@@ -154,6 +160,9 @@ public final class AssistantScreen extends Screen {
         followOnCompletion = true;
         layout();
         loadSessions();
+        long eventNs = System.nanoTime();
+        dev.packsage.PackSageLog.LOGGER.info("PackSage timing opening={} phase=screen_init_done conversation={} start_ns={} event_ns={} elapsed_ms={}",
+                openingStartNs, view.conversation().id(), openingStartNs, eventNs, (eventNs - openingStartNs) / 1_000_000.0);
     }
 
     public void loadSessions() {
@@ -177,12 +186,16 @@ public final class AssistantScreen extends Screen {
         }
         sessionsLoading = true;
         long generation = ++catalogGeneration;
+        long pageStartNs = System.nanoTime();
         try {
             actions.sessionPage(more ? sessionOffset : 0, more ? 10 : Math.max(settings.sessionsBeforeCollapse(), sessionOffset))
                     .toCompletableFuture().orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).whenComplete((page, failure) -> {
                 Runnable update = () -> {
                     if (generation != catalogGeneration) return;
                     sessionsLoading = false;
+                    long eventNs = System.nanoTime();
+                    dev.packsage.PackSageLog.LOGGER.info("PackSage timing opening={} phase=sidebar_page_done start_ns={} event_ns={} elapsed_ms={} success={}",
+                            openingStartNs, pageStartNs, eventNs, (eventNs - pageStartNs) / 1_000_000.0, failure == null);
                     if (failure != null) {
                         showNavigationError("Chat history could not be loaded: " + (failure.getMessage() == null
                                 ? failure.getClass().getSimpleName() : failure.getMessage()));
@@ -254,6 +267,13 @@ public final class AssistantScreen extends Screen {
         drawToolbarTooltip(graphics, mouseX, mouseY);
         drawSourceTooltip(graphics, mouseX, mouseY);
         acknowledgeRenderedUnread(minecraft != null && minecraft.screen == this);
+        if (!firstFrameRendered) {
+            firstFrameRendered = true;
+            long eventNs = System.nanoTime();
+            dev.packsage.PackSageLog.LOGGER.info("PackSage timing opening={} phase=first_frame_rendered conversation={} start_ns={} event_ns={} elapsed_ms={} loading={}",
+                    openingStartNs, view.conversation().id(), openingStartNs, eventNs, (eventNs - openingStartNs) / 1_000_000.0,
+                    view.activity().equals("Loading session..."));
+        }
     }
 
     @Override
@@ -789,6 +809,7 @@ public final class AssistantScreen extends Screen {
 
     /** Shared by rendering and the headless profile; visits only the requested history window, newest first. */
     void prepareConversation() {
+        long prepareStartNs = System.nanoTime();
         String providerModel = actions.providerSelectedModelId();
         if (history == null || historyTurns != settings.historyTurns() || historicalTokens != settings.historicalTokens()
                 || !Objects.equals(historyModel, settings.modelId()) || !Objects.equals(historyProviderModel, providerModel)) {
@@ -801,6 +822,13 @@ public final class AssistantScreen extends Screen {
         List<ChatContracts.Turn> turns = view.conversation().turns();
         for (int index = turns.size() - 1; index >= Math.max(0, turns.size() - visibleTurnCount); index--) {
             prepareTurn(turns.get(index));
+        }
+        if (!view.activity().equals("Loading session...") && !view.conversation().id().equals(preparedConversationId)) {
+            preparedConversationId = view.conversation().id();
+            long eventNs = System.nanoTime();
+            dev.packsage.PackSageLog.LOGGER.info("PackSage timing opening={} phase=screen_prepare_done conversation={} start_ns={} event_ns={} elapsed_ms={} opening_ms={} turns={}",
+                    openingStartNs, preparedConversationId, prepareStartNs, eventNs, (eventNs - prepareStartNs) / 1_000_000.0,
+                    (eventNs - openingStartNs) / 1_000_000.0, Math.min(visibleTurnCount, turns.size()));
         }
     }
 

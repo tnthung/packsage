@@ -531,7 +531,15 @@ public final class PackSageTools {
                             "{\"coverage\":\"PARTIAL\",\"outcome\":\"PARTIAL\",\"records\":[],\"detail\":\""
                                     + result.records().size() + " records omitted because the response envelope exceeds the byte limit; narrow the requested selection\"}", false), List.of());
                 }
-                outputPages.delivered.accept(scope, accepted);
+                try {
+                    outputPages.delivered.accept(scope, accepted);
+                } catch (RuntimeException | Error failure) {
+                    synchronized (outputPages) {
+                        var discarded = outputPages.pending.remove(overflowCursor);
+                        if (discarded != null) outputPages.retainedBytes -= discarded.bytes();
+                    }
+                    throw failure;
+                }
                 return new ToolResponse(new ModelBackend.ToolResult(call.callId(), serialized, result.outcome() == Evidence.Outcome.ERROR), accepted);
             }).exceptionally(failure -> {
                 while (failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null) failure = failure.getCause();

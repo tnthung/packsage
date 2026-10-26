@@ -307,9 +307,17 @@ final class ScreenText {
             RecipeCardModel card = null;
             if (!inCode && verbosity != null && verbosity != PackSageSettings.Verbosity.CONCISE) {
                 var citations = spans.stream().filter(span -> span.source() != null).toList();
-                if (citations.size() == 1 && spans.stream().allMatch(span -> span == citations.getFirst()
-                        || span.source() == null && span.target() == null && span.externalUrl() == null
-                        && span.itemId() == null && span.text().isBlank())) card = cards.get(citations.getFirst().source());
+                if (citations.size() == 1) {
+                    Evidence.Source source = citations.getFirst().source();
+                    String reference = source.providerId() + ":" + source.sourceHandle();
+                    String trimmed = rawLine.trim();
+                    if ((trimmed.equals("[" + reference + "]")
+                            || trimmed.equals("\uE200cite\uE202" + reference + "\uE201")
+                            || trimmed.matches("\\[[^\\]\\r\\n]+\\]\\(" + Pattern.quote(reference) + "\\)"))
+                            && spans.stream().allMatch(span -> span == citations.getFirst()
+                            || span.source() == null && span.target() == null && span.externalUrl() == null
+                            && span.itemId() == null && span.text().isBlank())) card = cards.get(source);
+                }
             }
             if (verbosity == PackSageSettings.Verbosity.CONCISE) {
                 for (int index = 0; index < spans.size(); index++) {
@@ -361,6 +369,7 @@ final class ScreenText {
         }
         return Map.copyOf(cards);
     }
+
     static Map<Evidence.Source, String> sourceLabels(ChatContracts.Turn turn) {
         Map<String, List<Evidence.Source>> candidates = turn.sources().stream().filter(source -> source.providerId().equals("native")
                 && (source.sourceHandle().startsWith("brewing:") || source.sourceHandle().startsWith("potion:")))
@@ -539,10 +548,10 @@ final class ScreenText {
                 if (close > index && closeUrl > close + 2) {
                     int end = closeUrl + 1;
                     String url = text.substring(close + 2, closeUrl);
-                    if (url.startsWith("item:") && url.length() > 5) {
+                    if (verbosity != null && url.startsWith("item:") && url.length() > 5) {
                         flushInline(spans, plain, bold, code);
                         spans.add(new InlineSpan(text.substring(index + 1, close), null, TEXT_COLOR, bold, false,
-                                null, null, null, verbosity == null ? null : url.substring(5)));
+                                null, null, null, url.substring(5)));
                         index = end;
                         continue;
                     }

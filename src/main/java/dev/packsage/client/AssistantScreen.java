@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.HashSet;
@@ -437,7 +438,8 @@ public final class AssistantScreen extends Screen {
             y = drawAnswerSequence(graphics, turn.answer(), turn.steeringMessages(), turn, y, included);
             y = drawMessageActions(graphics, turn, false, tokens.assistant(), y, mouseX, mouseY);
             if (turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED && turn.durationMillis() != null) {
-                graphics.drawString(font, Component.literal("Completed in " + turn.durationMillis() + " ms")
+                graphics.drawString(font, Component.literal("Completed in " + (turn.durationMillis() < 100 ? "<0.1 s"
+                                : String.format(Locale.ROOT, "%.1f s", turn.durationMillis() / 1000.0)))
                         .withStyle(style -> style.withFont(ModernUi.FONT)), readableLeft + 26, y, ModernUi.MUTED, false);
                 y += ModernUi.MESSAGE_LINE_HEIGHT;
             }
@@ -534,7 +536,8 @@ public final class AssistantScreen extends Screen {
         } : step.detail();
         if (!step.id().startsWith("tool:")) return detail;
         if (step.resultSummary() != null) detail += "\n" + step.resultSummary();
-        if (step.durationMillis() != null) detail += "\nDuration: " + step.durationMillis() + " ms";
+        if (step.durationMillis() != null) detail += "\nDuration: " + (step.durationMillis() < 100 ? "<0.1 s"
+                : String.format(Locale.ROOT, "%.1f s", step.durationMillis() / 1000.0));
         String toolName = step.toolName();
         String arguments = step.serializedArguments();
         if (arguments == null || toolName == null) {

@@ -1184,7 +1184,11 @@ class AssistantScreenStateTest {
         assertTrue(body.contains("PARTIAL"));
         assertTrue(body.contains("records: 2"));
         assertTrue(body.contains("Route limit reached"));
-        assertTrue(body.contains("125 ms"));
+        assertTrue(body.contains("0.1 s"));
+        assertTrue(screen.activityBody(new ChatContracts.ActivityStep("tool:two", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, null, "search", null, 4_200L), List.of()).contains("Duration: 4.2 s"));
+        assertTrue(screen.activityBody(new ChatContracts.ActivityStep("tool:three", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, null, "search", null, 99L), List.of()).contains("Duration: <0.1 s"));
     }
 
     @Test

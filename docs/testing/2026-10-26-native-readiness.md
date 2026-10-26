@@ -74,3 +74,18 @@ Run on the installed merge of `fix/v2-readiness`. Run every code-track check (A1
 | N1 | With candidate 9 still set, rerun the note rules it sits beside: report, move ("I moved my <thing>") and recall; a plain question; "what do you remember about me?" | one note follows the move with the new place; no reply mentions saving; questions are not saved |
 
 After J12r and N1, `POST /prompt {"text":null}` and confirm that `GET /prompt` shows candidate 8 again.
+
+## Round 3
+
+Run on the installed current `feat/packsage-v2`. The installed default prompt is candidate 9 (`build/prompt-candidates/candidate-9.txt`), with no override. Use the new bridge operations in the [debug bridge guide](2026-10-25-debug-bridge.md) instead of desktop control: `/world/leave`, `/world/open`, `/server/connect`, `/player/open` with `openInventory`, `/screen/open`, `/resourcepacks` and `/game/quit`. Desktop control is needed only to relaunch the game after `/game/quit` or a crash.
+
+| Id | Steps | Pass when |
+|---|---|---|
+| D2 | `GET /prompt` | `text` is null; `effectiveText` equals candidate 9 byte for byte |
+| A1r | Repeat A1 | routes with complete leading inputs; PARTIAL detail names concrete reasons, for example raw materials or the depth bound; no recipe links (v2 has no recipe viewer) |
+| A3 | "how many logs do I need for 10 pistons?" and "what do I need to make a beacon from scratch?" | the plan expands intermediates: 30 planks from 8 logs, and the beacon's glass and obsidian sources or their raw-material limits, with the arithmetic following the returned batches |
+| C1r | Any question; read the bridge `request_built` capture | `toolNames` lists all 28 tools, without `read_progress` |
+| W12r2 | The three round-1 sealed chests | the known table is not called undefined; the missing table is undefined; the empty table generates nothing; each reply names the table; nothing is unpacked |
+| W19r | "where is the nearest forest?" | locate uses a biome tag such as `#minecraft:is_forest` or forest biome ids, and returns a sampled place with a link |
+| D1 | Repeat D1 with a correctly built master librarian (`/data` on a villager standing on solid ground with the world unpaused) and a wandering trader after a player interaction has generated its offers | every offer with prices and correct item facts; not trimmed |
+| M5, J8, J9, J13, P9/J7, W11, W17, W18, U1, U2 | As listed above, using the bridge operations | as listed above |

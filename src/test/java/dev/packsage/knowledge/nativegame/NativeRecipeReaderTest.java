@@ -303,6 +303,15 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void vanillaCraftingRecipeReportsBucketRemainder() {
+        var shapeless = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.CAKE), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.MILK_BUCKET)));
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:milk"), shapeless),
+                registries, ITEMS, null, SCOPE, null);
+        assertEquals("minecraft:bucket", record.recipePayload().remainders().getFirst().comparisonIdentity());
+    }
+
+    @Test
     void shapedRecipeWithEmptyCellsNumbersSlotsByRowTimesWidthPlusColumn() {
         var pattern = net.minecraft.world.item.crafting.ShapedRecipePattern.of(java.util.Map.of(
                 'P', Ingredient.of(Items.OAK_PLANKS), 'I', Ingredient.of(Items.IRON_INGOT)), " P ", "PIP", " P ");

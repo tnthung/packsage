@@ -32452,10 +32452,10 @@ The round-1/2 controller rulings apply: v2 has no recipe viewer, seeds need not 
 | D2 | PASS | No override; installed effectiveText equals candidate 9 byte for byte. |
 | A1r | PASS | All three leading routes have complete inputs and concrete PARTIAL reasons; no recipe navigation targets. |
 | A3 | FAIL | Pistons expand to 30 planks from 8 logs; the from-scratch beacon reply omits the obsidian source or returned raw-material limit. |
-| C1r | NOT RUN | Pending execution. |
-| W12r2 | NOT RUN | Pending execution. |
-| W19r | NOT RUN | Pending execution. |
-| D1 | NOT RUN | Pending execution. |
+| C1r | PASS | request_built captures all 28 complete tool names, with no read_progress. |
+| W12r2 | FAIL | Tool classification is correct and all chests remain sealed; missing-table reply omits its table and undefined status. |
+| W19r | PASS | locate uses #minecraft:is_forest; sampled forest at (1673,250,1571) has a working waypoint. |
+| D1 | NOT RUN | Both populated offer sets are fully returned and priced; required trader interaction happened after its question, so that setup clause is not accepted. |
 | M5 | NOT RUN | Pending execution. |
 | J8 | NOT RUN | Pending execution. |
 | J9 | NOT RUN | Pending execution. |
@@ -32622,6 +32622,215 @@ Put **one oak log** in any crafting slot and take the **four oak planks** from t
 ```
 
 Timing: {"wallMs":18248,"modelTerminalMs":"11013","toolWallMs":"10","persistMs":"1054"}.
+
+
+#### C1r - PASS
+
+request_built captures all 28 complete tool names, with no read_progress.
+
+
+
+Evidence: [c1r-request-built.json](../../build/native-readiness-live/round3/c1r-request-built.json).
+
+
+#### W19r - PASS
+
+locate uses #minecraft:is_forest; sampled forest at (1673,250,1571) has a working waypoint.
+
+
+
+Question: `where is the nearest forest?`
+
+Request `fdb6d63f-6247-44ac-8b43-ab2c7da7efdd`; conversation `4be15d8a-59ea-4411-b13c-521fca5c2377`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/w19r-forest.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "locate",
+    "arguments": {
+      "biome": "#minecraft:is_forest",
+      "structure": null,
+      "center": null,
+      "radius": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The nearest **sampled forest biome** is at **(1673, 250, 1571)**, about **71 blocks east-northeast** of you. The biome search samples locations, so this marks a forest sample rather than its exact edge. [Forest waypoint](world:locate|minecraft:overworld|minecraft:forest|1673,1571)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-place|minecraft:overworld|1673,250,1571",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":17547,"modelTerminalMs":"12046","toolWallMs":"144","persistMs":"1104"}.
+
+
+#### D1 - NOT RUN
+
+Classification: **fixture**. Both populated offer sets are fully returned and priced; required trader interaction happened after its question, so that setup clause is not accepted.
+
+The grounded master librarian returns all 12 offers, including Mending I for 12 emeralds plus a book and Swiftness for 4 emeralds. The compressed paper range defines all ten prices exactly. The trader returns all six offers matching serialized NBT. The fixture script used the wrong focus field for its initial open and received x must be integer; the serialization read already populated offers. A later corrected interaction opened minecraft:merchant, after the question. No model question was resubmitted to obtain acceptance.
+
+Evidence: [d1-fixture.json](../../build/native-readiness-live/round3/d1-fixture.json).
+
+Evidence: [d1-librarian-ground-truth.json](../../build/native-readiness-live/round3/d1-librarian-ground-truth.json).
+
+Evidence: [d1-trader-generated.json](../../build/native-readiness-live/round3/d1-trader-generated.json).
+
+Evidence: [d1-trader-interaction.json](../../build/native-readiness-live/round3/d1-trader-interaction.json).
+
+Evidence: [d1-trader-late-interaction.json](../../build/native-readiness-live/round3/d1-trader-late-interaction.json).
+
+Question: `what does this villager sell?`
+
+Request `00fa556b-0e5e-45de-bc84-bb9a3cec9b53`; conversation `e187d200-1ba6-4a11-8669-7f4ac4b0dc59`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/d1-librarian.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "bf97330a-ac52-4d75-88d5-b12e792bc5a6"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The [librarian at (2402, 250, 2400)](world:entity|bf97330a-ac52-4d75-88d5-b12e792bc5a6) has **12 offers**, all currently in stock:
+
+- **Paper:** 1–10 paper for 5–23 emeralds, respectively. Each additional paper costs 2 more emeralds.
+- **Mending I enchanted book:** 12 emeralds **and 1 book**.
+- **Potion of Swiftness:** 4 emeralds. [world:entity|bf97330a-ac52-4d75-88d5-b12e792bc5a6]
+
+Those emerald prices already include demand. The displayed price when you start trading can also reflect your reputation and Hero of the Village discounts; the current record shows your reputation with this villager is 0. [world:entity|bf97330a-ac52-4d75-88d5-b12e792bc5a6]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-entity|bf97330a-ac52-4d75-88d5-b12e792bc5a6",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":17995,"modelTerminalMs":"12015","toolWallMs":"73","persistMs":"1197"}.
+
+Question: `what does this trader sell?`
+
+Request `bfaa8fa0-20ba-42a5-8676-834ab75fa0d1`; conversation `69385559-8a8f-437e-9f14-c2b5c5a595c3`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/d1-trader.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "6fdd32c3-01b2-4e94-aa32-cecd692d4376"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "active_effect",
+      "filter": {
+        "text": null,
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 64,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The [wandering trader at (2405, 250, 2400)](world:entity|6fdd32c3-01b2-4e94-aa32-cecd692d4376) offers six trades:
+
+| You pay | You get |
+|---|---|
+| 1 emerald | 3 blue dye |
+| 1 emerald | 3 orange dye |
+| 1 emerald | 3 cyan dye |
+| 5 emeralds | 1 oak sapling |
+| 1 emerald | 1 pink tulip |
+| 6 emeralds | 1 blue ice |
+
+All six are currently in stock. These are the trader’s recorded prices; the price shown when you start trading can also reflect reputation or Hero of the Village discounts. Trading wasn’t open when I checked, so I can’t confirm a final player-specific price. [world:entity|6fdd32c3-01b2-4e94-aa32-cecd692d4376]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-entity|6fdd32c3-01b2-4e94-aa32-cecd692d4376",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":25683,"modelTerminalMs":"20166","toolWallMs":"50","persistMs":"1108"}.
 
 
 ### Failures
@@ -32791,3 +33000,193 @@ Obsidian   Obsidian     Obsidian
 ```
 
 Timing: {"wallMs":39629,"modelTerminalMs":"33489","toolWallMs":"94","persistMs":"1188"}.
+
+
+#### W12r2 - FAIL
+
+Classification: **prompt**. Tool classification is correct and all chests remain sealed; missing-table reply omits its table and undefined status.
+
+Known simple-dungeon table is named in readable form and is not called undefined. Empty-table reply names the empty table and says it generates no items. The missing-table list_items detail explicitly says packsage:missing_native_readiness is not defined by the loaded data packs, but the reply merely says loot has not generated and suggests opening it. No rerun. Before/after NBT retains each LootTable and original seed without Items.
+
+Evidence: [w12r2-before.json](../../build/native-readiness-live/round3/w12r2-before.json).
+
+Evidence: [w12r2-after.json](../../build/native-readiness-live/round3/w12r2-after.json).
+
+Question: `what's in this chest?`
+
+Request `af8f666d-5844-4efa-8292-7e800ee05337`; conversation `413301ad-eaa3-4b6c-be79-f75e24e7053b`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/w12r2-known.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table minecraft:chests/simple_dungeon, seed 12345); its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at (1608, 250, 1600) hasn’t generated its loot yet, so I can’t tell you its exact contents. Its loot is set when you first open it; it uses the simple dungeon chest loot table. [world:block|minecraft:overworld|1608,250,1600]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1608,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":12687,"modelTerminalMs":"9082","toolWallMs":"84","persistMs":"1170"}.
+
+Question: `what's in this chest?`
+
+Request `6115ca10-338d-45b7-a2e5-d2ec9e2616a3`; conversation `e7960a13-8df7-4915-b59c-de4b44c45b20`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/w12r2-unknown.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_block",
+    "arguments": {
+      "place": "minecraft:overworld|1610,250,1600"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1610,250,1600",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table packsage:missing_native_readiness, seed 67890, a table the loaded data packs do not define); its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I can’t tell what’s inside the chest at (1610, 250, 1600) yet: its loot hasn’t been generated, so an empty item list wouldn’t mean the chest is empty. Open it in-game, then ask me again. [Chest](world:block|minecraft:overworld|1610,250,1600)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1610,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":21045,"modelTerminalMs":"14267","toolWallMs":"89","persistMs":"1184"}.
+
+Question: `what's in this chest?`
+
+Request `34da4ded-4df7-46b8-a620-10923561fa58`; conversation `3bdeccae-f06a-4e61-9eb2-90d4bc78fa22`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/w12r2-empty.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table minecraft:empty, seed 222, the empty table, which generates nothing); its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": null,
+      "place": "minecraft:overworld|1612,250,1600",
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing; the container generates this loot when it is first opened; seed 0 means a random seed",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at (1612, 250, 1600) hasn’t generated its loot yet, so I can’t read a current item list. Its pending loot table is **empty**, though, so opening it will generate **no items**. [Chest](world:block|minecraft:overworld|1612,250,1600) [Loot table](world:loot|minecraft:empty)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1612,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-block|minecraft:overworld|1612,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":21197,"modelTerminalMs":"15645","toolWallMs":"34","persistMs":"1094"}.

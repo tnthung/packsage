@@ -56,10 +56,13 @@ public final class WorldHighlighter {
                     .setDepthTestState(THROUGH_TERRAIN)
                     .setCullState(RenderStateShard.NO_CULL)
                     .createCompositeState(false));
+    /** Cyan at about 70% opacity: a bright but see-through core, as the marker is drawn over terrain. */
+    private static final int BEAM_COLOR = 0xB34DD9FF;
     private static final RenderType PLACE_BEAM_CORE = RenderType.create("packsage_place_beam_core", DefaultVertexFormat.BLOCK,
             VertexFormat.Mode.QUADS, 1536, false, true, RenderType.CompositeState.builder()
                     .setShaderState(RenderStateShard.RENDERTYPE_BEACON_BEAM_SHADER)
                     .setTextureState(new RenderStateShard.TextureStateShard(BeaconRenderer.BEAM_LOCATION, false, false))
+                    .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
                     .setDepthTestState(THROUGH_TERRAIN)
                     .setWriteMaskState(RenderStateShard.COLOR_WRITE)
                     .createCompositeState(false));
@@ -144,6 +147,10 @@ public final class WorldHighlighter {
         buffers.endBatch(LINES);
         if (PLACES.isEmpty()) return;
         double far = minecraft.gameRenderer.getDepthFar();
+        // A marker far away would fade out in terrain fog, which ends at the render distance or nearer in thick-fog dimensions.
+        // Switching render types flushes the previous beam part, so the override must hold before any part is drawn.
+        float fogStart = RenderSystem.getShaderFogStart();
+        RenderSystem.setShaderFogStart(Float.MAX_VALUE);
         PLACE_BEAM_BUFFERS.delegate = buffers;
         try {
             for (var place : PLACES.keySet()) {
@@ -157,18 +164,15 @@ public final class WorldHighlighter {
                 pose.translate(x - 0.5, place.y() - camera.y, z - 0.5);
                 BeaconRenderer.renderBeaconBeam(pose, PLACE_BEAM_BUFFERS, BeaconRenderer.BEAM_LOCATION,
                         event.getPartialTick().getGameTimeDeltaPartialTick(false), 1.0F, level.getGameTime(), 0,
-                        markerBeamHeight(place.y(), level.getMaxBuildHeight()), 0xFF4DD9FF, 0.14F, 0.5F);
+                        markerBeamHeight(place.y(), level.getMaxBuildHeight()), BEAM_COLOR, 0.14F, 0.5F);
                 pose.popPose();
             }
+            buffers.endBatch(PLACE_BEAM_CORE);
+            buffers.endBatch(PLACE_BEAM_GLOW);
         } finally {
             PLACE_BEAM_BUFFERS.delegate = null;
+            RenderSystem.setShaderFogStart(fogStart);
         }
-        // A marker far away would fade out in terrain fog, which ends at the render distance or nearer in thick-fog dimensions.
-        float fogStart = RenderSystem.getShaderFogStart();
-        RenderSystem.setShaderFogStart(Float.MAX_VALUE);
-        buffers.endBatch(PLACE_BEAM_CORE);
-        buffers.endBatch(PLACE_BEAM_GLOW);
-        RenderSystem.setShaderFogStart(fogStart);
     }
 
     /**

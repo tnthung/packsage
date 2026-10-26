@@ -17,6 +17,19 @@ import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class NativeRecipeCardSource implements RecipeCardSource {
+    private static final ResourceLocation PANEL = ResourceLocation.fromNamespaceAndPath("packsage", "jei/single_recipe_background");
+    private static final ResourceLocation BREWING_BACKGROUND = ResourceLocation.fromNamespaceAndPath("packsage", "jei/brewing_stand_background");
+    private static final ResourceLocation OUTPUT_SLOT = ResourceLocation.fromNamespaceAndPath("packsage", "jei/output_slot");
+    private static final ResourceLocation SLOT = ResourceLocation.fromNamespaceAndPath("packsage", "jei/slot");
+    private static final ResourceLocation BREWING_HEAT = ResourceLocation.fromNamespaceAndPath("packsage", "jei/brewing_stand_blaze_heat");
+    private static final ResourceLocation BREWING_BUBBLES = ResourceLocation.fromNamespaceAndPath("packsage", "jei/brewing_stand_bubbles");
+    private static final ResourceLocation BREWING_ARROW = ResourceLocation.fromNamespaceAndPath("packsage", "jei/brewing_stand_arrow");
+    private static final ResourceLocation RECIPE_ARROW = ResourceLocation.fromNamespaceAndPath("packsage", "jei/recipe_arrow");
+    private static final ResourceLocation RECIPE_ARROW_FILLED = ResourceLocation.fromNamespaceAndPath("packsage", "jei/recipe_arrow_filled");
+    private static final ResourceLocation FLAME_EMPTY = ResourceLocation.fromNamespaceAndPath("packsage", "jei/icons/flame_empty");
+    private static final ResourceLocation FLAME = ResourceLocation.fromNamespaceAndPath("packsage", "jei/icons/flame");
+    private static final ResourceLocation SHAPELESS_ICON = ResourceLocation.fromNamespaceAndPath("packsage", "jei/icons/shapeless_icon");
+
     @Override
     public Optional<RecipeCard> card(RecipeCardModel model) {
         var level = Minecraft.getInstance().level;
@@ -28,6 +41,7 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
 
     static final class NativeCard implements RecipeCard {
         private final RecipeCardModel model;
+        private final Component caption;
         private final List<List<DisplayedStack>> slots;
         private final long animationStart = System.currentTimeMillis();
         private long lastTime = animationStart;
@@ -35,6 +49,7 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
 
         NativeCard(RecipeCardModel model, HolderLookup.Provider registries) {
             this.model = model;
+            this.caption = Component.literal(model.caption()).withStyle(style -> style.withFont(ModernUi.FONT));
             var slots = new ArrayList<List<DisplayedStack>>();
             for (var slot : model.slots()) {
                 var stacks = new ArrayList<DisplayedStack>();
@@ -65,7 +80,6 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
             lastTime = now;
             long animation = Math.max(0, now - animationStart);
             var font = Minecraft.getInstance().font;
-            var panel = ResourceLocation.fromNamespaceAndPath("packsage", "jei/single_recipe_background");
             int[] widths = { 16, width() - 32, 16 };
             int[] heights = { 16, model.height() + 8 - 32, 16 };
             int[] source = { 0, 16, 48 };
@@ -79,7 +93,7 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
                         for (int bottom = heights[row]; bottom > 0; bottom -= tileHeight) {
                             int w = Math.min(tileWidth, widths[col] - dx);
                             int h = Math.min(tileHeight, bottom);
-                            graphics.blitSprite(panel, 64, 64, source[col], source[row] + tileHeight - h,
+                            graphics.blitSprite(PANEL, 64, 64, source[col], source[row] + tileHeight - h,
                                     px + dx, py + bottom - h, w, h);
                         }
                     }
@@ -90,43 +104,43 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
             int rx = x + 4, ry = y + 4;
             var category = model.category();
             if (category == RecipeCardModel.Category.BREWING) {
-                graphics.blitSprite(ResourceLocation.fromNamespaceAndPath("packsage", "jei/brewing_stand_background"), rx + RecipeCardLayouts.BREWING_BACKGROUND_X, ry + RecipeCardLayouts.BREWING_BACKGROUND_Y, RecipeCardLayouts.BREWING_BACKGROUND_WIDTH, RecipeCardLayouts.BREWING_BACKGROUND_HEIGHT);
+                graphics.blitSprite(BREWING_BACKGROUND, rx + RecipeCardLayouts.BREWING_BACKGROUND_X, ry + RecipeCardLayouts.BREWING_BACKGROUND_Y, RecipeCardLayouts.BREWING_BACKGROUND_WIDTH, RecipeCardLayouts.BREWING_BACKGROUND_HEIGHT);
             }
             for (var slot : model.slots()) {
                 if (category == RecipeCardModel.Category.BREWING && !slot.output()) continue;
                 boolean large = slot.output() && category != RecipeCardModel.Category.SMITHING && category != RecipeCardModel.Category.BREWING;
-                graphics.blitSprite(ResourceLocation.fromNamespaceAndPath("packsage", large ? "jei/output_slot" : "jei/slot"),
+                graphics.blitSprite(large ? OUTPUT_SLOT : SLOT,
                         rx + slot.x() + (large ? RecipeCardLayouts.OUTPUT_SLOT_OFFSET : RecipeCardLayouts.SLOT_OFFSET),
                         ry + slot.y() + (large ? RecipeCardLayouts.OUTPUT_SLOT_OFFSET : RecipeCardLayouts.SLOT_OFFSET),
                         large ? RecipeCardLayouts.OUTPUT_SLOT_SIZE : RecipeCardLayouts.SLOT_SIZE,
                         large ? RecipeCardLayouts.OUTPUT_SLOT_SIZE : RecipeCardLayouts.SLOT_SIZE);
             }
             if (category == RecipeCardModel.Category.BREWING) {
-                graphics.blitSprite(ResourceLocation.fromNamespaceAndPath("packsage", "jei/brewing_stand_blaze_heat"), rx + RecipeCardLayouts.BREWING_HEAT_X, ry + RecipeCardLayouts.BREWING_HEAT_Y, RecipeCardLayouts.BREWING_HEAT_WIDTH, RecipeCardLayouts.BREWING_HEAT_HEIGHT);
+                graphics.blitSprite(BREWING_HEAT, rx + RecipeCardLayouts.BREWING_HEAT_X, ry + RecipeCardLayouts.BREWING_HEAT_Y, RecipeCardLayouts.BREWING_HEAT_WIDTH, RecipeCardLayouts.BREWING_HEAT_HEIGHT);
                 int[] masks = { 29, 23, 18, 13, 9, 5, 0 };
                 int mask = masks[(int) ((animation % 700) / 100)];
-                if (mask < RecipeCardLayouts.BREWING_BUBBLES_HEIGHT) graphics.blitSprite(ResourceLocation.fromNamespaceAndPath("packsage", "jei/brewing_stand_bubbles"), RecipeCardLayouts.BREWING_BUBBLES_WIDTH, RecipeCardLayouts.BREWING_BUBBLES_HEIGHT, 0, mask, rx + RecipeCardLayouts.BREWING_BUBBLES_X, ry + RecipeCardLayouts.BREWING_BUBBLES_Y + mask, RecipeCardLayouts.BREWING_BUBBLES_WIDTH, RecipeCardLayouts.BREWING_BUBBLES_HEIGHT - mask);
+                if (mask < RecipeCardLayouts.BREWING_BUBBLES_HEIGHT) graphics.blitSprite(BREWING_BUBBLES, RecipeCardLayouts.BREWING_BUBBLES_WIDTH, RecipeCardLayouts.BREWING_BUBBLES_HEIGHT, 0, mask, rx + RecipeCardLayouts.BREWING_BUBBLES_X, ry + RecipeCardLayouts.BREWING_BUBBLES_Y + mask, RecipeCardLayouts.BREWING_BUBBLES_WIDTH, RecipeCardLayouts.BREWING_BUBBLES_HEIGHT - mask);
                 int arrow = (int) ((animation % 20000) * 28 / 20000);
-                if (arrow > 0) graphics.blitSprite(ResourceLocation.fromNamespaceAndPath("packsage", "jei/brewing_stand_arrow"), RecipeCardLayouts.BREWING_ARROW_WIDTH, RecipeCardLayouts.BREWING_ARROW_HEIGHT, 0, 0, rx + RecipeCardLayouts.BREWING_ARROW_X, ry + RecipeCardLayouts.BREWING_ARROW_Y, RecipeCardLayouts.BREWING_ARROW_WIDTH, arrow);
+                if (arrow > 0) graphics.blitSprite(BREWING_ARROW, RecipeCardLayouts.BREWING_ARROW_WIDTH, RecipeCardLayouts.BREWING_ARROW_HEIGHT, 0, 0, rx + RecipeCardLayouts.BREWING_ARROW_X, ry + RecipeCardLayouts.BREWING_ARROW_Y, RecipeCardLayouts.BREWING_ARROW_WIDTH, arrow);
             } else {
                 boolean cooking = category == RecipeCardModel.Category.SMELTING || category == RecipeCardModel.Category.BLASTING || category == RecipeCardModel.Category.SMOKING || category == RecipeCardModel.Category.CAMPFIRE;
                 int ax = category == RecipeCardModel.Category.CRAFTING_SHAPED || category == RecipeCardModel.Category.CRAFTING_SHAPELESS ? RecipeCardLayouts.CRAFTING_ARROW_X : category == RecipeCardModel.Category.SMITHING ? RecipeCardLayouts.SMITHING_ARROW_X : RecipeCardLayouts.COOKING_ARROW_X;
                 int ay = switch (category) { case CRAFTING_SHAPED, CRAFTING_SHAPELESS -> RecipeCardLayouts.CRAFTING_ARROW_Y; case SMITHING -> RecipeCardLayouts.SMITHING_ARROW_Y; case CAMPFIRE -> RecipeCardLayouts.CAMPFIRE_ARROW_Y; case STONECUTTING -> RecipeCardLayouts.STONECUTTING_ARROW_Y; default -> RecipeCardLayouts.COOKING_ARROW_Y; };
-                graphics.blitSprite(ResourceLocation.fromNamespaceAndPath("packsage", "jei/recipe_arrow"), rx + ax, ry + ay, RecipeCardLayouts.ARROW_WIDTH, RecipeCardLayouts.ARROW_HEIGHT);
+                graphics.blitSprite(RECIPE_ARROW, rx + ax, ry + ay, RecipeCardLayouts.ARROW_WIDTH, RecipeCardLayouts.ARROW_HEIGHT);
                 if (cooking) {
                     int ticks = model.cookingTime() > 0 ? model.cookingTime() : category == RecipeCardModel.Category.CAMPFIRE ? 400 : category == RecipeCardModel.Category.SMELTING ? 200 : 100;
                     long duration = ticks * 50L;
                     int filled = (int) ((animation % duration) * 23 / duration);
-                    if (filled > 0) graphics.blitSprite(ResourceLocation.fromNamespaceAndPath("packsage", "jei/recipe_arrow_filled"), RecipeCardLayouts.ARROW_WIDTH, RecipeCardLayouts.ARROW_HEIGHT, 0, 0, rx + ax, ry + ay, filled, RecipeCardLayouts.ARROW_HEIGHT);
-                    graphics.blitSprite(ResourceLocation.fromNamespaceAndPath("packsage", "jei/icons/flame_empty"), rx + RecipeCardLayouts.FLAME_X, ry + RecipeCardLayouts.FLAME_Y, RecipeCardLayouts.FLAME_SIZE, RecipeCardLayouts.FLAME_SIZE);
+                    if (filled > 0) graphics.blitSprite(RECIPE_ARROW_FILLED, RecipeCardLayouts.ARROW_WIDTH, RecipeCardLayouts.ARROW_HEIGHT, 0, 0, rx + ax, ry + ay, filled, RecipeCardLayouts.ARROW_HEIGHT);
+                    graphics.blitSprite(FLAME_EMPTY, rx + RecipeCardLayouts.FLAME_X, ry + RecipeCardLayouts.FLAME_Y, RecipeCardLayouts.FLAME_SIZE, RecipeCardLayouts.FLAME_SIZE);
                     int mask = (int) ((animation % 15000) * 15 / 15000);
-                    if (mask < RecipeCardLayouts.FLAME_SIZE) graphics.blitSprite(ResourceLocation.fromNamespaceAndPath("packsage", "jei/icons/flame"), RecipeCardLayouts.FLAME_SIZE, RecipeCardLayouts.FLAME_SIZE, 0, mask, rx + RecipeCardLayouts.FLAME_X, ry + RecipeCardLayouts.FLAME_Y + mask, RecipeCardLayouts.FLAME_SIZE, RecipeCardLayouts.FLAME_SIZE - mask);
+                    if (mask < RecipeCardLayouts.FLAME_SIZE) graphics.blitSprite(FLAME, RecipeCardLayouts.FLAME_SIZE, RecipeCardLayouts.FLAME_SIZE, 0, mask, rx + RecipeCardLayouts.FLAME_X, ry + RecipeCardLayouts.FLAME_Y + mask, RecipeCardLayouts.FLAME_SIZE, RecipeCardLayouts.FLAME_SIZE - mask);
                 }
                 if (category == RecipeCardModel.Category.CRAFTING_SHAPELESS) {
                     graphics.pose().pushPose();
                     graphics.pose().translate(rx + RecipeCardLayouts.SHAPELESS_X, ry + RecipeCardLayouts.SHAPELESS_Y, 0);
                     graphics.pose().scale(0.25f, 0.25f, 1);
-                    graphics.blitSprite(ResourceLocation.fromNamespaceAndPath("packsage", "jei/icons/shapeless_icon"), 36, 36, 1, 1, 1, 1, 33, 34);
+                    graphics.blitSprite(SHAPELESS_ICON, 36, 36, 1, 1, 1, 1, 33, 34);
                     graphics.pose().popPose();
                 }
             }
@@ -146,7 +160,7 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
                 var slot = model.slots().get(i);
                 if (!slots.get(i).isEmpty() && mouseX >= rx + slot.x() && mouseX < rx + slot.x() + 16 && mouseY >= ry + slot.y() && mouseY < ry + slot.y() + 16) graphics.fillGradient(RenderType.guiOverlay(), rx + slot.x(), ry + slot.y(), rx + slot.x() + 16, ry + slot.y() + 16, 0x80ffffff, 0x80ffffff, 0);
             }
-            graphics.drawString(font, Component.literal(model.caption()).withStyle(style -> style.withFont(ModernUi.FONT)), x, y + model.height() + 12, ModernUi.MUTED, false);
+            graphics.drawString(font, caption, x, y + model.height() + 12, ModernUi.MUTED, false);
         }
 
         @Override

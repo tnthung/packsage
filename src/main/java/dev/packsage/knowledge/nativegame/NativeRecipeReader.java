@@ -2,22 +2,33 @@ package dev.packsage.knowledge.nativegame;
 
 import com.google.common.collect.ImmutableCollection;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.RecipePlanner;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.alchemy.PotionBrewing;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 final class NativeRecipeReader {
     static final int MAX_CANDIDATES = 512;
     static final int MAX_OUTPUT_CANDIDATES = 4096;
+    static final int MAX_PLAN_INDEX = 65536;
+    private static final int MAX_PLAN_COPIES = 512;
 
     private NativeRecipeReader() { }
 
@@ -98,21 +109,37 @@ final class NativeRecipeReader {
         return NativeSnapshot.copyRecipe(holder, client.level.registryAccess(), items, client.getResourceManager(), scope, null);
     }
 
-    static PlanPage planCandidates(Minecraft client, Evidence.Scope scope) {
+    static PlanSource planSource(Minecraft client, Evidence.Scope scope) {
         if (!client.isSameThread()) throw new IllegalStateException("native recipe read must run on the client thread");
-        if (client.level == null) return new PlanPage(List.of(), true);
-        Registry<Item> itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
-        var recipes = client.level.getRecipeManager().getRecipes();
-        var result = new ArrayList<Evidence.Record>();
+        if (client.level == null) throw new IllegalStateException("client level unavailable");
+        return planSource(client.level.getRecipeManager().getRecipes(), client.level.potionBrewing(), client.level.registryAccess(),
+                client.level.registryAccess().registryOrThrow(Registries.ITEM), client.getResourceManager(), scope);
+    }
+
+    static PlanSource planSource(Collection<RecipeHolder<?>> recipes, PotionBrewing brewing, RegistryAccess registries,
+                                 Registry<Item> itemRegistry, ResourceManager resourceManager, Evidence.Scope scope) {
+        var result = new PlanSource(scope);
         int scanned = 0;
         for (RecipeHolder<?> holder : recipes) {
-            if (scanned++ == MAX_CANDIDATES) break;
-            result.add(NativeSnapshot.copyRecipe(holder, client.level.registryAccess(), itemRegistry,
-                    client.getResourceManager(), scope, null));
+            if (scanned++ == MAX_PLAN_INDEX) {
+                result.reasons.add("native-recipe-index-cap=" + MAX_PLAN_INDEX);
+                break;
+            }
+            try {
+                var output = holder.value().getResultItem(registries);
+                if (output.isEmpty()) {
+                    result.reasons.add("native-recipe-output-unreadable");
+                    continue;
+                }
+                var identity = NativeSnapshot.itemIdentity(output, itemRegistry);
+                result.outputs.computeIfAbsent(identity, ignored -> new ArrayList<>()).add(() ->
+                        NativeSnapshot.copyRecipe(holder, registries, itemRegistry, resourceManager, scope, identity));
+            } catch (RuntimeException unreadableOutput) {
+                result.reasons.add("native-recipe-output-unreadable");
+            }
         }
-        var brewing = NativeBrewingReader.planCandidates(client.level.potionBrewing(), client.level.registryAccess(), itemRegistry, scope);
-        result.addAll(brewing.records());
-        return new PlanPage(List.copyOf(result), recipes.size() > MAX_CANDIDATES || brewing.partial() || !brewing.exhausted());
+        NativeBrewingReader.indexPlanCandidates(brewing, registries, itemRegistry, scope, result);
+        return result;
     }
 
     record Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned, boolean partial,
@@ -130,9 +157,42 @@ final class NativeRecipeReader {
         }
     }
 
-    record PlanPage(List<Evidence.Record> records, boolean partial) {
-        PlanPage {
-            records = List.copyOf(records);
+    static final class PlanSource implements RecipePlanner.Source {
+        private final Evidence.Scope scope;
+        final Map<String, List<Supplier<Evidence.Record>>> outputs = new LinkedHashMap<>();
+        final Set<String> reasons = new LinkedHashSet<>();
+        private final Map<String, List<Evidence.Record>> copied = new LinkedHashMap<>();
+        private int copies;
+
+        private PlanSource(Evidence.Scope scope) {
+            this.scope = scope;
+        }
+
+        @Override public boolean available(Evidence.Scope requestedScope) { return scope.equals(requestedScope); }
+
+        @Override
+        public List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope requestedScope) {
+            if (!available(requestedScope)) return List.of();
+            return copied.computeIfAbsent(identity, key -> {
+                var records = new ArrayList<Evidence.Record>();
+                for (var candidate : outputs.getOrDefault(key, List.of())) {
+                    if (copies == MAX_PLAN_COPIES) {
+                        reasons.add("native-recipe-copy-cap=" + MAX_PLAN_COPIES);
+                        break;
+                    }
+                    copies++;
+                    try {
+                        var record = candidate.get();
+                        if (record == null) reasons.add("native-recipe-copy-unreadable=" + key);
+                        else records.add(record);
+                    } catch (RuntimeException unreadableRecipe) {
+                        reasons.add("native-recipe-copy-unreadable=" + key);
+                    }
+                }
+                return List.copyOf(records);
+            }).stream().filter(record -> record.recipePayload().outputs().stream().anyMatch(output ->
+                    identity.equals(output.comparisonIdentity())
+                            && (components.values().isEmpty() || output.components().equals(components)))).toList();
         }
     }
 }

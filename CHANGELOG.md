@@ -6,6 +6,7 @@
 
 - Native cooking recipe records include their cooking time and experience.
 - Each new answer records its answer detail setting so it remains associated with that turn.
+- Recorded native recipes can be converted into JEI-shaped recipe card models.
 - Button labels are centered. The command confirmation Run and Cancel buttons and the Developer settings buttons now center their labels, and all text buttons draw through one shared button helper.
 
 ### 2026-10-26

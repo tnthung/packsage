@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Native recipe cards render JEI-style layouts with item stacks and cycling ingredients.
 - Native cooking recipe records include their cooking time and experience.
 - Each new answer records its answer detail setting so it remains associated with that turn.
 - Recorded native recipes can be converted into JEI-shaped recipe card models.

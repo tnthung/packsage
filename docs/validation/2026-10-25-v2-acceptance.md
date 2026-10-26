@@ -34872,6 +34872,7 @@ The earlier controller rulings apply: v2 has no recipe viewer, loot replies need
 | W11r | PASS | With the open donkey menu and crosshair away, list_items ridden returns the actual 13 emeralds and empty slots. |
 | N2 | PASS | One lapis-workshop note follows the move and recall; the plain beacon question creates no note or saving chatter. |
 | W18r | PASS | Resource pack rescans/enables successfully; Speed description is returned exactly, then disabling restores descriptionStatus=not_provided. |
+| M5r | FAIL | 2,000 sand and TNT/9 stone journal correctly; logs now contain summaries and request_built, but slowest tick is 3,541 us (limit under 1,000 us). |
 
 ### Passing checks and checks not run
 
@@ -35954,3 +35955,101 @@ The chest at **(1612, 250, 1600)** hasn’t generated its contents yet. It’s a
 ```
 
 Timing: {"wallMs":17271,"modelTerminalMs":"15872","toolWallMs":"70","persistMs":"8"}.
+
+
+#### M5r - FAIL
+
+Classification: **performance acceptance threshold**. 2,000 sand and TNT/9 stone journal correctly; logs now contain summaries and request_built, but slowest tick is 3,541 us (limit under 1,000 us).
+
+The world-close summaries both report offered=written=2005, overflowed=0, failed=0, hook failures=0 and slowest tick=3541 us. All 2,000 bridge break operations succeeded; the journal returns one 2,000-sand run plus TNT and nine stone, with working links. The logger regression is fixed, and no overflow or dropped data is observed, but the measured session maximum exceeds the explicit threshold. Continuous desktop stall observation was not performed; bridge responsiveness is recorded in break timing. No retry.
+
+Evidence: [m5-fixture.json](../../build/native-readiness-live/round4/m5-fixture.json).
+
+Evidence: [m5-break-all.json](../../build/native-readiness-live/round4/m5-break-all.json).
+
+Evidence: [m5-break-timing.json](../../build/native-readiness-live/round4/m5-break-timing.json).
+
+Evidence: [m5-explosion.json](../../build/native-readiness-live/round4/m5-explosion.json).
+
+Evidence: [m5r-world-leave.json](../../build/native-readiness-live/round4/m5r-world-leave.json).
+
+Evidence: [m5r-logging-check.json](../../build/native-readiness-live/round4/m5r-logging-check.json).
+
+Evidence: [m5r-latest.log](../../build/native-readiness-live/round4/m5r-latest.log).
+
+Question: `what did I just dig up and blow up?`
+
+Request `da50b7b8-a77d-499b-9e36-d7a169064a44`; conversation `ea62d1f2-0c52-4fd0-b93d-6ef33acb7257`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/m5r-journal.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 15
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break",
+          "explosion"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You just dug up **2,000 sand blocks** in the Overworld, across the area from (2500, 250, 2500) to (2519, 250, 2599). [journal:event:123]
+
+Then **TNT exploded** at (2534, 254, 2506), breaking **9 stone blocks** nearby. [journal:event:124] [journal:event:125]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2534,254,2506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2500,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":12192,"modelTerminalMs":"10662","toolWallMs":"6","persistMs":"9"}.

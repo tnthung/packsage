@@ -401,7 +401,9 @@ class NativeRecipeReaderTest {
                 record.recipePayload().inputs().stream().map(slot -> slot.alternatives().getFirst().comparisonIdentity()).toList());
         assertTrue(record.recipePayload().inputs().stream().allMatch(slot -> slot.alternatives().getFirst().quantity() == 1
                 && slot.alternatives().getFirst().consumption() == Evidence.Consumption.CONSUMED));
-        assertTrue(record.recipePayload().constraints().contains("result keeps the base item's components"));
+        assertTrue(record.recipePayload().constraints().contains("output components=unknown: the result keeps the base item's components"));
+        assertEquals(Evidence.DecodingStatus.PARTIAL, record.recipePayload().decodingStatus());
+        assertEquals(new Evidence.JsonObject(Map.of()), record.recipePayload().outputs().getFirst().components());
         var result = NativeProvider.planRecipe(NativeRecipeReader.planSource(List.of(holder),
                 new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build(),
                 registries, ITEMS, null, SCOPE), "minecraft:netherite_sword", 2, SCOPE, 4);

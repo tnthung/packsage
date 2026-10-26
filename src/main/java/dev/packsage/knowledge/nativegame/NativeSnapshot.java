@@ -129,7 +129,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 constraints.add("inputs=unknown:smithing-field-decoding-failed:" + failure.getClass().getSimpleName());
             }
             if (recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class)
-                constraints.add("result keeps the base item's components");
+                constraints.add("output components=unknown: the result keeps the base item's components");
             else constraints.add("output=unknown:dynamic base item with a trim determined by template and addition");
         }
         var remainders = new ArrayList<Evidence.RecipeOutput>();
@@ -191,6 +191,11 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 new Evidence.JsonObject(Map.of()), null)) : List.of(new Evidence.RecipeOutput("item", itemIdentity(output, itemRegistry),
                 componentPayload(output, registries, constraints), output.getCount()));
         if (output.isEmpty()) decoding = Evidence.DecodingStatus.PARTIAL;
+        if (recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class && !output.isEmpty()) {
+            // The display result carries example components; the crafted item keeps the base item's own.
+            outputs = List.of(new Evidence.RecipeOutput("item", itemIdentity(output, itemRegistry), new Evidence.JsonObject(Map.of()), output.getCount()));
+            if (decoding == Evidence.DecodingStatus.VERIFIED) decoding = Evidence.DecodingStatus.PARTIAL;
+        }
         if (constraints.contains("components=unknown:stack-encoding-failed") && decoding == Evidence.DecodingStatus.VERIFIED)
             decoding = Evidence.DecodingStatus.PARTIAL;
         if (ambiguousRemainders && decoding == Evidence.DecodingStatus.VERIFIED) decoding = Evidence.DecodingStatus.PARTIAL;

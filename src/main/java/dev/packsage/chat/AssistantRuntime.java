@@ -175,7 +175,8 @@ public final class AssistantRuntime implements ChatActions {
                 }
                 CompletionStage<List<ChatContracts.SessionSummary>> summaries;
                 try {
-                    summaries = store.sessions();
+                    summaries = store.summary(conversation.world(), conversation.id())
+                            .thenApply(summary -> summary == null ? List.of() : List.of(summary));
                 } catch (RuntimeException ignored) {
                     summaries = CompletableFuture.completedFuture(List.of());
                 }

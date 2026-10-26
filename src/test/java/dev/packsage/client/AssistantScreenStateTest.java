@@ -21,6 +21,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void initializationShowsTheScreenBeforeSelectingHistoryForRendering() {
+        FakeActions actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+
+        assertEquals(0, actions.historyPreviews);
+        assertFalse(screen.children().isEmpty());
+        assertEquals(actions.view, screen.view());
+    }
+    @Test
     void journalFooterRequiresAVisibleUnavailableRowAndRelevantWorldOrEvidence() {
         FakeActions actions = new FakeActions();
         actions.adapterDetails = java.util.Map.of("journal", "database refused");
@@ -1426,6 +1438,11 @@ class AssistantScreenStateTest {
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
                 new ChatContracts.Context("{}", null, SCOPE), List.of(SOURCE), List.of(TARGET), List.of());
 
+        int historyPreviews;
+        @Override public ChatContracts.HistoryPreview historyPreview() {
+            historyPreviews++;
+            return ChatActions.super.historyPreview();
+        }
         @Override public ChatContracts.View view() { return view; }
         @Override public PackSageSettings settings() { return settings; }
         @Override public java.util.Map<String, Boolean> adapterAvailability() { return availableAdapters; }

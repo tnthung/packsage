@@ -105,6 +105,7 @@ public final class AssistantScreen extends Screen {
     private ChatContracts.SessionSummary pendingDelete;
     private boolean deletingSession;
     private ChatContracts.HistoryPreview history;
+    private int visibleTurnCount = 4;
     private final List<MessageAction> messageActions = new ArrayList<>();
 
     public AssistantScreen(ChatActions actions) { this(actions, Component.literal("PackSage Assistant")); }
@@ -135,8 +136,16 @@ public final class AssistantScreen extends Screen {
         addRenderableWidget(inputEditor);
         followOnCompletion = true;
         layout();
-        history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
         loadSessions();
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (visibleTurnCount < view.conversation().turns().size()) {
+            visibleTurnCount = Math.min(view.conversation().turns().size(), visibleTurnCount + 4);
+            followOnCompletion = followBottom;
+        }
     }
 
     private void loadSessions() {
@@ -408,7 +417,8 @@ public final class AssistantScreen extends Screen {
         activityHits.clear();
         messageActions.clear();
         if (history == null) history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
-        for (ChatContracts.Turn turn : view.conversation().turns()) {
+        for (ChatContracts.Turn turn : view.conversation().turns().subList(
+                Math.max(0, view.conversation().turns().size() - visibleTurnCount), view.conversation().turns().size())) {
             if (view.active() && turn.requestId().equals(resendingRequest)) continue;
             boolean included = !view.readOnly() && history.selection().turns().stream()
                     .anyMatch(selected -> selected.requestId().equals(turn.requestId()));
@@ -1555,6 +1565,7 @@ public final class AssistantScreen extends Screen {
         boolean sessionsChanged = selectionChanged || completed;
         boolean historyLoaded = selectionChanged
                 || view.activity().equals("Loading session...") && !next.activity().equals("Loading session...");
+        if (historyLoaded) visibleTurnCount = 4;
         if (selectionChanged) sourceLabelCache.clear();
         view = next;
         history = null;

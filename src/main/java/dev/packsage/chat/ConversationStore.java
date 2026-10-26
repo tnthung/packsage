@@ -464,6 +464,7 @@ public final class ConversationStore {
                     if (!safePath(directory)) throw new IOException("world directory escapes conversation root");
                     Files.writeString(conversationPath(world, conversation.id()), conversationJson(conversation) + "\n",
                             StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+                    writeSummary(conversationPath(world, conversation.id()), conversation);
                     writeLatest(world, conversation.id());
                     return conversation;
                 }
@@ -488,6 +489,7 @@ public final class ConversationStore {
                 ChatContracts.Conversation conversation = emptyConversation(world, UUID.randomUUID().toString());
                 Files.writeString(conversationPath(world, conversation.id()), conversationJson(conversation) + "\n",
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+                writeSummary(conversationPath(world, conversation.id()), conversation);
                 writeLatest(world, conversation.id());
                 return conversation;
             } catch (IOException exception) {
@@ -524,21 +526,8 @@ public final class ConversationStore {
                         if (!"conversation".equals(header.get("type").getAsString())) continue;
                         ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity(header.get("world").getAsString(),
                                 header.has("label") ? header.get("label").getAsString() : header.get("world").getAsString());
-                        ChatContracts.Conversation conversation = readConversation(file, world);
-                        if (conversation == null) continue;
-                        CompletionState completionState = readCompletionState(file);
-                        ChatContracts.Turn latestCompleted = conversation.turns().stream()
-                                .filter(turn -> turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED)
-                                .reduce((firstTurn, lastTurn) -> lastTurn).orElse(null);
-                        ChatContracts.RequestId unreadRequestId = latestCompleted != null
-                                && latestCompleted.requestId().value().equals(completionState.latestCompletedRequestId())
-                                && !latestCompleted.requestId().value().equals(completionState.acknowledgedRequestId())
-                                ? latestCompleted.requestId() : null;
-                        ChatContracts.Turn first = conversation.turns().isEmpty() ? null : conversation.turns().getFirst();
-                        ChatContracts.Turn last = conversation.turns().isEmpty() ? null : conversation.turns().getLast();
-                        summaries.add(new ChatContracts.SessionSummary(world, conversation.id(),
-                                first == null ? "New chat" : first.question(), last == null ? "" : last.answer(),
-                                Instant.ofEpochMilli(modifiedAt(file)), false, unreadRequestId));
+                        ChatContracts.SessionSummary summary = readSummary(file, world);
+                        if (summary != null) summaries.add(summary);
                     } catch (IOException exception) {
                         report(exception);
                     } catch (RuntimeException ignored) { }
@@ -550,6 +539,70 @@ public final class ConversationStore {
             summaries.sort(Comparator.comparing(ChatContracts.SessionSummary::updatedAt).reversed());
             return summaries;
         });
+    }
+
+    public CompletionStage<ChatContracts.SessionSummary> summary(ChatContracts.WorldIdentity world, String conversationId) {
+        return enqueueRead(() -> {
+            try {
+                return readSummary(findConversation(world, conversationId), world);
+            } catch (IOException exception) {
+                report(exception);
+                throw new RuntimeException(exception);
+            }
+        });
+    }
+
+    private ChatContracts.SessionSummary readSummary(Path file, ChatContracts.WorldIdentity world) throws IOException {
+        Path summaryFile = file.resolveSibling(file.getFileName().toString().replaceFirst("\\.jsonl$", ".summary.json"));
+        JsonObject value = null;
+        if (safePath(summaryFile) && Files.isRegularFile(summaryFile, LinkOption.NOFOLLOW_LINKS)
+                && Files.size(summaryFile) <= 65_536) {
+            try {
+                JsonObject saved = JsonParser.parseString(Files.readString(summaryFile, StandardCharsets.UTF_8)).getAsJsonObject();
+                if (saved.get("world").getAsString().equals(world.worldOrServer())
+                        && (safeName(saved.get("id").getAsString()) + "-" + digest(saved.get("id").getAsString()) + ".jsonl")
+                        .equals(file.getFileName().toString())
+                        && saved.get("size").getAsLong() == Files.size(file)
+                        && saved.get("modifiedAt").getAsLong() == modifiedAt(file)) value = saved;
+            } catch (RuntimeException ignored) { }
+        }
+        if (value == null) {
+            ChatContracts.Conversation conversation = readConversation(file, world);
+            if (conversation == null) return null;
+            value = writeSummary(file, conversation);
+        }
+        CompletionState state = readCompletionState(file);
+        String completed = value.has("latestCompletedRequestId") ? value.get("latestCompletedRequestId").getAsString() : null;
+        return new ChatContracts.SessionSummary(world, value.get("id").getAsString(), value.get("title").getAsString(),
+                value.get("lastMessage").getAsString(), Instant.ofEpochMilli(value.get("modifiedAt").getAsLong()), false,
+                completed != null && completed.equals(state.latestCompletedRequestId())
+                        && !completed.equals(state.acknowledgedRequestId()) ? new ChatContracts.RequestId(completed) : null);
+    }
+
+    private JsonObject writeSummary(Path file, ChatContracts.Conversation conversation) throws IOException {
+        JsonObject value = new JsonObject();
+        value.addProperty("world", conversation.world().worldOrServer());
+        value.addProperty("id", conversation.id());
+        String title = conversation.turns().isEmpty() ? "New chat" : conversation.turns().getFirst().question();
+        String preview = conversation.turns().isEmpty() ? "" : conversation.turns().getLast().answer();
+        value.addProperty("title", title.substring(0, Math.min(title.length(), 160)));
+        value.addProperty("lastMessage", preview.substring(0, Math.min(preview.length(), 240)));
+        value.addProperty("size", Files.size(file));
+        value.addProperty("modifiedAt", modifiedAt(file));
+        conversation.turns().stream().filter(turn -> turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED)
+                .reduce((first, last) -> last).ifPresent(turn -> value.addProperty("latestCompletedRequestId", turn.requestId().value()));
+        Path summaryFile = file.resolveSibling(file.getFileName().toString().replaceFirst("\\.jsonl$", ".summary.json"));
+        if (!safePath(summaryFile)) throw new IOException("conversation summary path is unsafe");
+        Path temporary = summaryFile.resolveSibling(summaryFile.getFileName() + "-" + UUID.randomUUID() + ".tmp");
+        try {
+            Files.writeString(temporary, value.toString(), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+            Files.move(temporary, summaryFile, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+        return value;
     }
 
     public CompletionStage<Void> deleteConversation(ChatContracts.WorldIdentity world, String conversationId) {
@@ -564,6 +617,11 @@ public final class ConversationStore {
                     throw new IOException("conversation does not belong to the requested world and id");
                 }
                 Path stateFile = file.resolveSibling(file.getFileName().toString().replaceFirst("\\.jsonl$", ".state.json"));
+                Path summaryFile = file.resolveSibling(file.getFileName().toString().replaceFirst("\\.jsonl$", ".summary.json"));
+                if (!safePath(summaryFile) || Files.exists(summaryFile, LinkOption.NOFOLLOW_LINKS)
+                        && !Files.isRegularFile(summaryFile, LinkOption.NOFOLLOW_LINKS)) {
+                    throw new IOException("conversation summary path is unsafe");
+                }
                 if (!safePath(stateFile) || Files.exists(stateFile, LinkOption.NOFOLLOW_LINKS)
                         && !Files.isRegularFile(stateFile, LinkOption.NOFOLLOW_LINKS)) {
                     throw new IOException("conversation state path is unsafe");
@@ -598,6 +656,7 @@ public final class ConversationStore {
                     }
                 }
                 Files.deleteIfExists(stateFile);
+                Files.deleteIfExists(summaryFile);
                 Files.delete(file);
             } catch (IOException exception) {
                 report(exception);
@@ -616,6 +675,7 @@ public final class ConversationStore {
                 if (!safePath(worldDirectory(world))) throw new IOException("world directory escapes conversation root");
                 Files.writeString(conversationPath(world, id), conversationJson(conversation) + "\n",
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+                writeSummary(conversationPath(world, id), conversation);
                 writeLatest(world, id);
             } catch (IOException exception) {
                 report(exception);
@@ -645,6 +705,7 @@ public final class ConversationStore {
                     if (existing[existing.length - 1] != '\n') appendBytes(file, new byte[]{'\n'});
                 }
                 appendBytes(file, (turnJson(world, turn) + "\n").getBytes(StandardCharsets.UTF_8));
+                writeSummary(file, Objects.requireNonNull(readConversation(file, world)));
             } catch (IOException exception) {
                 report(exception);
                 throw new RuntimeException(exception);
@@ -681,6 +742,7 @@ public final class ConversationStore {
                 } finally {
                     Files.deleteIfExists(temporary);
                 }
+                writeSummary(file, Objects.requireNonNull(readConversation(file, world)));
             } catch (IOException exception) {
                 report(exception);
                 throw new RuntimeException(exception);

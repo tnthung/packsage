@@ -59,7 +59,9 @@ The mockup below is the reference for how chips and cards look. It is drawn at G
   - **Result chip:** the output item's icon and label, with an accent fill and accent outline.
   - **Card:** JEI's light gray panel, JEI's slots, arrow and output slot, and a muted caption below the panel.
   - **Floating panel:** a dark `ModernUi` surface around the card and caption.
-- **Not fixed by the mockup:** exact pixel coordinates. These come from JEI 19's category layouts, as the acceptance section requires.
+- **Not fixed by the mockup:**
+  - **Exact pixel coordinates.** These come from JEI 19's category layouts, as the acceptance section requires.
+  - **The icons themselves.** In the game, every slot and chip icon is the standard item render, `GuiGraphics.renderItem` plus `renderItemDecorations` for counts. That is the same render the inventory, the creative menu and JEI use, so blocks appear as their 3D item models, and mod items use their own models. The mockup only approximates those renders. Never draw a raw block or item texture in its place.
 
 ![Recipe card and chip reference mockup](assets/2026-10-27-recipe-cards-mockup.png)
 

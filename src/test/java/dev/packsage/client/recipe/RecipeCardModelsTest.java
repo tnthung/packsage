@@ -90,14 +90,16 @@ class RecipeCardModelsTest {
     }
 
     @Test void brewingUsesJeiLayout() {
-        var record = record("ignored", "", "[" + slot("bottle", "item", "minecraft:potion") + ","
+        var record = record("crafting", "", "[" + slot("bottle", "item", "minecraft:potion") + ","
                 + slot("reagent", "item", "minecraft:nether_wart") + "]", output("item", "minecraft:potion", 1));
         record.addProperty("reference", "native:brewing:potion:1:2:test");
+        record.getAsJsonObject("source").addProperty("sourceHandle", "brewing:potion:1:2:test");
+        record.getAsJsonObject("payload").getAsJsonArray("constraints").set(0, new com.google.gson.JsonPrimitive("brewing-batch=up-to-3-bottles"));
         var card = RecipeCardModels.fromRecord(record).orElseThrow();
         assertEquals(5, card.slots().size());
         assertEquals(java.util.List.of(1, 24, 47, 24, 81), card.slots().stream().map(RecipeCardModel.Slot::x).toList());
         assertEquals(java.util.List.of(37, 44, 37, 3, 3), card.slots().stream().map(RecipeCardModel.Slot::y).toList());
-        assertTrue(card.texts().contains(new RecipeCardModel.Text("Steps: ?", 70, 28, false)));
+        assertTrue(card.texts().isEmpty());
     }
 
     @Test void tagAlternativeBecomesTagStack() {
@@ -148,4 +150,60 @@ class RecipeCardModelsTest {
         assertEquals("minecraft:stone", card.slots().get(1).stacks().getFirst().identity());
         assertEquals("minecraft:dirt", card.slots().get(4).stacks().getFirst().identity());
     }
+
+    @Test void brewingBatchSurvivesPlanAndAliasedReferences() {
+        var record = record("crafting", "", "[]", output("item", "minecraft:potion", 1));
+        record.getAsJsonObject("payload").getAsJsonArray("constraints").set(0, new com.google.gson.JsonPrimitive("brewing-batch=up-to-3-bottles"));
+        record.addProperty("reference", "native:plan|minecraft:potion|1|3|0|brewing:potion:1:2:test");
+        record.getAsJsonObject("source").addProperty("sourceHandle", "plan|minecraft:potion|1|3|0|brewing:potion:1:2:test");
+        assertEquals(RecipeCardModel.Category.BREWING, RecipeCardModels.fromRecord(record).orElseThrow().category());
+        record.addProperty("reference", "ref:b1");
+        record.getAsJsonObject("source").remove("sourceHandle");
+        assertEquals(RecipeCardModel.Category.BREWING, RecipeCardModels.fromRecord(record).orElseThrow().category());
+    }
+
+    @Test void brewingSourceHandleIsFallbackWithoutBatchConstraint() {
+        var record = record("crafting", "", "[]", output("item", "minecraft:potion", 1));
+        record.getAsJsonObject("payload").getAsJsonArray("constraints").remove(0);
+        record.addProperty("reference", "ref:b1");
+        record.getAsJsonObject("source").addProperty("sourceHandle", "plan|minecraft:potion|1|3|0|brewing:potion:1:2:test");
+        assertEquals(RecipeCardModel.Category.BREWING, RecipeCardModels.fromRecord(record).orElseThrow().category());
+    }
+
+    @Test void planCraftingRecordIsNotBrewing() {
+        var record = record("crafting", ",\"shape\":\"shapeless\"", "[]", output("item", "minecraft:stone", 1));
+        record.addProperty("reference", "native:plan|minecraft:stone|1|3|0|minecraft:stone");
+        record.getAsJsonObject("source").addProperty("sourceHandle", "plan|minecraft:stone|1|3|0|minecraft:stone");
+        assertEquals(RecipeCardModel.Category.CRAFTING_SHAPELESS, RecipeCardModels.fromRecord(record).orElseThrow().category());
+    }
+
+    @Test void malformedCookingValuesOnlyOmitTheirOwnText() {
+        var record = record("smelting", "", "[]", output("item", "minecraft:stone", 1));
+        record.getAsJsonObject("payload").addProperty("cookingTime", "bad");
+        record.getAsJsonObject("payload").addProperty("experience", 0.1);
+        assertEquals(java.util.List.of(new RecipeCardModel.Text("0.1 XP", 82, 0, true)), RecipeCardModels.fromRecord(record).orElseThrow().texts());
+        record.getAsJsonObject("payload").addProperty("cookingTime", 200);
+        record.getAsJsonObject("payload").add("experience", new JsonObject());
+        assertEquals(java.util.List.of(new RecipeCardModel.Text("10s", 82, 46, true)), RecipeCardModels.fromRecord(record).orElseThrow().texts());
+    }
+
+    @Test void nullOrObjectReferenceDoesNotDropCraftingCard() {
+        var record = record("crafting", ",\"shape\":\"shapeless\"", "[]", output("item", "minecraft:stone", 1));
+        record.add("reference", com.google.gson.JsonNull.INSTANCE);
+        assertEquals(RecipeCardModel.Category.CRAFTING_SHAPELESS, RecipeCardModels.fromRecord(record).orElseThrow().category());
+        record.add("reference", new JsonObject());
+        assertEquals(RecipeCardModel.Category.CRAFTING_SHAPELESS, RecipeCardModels.fromRecord(record).orElseThrow().category());
+    }
+
+    @Test void customAndUnknownDescriptionsAreReadable() {
+        var record = record("stonecutting", "", "[" + slot("slot-0", "custom", "custom:example:matcher:0") + "]", output("unknown", "unknown:output:test", 1));
+        var alternative = record.getAsJsonObject("payload").getAsJsonArray("inputs").get(0).getAsJsonObject().getAsJsonArray("alternatives").get(0).getAsJsonObject();
+        alternative.getAsJsonObject("components").addProperty("matcherType", "example:matcher");
+        var card = RecipeCardModels.fromRecord(record).orElseThrow();
+        assertEquals("example:matcher", card.slots().getFirst().stacks().getFirst().description());
+        assertEquals("unknown:output:test", card.slots().getLast().stacks().getFirst().description());
+        alternative.getAsJsonObject("components").remove("matcherType");
+        assertEquals("custom:example:matcher:0", RecipeCardModels.fromRecord(record).orElseThrow().slots().getFirst().stacks().getFirst().description());
+    }
+
 }

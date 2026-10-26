@@ -88,9 +88,11 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                                                String exactOutputItem) {
         Recipe<?> recipe = holder.value();
         var decoding = Evidence.DecodingStatus.VERIFIED;
+        var constraints = new ArrayList<String>();
         ItemStack output;
         try {
-            output = recipe.getResultItem(registries);
+            output = recipe.getClass() == net.minecraft.world.item.crafting.SmithingTrimRecipe.class
+                    ? ItemStack.EMPTY : recipe.getResultItem(registries);
         } catch (RuntimeException failure) {
             if (exactOutputItem != null) return null;
             output = ItemStack.EMPTY;
@@ -99,9 +101,9 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         if (exactOutputItem != null && (output.isEmpty() || !exactOutputItem.equals(itemIdentity(output, itemRegistry)))) return null;
         var slots = new ArrayList<Evidence.RecipeSlot>();
         var tags = new LinkedHashSet<String>();
-        boolean knownRecipe = recipe.getClass() == net.minecraft.world.item.crafting.ShapedRecipe.class
-                || recipe.getClass() == net.minecraft.world.item.crafting.ShapelessRecipe.class
-                || recipe.getClass() == net.minecraft.world.item.crafting.SmeltingRecipe.class
+        boolean craftingRecipe = recipe.getClass() == net.minecraft.world.item.crafting.ShapedRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.ShapelessRecipe.class;
+        boolean knownRecipe = craftingRecipe || recipe.getClass() == net.minecraft.world.item.crafting.SmeltingRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.BlastingRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.SmokingRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.CampfireCookingRecipe.class
@@ -109,10 +111,31 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTrimRecipe.class;
         if (!knownRecipe) decoding = Evidence.DecodingStatus.UNKNOWN;
+        List<Ingredient> ingredients = recipe.getIngredients();
+        if (recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTrimRecipe.class) {
+            ingredients = new ArrayList<>();
+            try {
+                // NeoForge 21.1.202 exposes no accessors on these exact vanilla classes.
+                // Their package-private fields are the smithing slots, each consumed once.
+                for (String name : List.of("template", "base", "addition")) {
+                    var field = recipe.getClass().getDeclaredField(name);
+                    field.setAccessible(true);
+                    ingredients.add((Ingredient) Objects.requireNonNull(field.get(recipe)));
+                }
+            } catch (ReflectiveOperationException | RuntimeException failure) {
+                ingredients.clear();
+                decoding = Evidence.DecodingStatus.PARTIAL;
+                constraints.add("inputs=unknown:smithing-field-decoding-failed:" + failure.getClass().getSimpleName());
+            }
+            if (recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class)
+                constraints.add("result keeps the base item's components");
+            else constraints.add("output=unknown:dynamic base item with a trim determined by template and addition");
+        }
         var remainders = new ArrayList<Evidence.RecipeOutput>();
         boolean ambiguousRemainders = false;
         int slotIndex = 0;
-        for (Ingredient ingredient : recipe.getIngredients()) {
+        for (Ingredient ingredient : ingredients) {
             var alternatives = new ArrayList<Evidence.RecipeAlternative>();
             var ingredientRemainders = new ArrayList<ItemStack>();
             int itemAlternatives = 0;
@@ -123,16 +146,16 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
             }
             if (ingredient.isCustom()) {
                 decoding = Evidence.DecodingStatus.OPAQUE;
-                ambiguousRemainders = true;
+                ambiguousRemainders = craftingRecipe;
                 alternatives.add(customAlternative(ingredient, registries, slotIndex));
             } else {
                 for (Ingredient.Value value : ingredient.getValues()) {
                     if (value instanceof Ingredient.ItemValue itemValue) {
                         var stack = itemValue.item();
-                        alternatives.add(new Evidence.RecipeAlternative("item", itemIdentity(stack, itemRegistry), componentPayload(stack, registries),
+                        alternatives.add(new Evidence.RecipeAlternative("item", itemIdentity(stack, itemRegistry), componentPayload(stack, registries, constraints),
                                 1, knownRecipe ? Evidence.Consumption.CONSUMED : Evidence.Consumption.UNKNOWN));
                         itemAlternatives++;
-                        if (knownRecipe && stack.hasCraftingRemainingItem()) ingredientRemainders.add(stack.getCraftingRemainingItem());
+                        if (craftingRecipe && stack.hasCraftingRemainingItem()) ingredientRemainders.add(stack.getCraftingRemainingItem());
                     } else if (value instanceof Ingredient.TagValue tagValue) {
                         var identity = "#" + tagValue.tag().location();
                         tags.add(identity);
@@ -151,13 +174,13 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 alternatives.add(new Evidence.RecipeAlternative("unknown", "unknown:ingredient:" + slotIndex,
                         new Evidence.JsonObject(Map.of()), null, Evidence.Consumption.UNKNOWN));
             }
-            if (!ingredient.isCustom() && knownRecipe) {
+            if (!ingredient.isCustom() && craftingRecipe) {
                 if (hasTagAlternative) ambiguousRemainders = true;
                 else if (itemAlternatives > 0 && ingredientRemainders.size() == itemAlternatives) {
                     var remainder = ingredientRemainders.getFirst();
                     if (ingredientRemainders.stream().allMatch(stack -> ItemStack.isSameItemSameComponents(stack, remainder)
                             && stack.getCount() == remainder.getCount())) {
-                        remainders.add(new Evidence.RecipeOutput("item", itemIdentity(remainder, itemRegistry), componentPayload(remainder, registries),
+                        remainders.add(new Evidence.RecipeOutput("item", itemIdentity(remainder, itemRegistry), componentPayload(remainder, registries, constraints),
                                 remainder.getCount()));
                     } else ambiguousRemainders = true;
                 } else if (!ingredientRemainders.isEmpty()) ambiguousRemainders = true;
@@ -166,10 +189,11 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         }
         var outputs = output.isEmpty() ? List.of(new Evidence.RecipeOutput("unknown", "unknown:output:" + holder.id(),
                 new Evidence.JsonObject(Map.of()), null)) : List.of(new Evidence.RecipeOutput("item", itemIdentity(output, itemRegistry),
-                componentPayload(output, registries), output.getCount()));
+                componentPayload(output, registries, constraints), output.getCount()));
         if (output.isEmpty()) decoding = Evidence.DecodingStatus.PARTIAL;
+        if (constraints.contains("components=unknown:stack-encoding-failed") && decoding == Evidence.DecodingStatus.VERIFIED)
+            decoding = Evidence.DecodingStatus.PARTIAL;
         if (ambiguousRemainders && decoding == Evidence.DecodingStatus.VERIFIED) decoding = Evidence.DecodingStatus.PARTIAL;
-        var constraints = new ArrayList<String>();
         constraints.add("recipeType=" + recipe.getType());
         constraints.add("serializer=" + recipe.getSerializer());
         if (!knownRecipe || decoding == Evidence.DecodingStatus.OPAQUE) constraints.add("catalysts=unknown");
@@ -319,7 +343,15 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
     }
 
     static Evidence.JsonObject componentPayload(ItemStack stack, net.minecraft.core.HolderLookup.Provider registries) {
+        return componentPayload(stack, registries, null);
+    }
+
+    private static Evidence.JsonObject componentPayload(ItemStack stack, net.minecraft.core.HolderLookup.Provider registries,
+                                                         List<String> constraints) {
         var encoded = codecJson(ItemStack.CODEC, stack, registries);
+        if (encoded.values().containsKey("encoding") && constraints != null
+                && !constraints.contains("components=unknown:stack-encoding-failed"))
+            constraints.add("components=unknown:stack-encoding-failed");
         var components = encoded.values().get("components");
         return components instanceof Evidence.JsonObject object ? object : new Evidence.JsonObject(Map.of());
     }
@@ -333,7 +365,8 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                                                       net.minecraft.core.HolderLookup.Provider registries) {
         try {
             var encoded = codec.encodeStart(registries.createSerializationContext(JsonOps.INSTANCE), value).result().orElse(null);
-            return encoded != null && encoded.isJsonObject() ? (Evidence.JsonObject) jsonValue(encoded) : new Evidence.JsonObject(Map.of());
+            return encoded != null && encoded.isJsonObject() ? (Evidence.JsonObject) jsonValue(encoded)
+                    : new Evidence.JsonObject(Map.of("encoding", new Evidence.JsonString("unknown")));
         } catch (RuntimeException ignored) {
             return new Evidence.JsonObject(Map.of("encoding", new Evidence.JsonString("unknown")));
         }

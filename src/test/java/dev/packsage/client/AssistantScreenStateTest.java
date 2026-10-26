@@ -21,6 +21,42 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void idleTicksDoNotPrepareOlderHistoryAndScrollingAtTheTopRequestsIt() throws Exception {
+        var actions = new FakeActions();
+        var original = actions.view;
+        actions.view = new ChatContracts.View(false, original.signIn(), false,
+                new ChatContracts.Conversation(original.conversation().id(), original.conversation().world(),
+                        java.util.Collections.nCopies(20, original.conversation().turns().getFirst()), original.conversation().outcome()),
+                original.context(), original.sources(), original.navigationTargets(), List.of());
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var count = AssistantScreen.class.getDeclaredField("visibleTurnCount");
+        count.setAccessible(true);
+        int initial = count.getInt(screen);
+        for (int index = 0; index < 30; index++) screen.tick();
+        assertEquals(initial, count.getInt(screen));
+        screen.updateContentMetrics(1_000, 100);
+        screen.mouseScrolled(400, 200, 0, 100);
+        assertEquals(initial + 4, count.getInt(screen));
+        screen.updateContentMetrics(2_000, 100);
+        assertEquals(1_000, screen.scrollOffset(), "prepending must keep the scrolled message anchored");
+    }
+
+    @Test
+    void fittingWordLayoutMeasuresGlyphsLinearly() throws Exception {
+        var screen = new AssistantScreen(new FakeActions());
+        var font = new ScreenPreparationFont();
+        var field = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        field.setAccessible(true);
+        field.set(screen, font);
+        String text = "abcdefghij ".repeat(100);
+        assertFalse(screen.messageLayout(ScreenText.inlineLines(text, List.of()), 340).runs().isEmpty());
+        assertTrue(font.measuredGlyphs < text.length() * 4L, "glyph visits=" + font.measuredGlyphs);
+    }
+
+    @Test
     void refreshRequestedDuringShowMoreRunsAfterThePageFinishes() {
         var actions = new FakeActions();
         actions.settings.setSessionsBeforeCollapse(3);

@@ -1,4 +1,4 @@
-﻿package dev.packsage.client.recipe;
+package dev.packsage.client.recipe;
 
 import org.junit.jupiter.api.Test;
 

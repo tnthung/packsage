@@ -393,7 +393,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     client.createWorldOpenFlows().openWorld(levelId, () -> client.setScreen(new TitleScreen()));
                     return null;
                 });
-                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
                 while (!call(client, () -> client.level != null && client.player != null && client.isLocalServer())) {
                     if (System.nanoTime() >= deadline) throw new TimeoutException("World load timeout");
                     Thread.sleep(10);
@@ -420,7 +420,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     ConnectScreen.startConnecting(new TitleScreen(), client, parsedAddress, server, false, null);
                     return null;
                 });
-                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
                 while (!call(client, () -> client.level != null && client.player != null && !client.isLocalServer())) {
                     if (System.nanoTime() >= deadline) throw new TimeoutException("Server connection timeout");
                     Thread.sleep(10);

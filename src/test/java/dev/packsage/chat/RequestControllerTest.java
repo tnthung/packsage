@@ -1784,8 +1784,9 @@ class RequestControllerTest {
         for (int index = 0; index < 10; index++) {
             if (index > 0) records.append(',');
             records.append("{\"title\":\"Record ").append(index)
-                    .append("\",\"payload\":{\"id\":\"packsage:item_").append(index)
-                    .append("\",\"count\":").append(index + 1).append("}} ");
+                    .append(" ").append("t".repeat(300)).append("\",\"payload\":{\"id\":\"packsage:item_").append(index).append("i".repeat(300))
+                    .append("\",\"count\":").append(index + 1).append(",\"description\":\"")
+                    .append("x".repeat(300)).append("\",\"other\":\"").append("y".repeat(300)).append("\"}} ");
         }
         records.append(']');
         String result = "{\"coverage\":\"PARTIAL\",\"outcome\":\"PARTIAL\",\"detail\":\"More results available\",\"records\":"

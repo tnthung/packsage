@@ -877,7 +877,8 @@ public final class RequestController {
                 JsonElement value = result.get(key);
                 if (value != null && value.isJsonPrimitive()) {
                     if (!detail.isEmpty()) detail.append(" | ");
-                    detail.append(key).append(": ").append(value.getAsString());
+                    String text = value.getAsString();
+                    detail.append(key).append(": ").append(text.substring(0, Math.min(32, text.length())));
                 }
             }
             JsonElement resultMessage = result.get("detail");
@@ -900,15 +901,14 @@ public final class RequestController {
                     String title = titleValue != null && titleValue.isJsonPrimitive()
                             ? titleValue.getAsString() : "Untitled result";
                     title = title.replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();
-                    if (title.length() > 180) title = title.substring(0, 180) + "...";
+                    if (title.length() > 100) title = title.substring(0, 100) + "...";
                     if (!detail.isEmpty()) detail.append('\n');
                     detail.append(title.isEmpty() ? "Untitled result" : title);
                     JsonElement payloadValue = record.get("payload");
                     if (payloadValue != null && payloadValue.isJsonObject()) {
                         int fields = 0;
-                        StringBuilder payload = new StringBuilder();
                         for (var entry : payloadValue.getAsJsonObject().entrySet()) {
-                            if (fields == 4) break;
+                            if (fields == 3) break;
                             JsonElement fieldValue = entry.getValue();
                             String value;
                             if (fieldValue.isJsonPrimitive()) value = fieldValue.getAsString();
@@ -917,12 +917,11 @@ public final class RequestController {
                                     fieldValue.getAsJsonObject().keySet().stream().limit(3).toList());
                             else value = "none";
                             value = value.replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();
-                            if (value.length() > 100) value = value.substring(0, 100) + "...";
-                            if (!payload.isEmpty()) payload.append("; ");
-                            payload.append(entry.getKey()).append(": ").append(value);
+                            if (value.length() > 64) value = value.substring(0, 64) + "...";
+                            String key = entry.getKey().replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();
+                            detail.append("\n  ").append(key.substring(0, Math.min(32, key.length()))).append(": ").append(value);
                             fields++;
                         }
-                        if (!payload.isEmpty()) detail.append("  ").append(payload);
                     }
                 }
                 if (records.size() > shown) {

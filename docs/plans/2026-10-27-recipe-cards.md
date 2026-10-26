@@ -131,7 +131,7 @@ Tasks in the same wave touch disjoint files and can run at the same time, each i
   - `smeltingShowsCookTimeAndExperience`: a `cookingTime` of 200 produces the research document's cook time text (for example `10s`) and experience text, at the documented positions.
   - `blastingAndSmokingDifferOnlyByCaption`
   - `smithingTransformHasThreeInputs` and `smithingTrimUnknownOutputIsUnknownStack`
-  - `brewingUsesBottleReagentAndBlazeFuel`: the fuel slot is a blaze powder `ITEM` stack.
+  - `brewingUsesJeiLayout`: three potion slots, the ingredient slot and the output slot are at the research positions; the result has no fuel slot and includes the "Steps" text.
   - `tagAlternativeBecomesTagStack` and `customAlternativeBecomesCustomStack`
   - `unknownDecodingHasNoCard`, `unrecognizedRecipeTypeHasNoCard`, and `truncatedPayloadHasNoCard` (the payload replaced by a string, or `inputs` missing), all returning an empty result
 - [ ] **Step 2: Run the tests.** They should fail.
@@ -207,8 +207,8 @@ Tasks in the same wave touch disjoint files and can run at the same time, each i
 - Create: `src/main/java/dev/packsage/client/recipe/RecipeCardSource.java` (the interface)
 - Create: `src/main/java/dev/packsage/client/recipe/NativeRecipeCardSource.java`
 - Create: `src/main/java/dev/packsage/client/recipe/SlotStacks.java`
-- Create: `src/main/resources/assets/packsage/textures/gui/sprites/jei/`. Copy each sprite listed in the research document from the JEI jar, keeping the file names, plus their `.mcmeta` files.
-- Create: `src/main/resources/assets/packsage/textures/gui/sprites/jei/LICENSE-JEI.txt`, JEI's MIT license text.
+- Create: `src/main/resources/assets/packsage/textures/gui/sprites/jei/`. Copy each sprite listed in the research document from the JEI jar, keeping the file names. The nine-slice borders are set in code (16 px corners, tiled edges), as the research document describes.
+- Create: `src/main/resources/assets/packsage/textures/gui/sprites/jei/LICENSE-JEI.txt`, JEI's MIT license text, copied from `LICENSE.txt` in the JEI GitHub repository at tag `v19.27.0` (the jar has no license file).
 - Test: `src/test/java/dev/packsage/client/recipe/SlotStacksTest.java`
 
 **Interfaces:**
@@ -217,7 +217,7 @@ Tasks in the same wave touch disjoint files and can run at the same time, each i
   - `interface RecipeCard { int width(); int height(); void draw(GuiGraphics graphics, int x, int y, int mouseX, int mouseY); Optional<ItemStack> stackAt(int x, int y, double mouseX, double mouseY); }`. The `height()` value includes the caption line, and `draw` draws the caption.
   - `interface RecipeCardSource { Optional<RecipeCard> card(RecipeCardModel model); }`
   - `NativeRecipeCardSource implements RecipeCardSource`. It is the only implementation in this plan.
-  - `static int SlotStacks.cycleIndex(long millis, int size)` returns `(int) ((millis / CYCLE_MS) % size)`, with `CYCLE_MS` taken from the research document's JEI cycle interval.
+  - `static int SlotStacks.cycleIndex(long millis, int size)` returns `(int) ((millis / CYCLE_MS) % size)`, with `CYCLE_MS = 1000` (JEI cycles every 20 client ticks). The card keeps its own cycle clock, starting at a random offset; all of a card's slots share it, and it stops advancing while Shift is held.
   - `static List<ItemStack> SlotStacks.resolve(RecipeCardModel.Stack stack, HolderLookup.Provider registries)`:
     - **Items:** the item ID plus a component patch decoded with `DataComponentPatch.CODEC` through `registries.createSerializationContext(JsonOps.INSTANCE)`.
     - **Tags:** the members of the item tag.

@@ -111,7 +111,7 @@ The native snapshot also records cooking time and experience for smelting, blast
 
 ### Native card layouts
 
-Each vanilla category copies JEI 19's layout, using JEI's 18×18 slots and 26×26 output slot, its arrow, plus sign, flame and shapeless marker, and its brewing stand background.
+Each vanilla category copies JEI 19's layout, using JEI's slots, output slots, arrows, flame, shapeless marker and brewing stand background. Positions and sprites come from `docs/research/2026-10-27-jei-recipe-layouts.md`.
 
 | Category | Layout |
 |---|---|
@@ -121,14 +121,14 @@ Each vanilla category copies JEI 19's layout, using JEI's 18×18 slots and 26×2
 | Campfire | The same as smelting, with JEI's campfire layout. |
 | Stonecutting | The input slot, an arrow and the output slot. |
 | Smithing transform and trim | Template, base and addition slots, then an arrow and the output slot. |
-| Brewing | JEI's brewing stand layout: the reagent, the potion input bottle, blaze powder fuel and the output bottle. |
+| Brewing | JEI's brewing stand layout: the reagent, three potion bottle slots, the output, JEI's full blaze-heat bar (there is no fuel slot), the bubbles and JEI's "Steps" text. |
 
-JEI shows the station in its category header, not in the recipe layout. Every card, native or from JEI, gets the same one-line caption under it, outside the drawn recipe: the station name, for example "Furnace", "Blast furnace" or "Crafting table · shapeless". That keeps smelting, blasting and smoking distinguishable. Brewing fuel is not recorded per recipe, so the brewing card always shows blaze powder in the fuel slot, as JEI does.
+JEI shows the station in its category header, not in the recipe layout. Every card, native or from JEI, gets the same one-line caption under it, outside the drawn recipe: the station name, for example "Furnace", "Blast furnace" or "Crafting table · shapeless". That keeps smelting, blasting and smoking distinguishable. Brewing fuel is not recorded per recipe; JEI also shows only a full blaze-heat bar, not a fuel slot, so the card does the same.
 
 ### Slot contents
 
 - **Resolving items.** Each slot resolves its alternatives against the current registries: the item ID plus the recorded component data.
-- **Tags.** Tag alternatives expand from the client's synced tags, and the slot cycles through the members once a second, as JEI does.
+- **Tags.** Tag alternatives expand from the client's synced tags, and the slot cycles through the members every 20 client ticks, as JEI does. All slots in a card step together, and cycling pauses while Shift is held, as in JEI.
 - **Counts.** Output counts above 1 show as the stack count.
 - **Missing items.** A missing or unresolvable item shows a barrier icon in the slot, and its tooltip gives the recorded identity.
 - **Custom ingredients.** These show a "?" slot whose tooltip lists the payload's description.

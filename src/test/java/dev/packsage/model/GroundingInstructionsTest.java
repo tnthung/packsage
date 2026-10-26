@@ -76,8 +76,8 @@ class GroundingInstructionsTest {
     @Test
     void defaultLengthMatchesLiveTestedCandidateWhenPresent() throws IOException {
         // NeoForge runs tests from build/minecraft-junit.
-        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(Path.of("../prompt-candidates/candidate-8.txt")));
-        assertEquals(Files.readString(Path.of("../prompt-candidates/candidate-8.txt")).length(),
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(Path.of("../prompt-candidates/candidate-9.txt")));
+        assertEquals(Files.readString(Path.of("../prompt-candidates/candidate-9.txt")).length(),
                 GroundingInstructions.defaultInstructions().length());
     }
 

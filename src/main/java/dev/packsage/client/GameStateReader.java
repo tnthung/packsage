@@ -13,13 +13,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 
@@ -47,10 +45,40 @@ public final class GameStateReader implements Toolbox {
         }
     }
 
+    private static final String DIFFICULTY_AT = "_localDifficultyAt";
+
     private final Capture capture;
 
     public GameStateReader(Minecraft client) {
-        this(sections -> client.submit(() -> capture(client, sections)));
+        this(sections -> client.submit(() -> capture(client, sections)).thenCompose(snapshot -> withLocalDifficulty(client, snapshot)));
+    }
+
+    /** Reads local difficulty on the integrated server thread from an already loaded chunk, never loading one. */
+    private static CompletionStage<Snapshot> withLocalDifficulty(Minecraft client, Snapshot snapshot) {
+        var values = snapshot.values();
+        if (!(values.remove(DIFFICULTY_AT) instanceof JsonObject at) || !(values.get("light_and_environment") instanceof JsonObject environment)) {
+            return CompletableFuture.completedFuture(new Snapshot(snapshot.multiplayer(), values));
+        }
+        var server = client.getSingleplayerServer();
+        if (server == null) return CompletableFuture.completedFuture(new Snapshot(snapshot.multiplayer(), values));
+        var dimension = net.minecraft.resources.ResourceLocation.tryParse(at.get("dimension").getAsString());
+        int x = at.get("x").getAsInt();
+        int z = at.get("z").getAsInt();
+        return server.submit(() -> {
+            var serverLevel = dimension == null ? null : server.getLevel(net.minecraft.resources.ResourceKey.create(
+                    net.minecraft.core.registries.Registries.DIMENSION, dimension));
+            var chunk = serverLevel == null ? null : serverLevel.getChunkSource().getChunkNow(x >> 4, z >> 4);
+            if (chunk == null) return null;
+            var difficulty = new DifficultyInstance(serverLevel.getDifficulty(), serverLevel.getDayTime(),
+                    chunk.getInhabitedTime(), serverLevel.getMoonBrightness());
+            var local = new JsonObject();
+            local.addProperty("effective", difficulty.getEffectiveDifficulty());
+            local.addProperty("specialMultiplier", difficulty.getSpecialMultiplier());
+            return local;
+        }).handle((local, failure) -> {
+            if (local != null) environment.add("localDifficulty", local);
+            return new Snapshot(snapshot.multiplayer(), values);
+        });
     }
 
     GameStateReader(Capture capture) {
@@ -224,20 +252,14 @@ public final class GameStateReader implements Toolbox {
                 } else {
                     environment.add("biome", JsonNull.INSTANCE);
                 }
-                var localDifficulty = new JsonObject();
-                ServerLevel serverLevel = server == null ? null : server.getLevel(level.dimension());
-                var chunkPosition = cameraPosition == null ? null : new ChunkPos(cameraPosition);
-                var chunkResult = serverLevel == null || !chunkLoaded || !validHeight ? null
-                        : serverLevel.getChunkSource().getChunkFuture(chunkPosition.x, chunkPosition.z, ChunkStatus.FULL, false).getNow(null);
-                var serverChunk = chunkResult == null ? null : chunkResult.orElse(null);
-                if (serverChunk == null) {
-                    environment.add("localDifficulty", JsonNull.INSTANCE);
-                } else {
-                    var difficulty = new DifficultyInstance(serverLevel.getDifficulty(), serverLevel.getDayTime(),
-                            serverChunk.getInhabitedTime(), serverLevel.getMoonBrightness());
-                    localDifficulty.addProperty("effective", difficulty.getEffectiveDifficulty());
-                    localDifficulty.addProperty("specialMultiplier", difficulty.getSpecialMultiplier());
-                    environment.add("localDifficulty", localDifficulty);
+                // Local difficulty is server-owned; it is read on the server thread after this client capture.
+                environment.add("localDifficulty", JsonNull.INSTANCE);
+                if (server != null && chunkLoaded && validHeight) {
+                    var at = new JsonObject();
+                    at.addProperty("dimension", level.dimension().location().toString());
+                    at.addProperty("x", cameraPosition.getX());
+                    at.addProperty("z", cameraPosition.getZ());
+                    values.add(DIFFICULTY_AT, at);
                 }
                 environment.addProperty("gameTime", level.getGameTime());
                 environment.addProperty("dayTime", level.getDayTime());

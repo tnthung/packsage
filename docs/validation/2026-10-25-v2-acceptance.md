@@ -41137,3 +41137,7 @@ Final GET /prompt has text=null and exact candidate 11. Installed JAR SHA-256 re
 - **K1: PASS on journal behavior.** One 200-stone break run and one 166-cobblestone pickup run. The pickup amount equals what reached the inventory, and the fixture's own shortfall is not a journal defect.
 - **K3: PASS.** The past-hour question was routed to the journal and summed 5 pickups and 3 withdrawals into 8. The journal covers the whole past hour without a gap, so no coverage qualification was owed. The added disclosure clause was overreach.
 - **K4, K0: PASS.** Candidate 12 passes its routing checks (K3, K4) and is promoted to the code default.
+
+### LAN world identity
+
+2026-10-26, installed 5fb6bda: **PASS, checked by the player.** After opening the world to LAN, the existing chats stayed with the world and their location links still worked (9cd3712).

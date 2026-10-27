@@ -188,7 +188,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 - [x] Minecraft — localized potion-name matching and empty-page progress; installed acceptance passed: the potion was searched by name, the empty page was continued and the localized transformation was found in 2 recipe searches ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — planner brewing batch presentation; installed acceptance passed: `plan_recipe` was called and the reply stated the batch semantics and derived totals under a stated grouping ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — plan_recipe routes reach every loaded recipe (beacon, enchanting table, oak planks) with concrete PARTIAL details, intermediate expansion and smithing inputs (A1r/A3 plan detail/W20/W21, native readiness rounds 3–8; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
-- [ ] JEI — [focus-index planning source](../specs/2026-10-27-jei-adapter.md), default/explicit routing, shared argument validation and rereadable plan handles are implemented with automated coverage. Component keys compare structurally, and unmatched component variants of subtype-bearing items remain incomplete; installed acceptance remains pending.
+- [ ] JEI — [focus-index planning source](../specs/2026-10-27-jei-adapter.md), default/explicit routing, shared argument validation and rereadable plan handles are implemented with automated coverage. Category catalysts are plan equipment, choice-dependent containers stay on their choice, and component-bearing fluid needs stay apart. Component keys compare structurally, and unmatched component variants of subtype-bearing items remain incomplete; installed acceptance remains pending.
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
 
@@ -207,8 +207,8 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 ### Recipe cards and navigation
 
-- [ ] JEI — replacement provider resolves saved category/recipe links in the current runtime and opens the exact recipe; anonymous links expire with their runtime. Conversation persistence and navigation have automated coverage; installed restart acceptance remains pending.
-- [ ] JEI — draw recipe cards with JEI; R, U and clicks on card slots open recipes or uses, and R, U and clicks on item or result chips open their JEI recipes or uses (chip clicks open recipes).
+- [ ] JEI — replacement provider resolves saved category/recipe links in the current runtime and opens the exact recipe; anonymous links expire with their runtime and never recur after a restart; raw native recipe objects recover their native holder ID; plan routes open the recipe they wrap; hidden recipes never open. Conversation persistence and navigation have automated coverage; installed restart acceptance remains pending.
+- [ ] JEI — draw recipe cards with JEI; R, U and clicks on card slots open recipes or uses, and R, U and clicks on item or result chips open their JEI recipes or uses (chip clicks open recipes). Slot hover shows the whole JEI slot tooltip, and card actions stay inert in another world's read-only history.
 
 ### Native crafting grid layout
 

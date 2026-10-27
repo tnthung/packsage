@@ -1578,9 +1578,11 @@ class AssistantScreenStateTest {
         font.setAccessible(true);
         font.set(screen, new ScreenPreparationFont());
         var prior = actions.view.conversation().turns().getFirst();
-        var answer = "[Glass](item:minecraft:glass) and [Recipe](provider:source)";
+        var answer = "[Glass](item:minecraft:glass) and [Recipe](native:source)";
         var turn = new ChatContracts.Turn(prior.requestId(), prior.question(), answer, List.of(), prior.context(),
-                List.of(SOURCE), List.of(), prior.outcome(), 1, null, List.of(),
+                List.of(new Evidence.Source(SCOPE, "native", "1", "source", 1, Instant.EPOCH,
+                        Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of())),
+                List.of(), prior.outcome(), 1, null, List.of(),
                 List.of(new ChatContracts.SteeringMessage("clarify", answer.indexOf("[Recipe]"))), null, null,
                 PackSageSettings.Verbosity.CONCISE);
         var prepare = AssistantScreen.class.getDeclaredMethod("prepareTurn", ChatContracts.Turn.class);

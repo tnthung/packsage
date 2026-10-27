@@ -164,21 +164,45 @@ public final class JeiRuntimeIndex implements JeiIndex {
 
     @Override public Optional<RecipeRef> byRecipeId(String categoryUid, String recipeId) {
         generation();
-        return runtime.getRecipeManager().createRecipeCategoryLookup().includeHidden().get()
+        return runtime.getRecipeManager().createRecipeCategoryLookup().get()
                 .filter(category -> category.getRecipeType().getUid().toString().equals(categoryUid))
                 .findFirst().flatMap(category -> byRecipeId(category, recipeId));
     }
 
     private <T> Optional<RecipeRef> byRecipeId(IRecipeCategory<T> category, String recipeId) {
-        var recipes = categoryRecipes(category).recipes();
-        for (int i = 0; i < recipes.size(); i++) {
-            var recipe = category.getRecipeType().getRecipeClass().cast(recipes.get(i));
+        T match = null;
+        for (var recipe : runtime.getRecipeManager().createRecipeLookup(category.getRecipeType()).includeHidden().get().toList()) {
             var id = category.getRegistryName(recipe);
             if (id == null && recipe instanceof RecipeHolder<?> holder) id = holder.id();
-            if (id != null && recipeId.equals(id.toString()))
-                return Optional.of(new RecipeRef(category.getRecipeType().getUid().toString(), i));
+            if (id != null && recipeId.equals(id.toString())) {
+                if (match != null) return Optional.empty();
+                match = recipe;
+            }
         }
-        return Optional.empty();
+        if (match == null) return Optional.empty();
+        var cached = categoryRecipes(category);
+        var uid = category.getRecipeType().getUid().toString();
+        for (int i = 0; i < cached.recipes().size(); i++)
+            if (cached.recipes().get(i) == match) return Optional.of(new RecipeRef(uid, i));
+        // Keep existing temporary ordinals when a recipe is registered during this runtime.
+        var recipes = new ArrayList<Object>(cached.recipes());
+        recipes.add(match);
+        categories.put(uid, new CategoryRecipes(List.copyOf(recipes), new IdentityHashMap<>()));
+        return Optional.of(new RecipeRef(uid, recipes.size() - 1));
+    }
+
+    /** Like resolve, but only for recipes JEI currently shows, so navigation never opens a hidden recipe. */
+    Optional<Resolved<?>> resolveVisible(RecipeRef ref) {
+        generation();
+        var category = runtime.getRecipeManager().createRecipeCategoryLookup().get()
+                .filter(value -> value.getRecipeType().getUid().toString().equals(ref.categoryUid())).findFirst().orElse(null);
+        if (category == null) return Optional.empty();
+        var recipes = categoryRecipes(category).recipes();
+        if (ref.ordinal() < 0 || ref.ordinal() >= recipes.size()) return Optional.empty();
+        var recipe = recipes.get(ref.ordinal());
+        if (runtime.getRecipeManager().createRecipeLookup(category.getRecipeType()).get().noneMatch(value -> value == recipe))
+            return Optional.empty();
+        return Optional.of(resolve(category, ref));
     }
 
     public record Resolved<T>(IRecipeCategory<T> category, T recipe) { }
@@ -242,7 +266,9 @@ public final class JeiRuntimeIndex implements JeiIndex {
             }
             slots.add(new JeiLayout.Slot(slots.size(), JeiLayout.Role.valueOf(slot.getRole().name()), alternatives, extra));
         }
-        boolean hidden = runtime.getRecipeManager().createRecipeLookup(category.getRecipeType()).get().noneMatch(value -> value == recipe);
+        boolean hidden = runtime.getRecipeManager().createRecipeCategoryLookup().get()
+                .noneMatch(value -> value.getRecipeType().getUid().equals(category.getRecipeType().getUid()))
+                || runtime.getRecipeManager().createRecipeLookup(category.getRecipeType()).get().noneMatch(value -> value == recipe);
         Evidence.DecodingStatus decoding = null;
         if (JeiProjection.VANILLA_CATEGORIES.contains(ref.categoryUid()) && recipe instanceof RecipeHolder<?> holder)
             decoding = NativeSnapshot.decoding(holder, Minecraft.getInstance(), new Evidence.Scope("", "", "", "", generation));

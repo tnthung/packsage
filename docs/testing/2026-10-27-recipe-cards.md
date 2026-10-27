@@ -46,3 +46,9 @@ Normal and Detailed should show the recipes as cards without text grids. Concise
 With a completed recipe answer selected, close the chat and reopen it using P five times. The test agent records `PackSage timing` open-request and first-frame lines and compares them with the previous approximately 11–50 ms range. A bridge response alone does not measure the first frame.
 
 Finish with the original Answer detail setting restored, the developer prompt override cleared, and Minecraft running in the test world with chat and settings closed.
+
+## Remaining checks from this run
+
+All eleven recipe layouts and both candidate 18 presentation matrices passed. The [acceptance record](../validation/2026-10-27-recipe-cards.md#remaining-failures-and-unverified-checks) lists the open items. Repeat the three-second Shift freeze/resume and pinned-panel checks with a sustained physical key hold; they were not run by the test agent. Missing-item and custom-ingredient tooltips also need suitable naturally occurring evidence. Ordinary hover, advanced tooltips, cycling, narrow fallback and legacy history passed.
+
+Two observed failures need follow-up: wheel scrolling while hovering a result chip left its preview visible, and one completion showed a raw file-access exception. Warm P-key opening samples passed; first openings after launch took about 56 ms and 94 ms. Keep cold and warm samples separate when repeating the timing check.

@@ -4,7 +4,8 @@
 
 ### 2026-10-27
 
-- Prompt candidate 18 passed the nine-question recipe-card presentation check: Normal and Detailed use cards for explained transformations; Concise uses one result chip per recipe without repeated item names. Installed-default recheck pending.
+- Prompt candidate 18 passed the nine-question recipe-card presentation check before promotion and on the installed default with the developer override cleared: Normal and Detailed use cards for explained transformations; Concise uses one result chip per recipe without repeated item names.
+- All eleven native recipe layouts passed live comparison with JEI. Hover, ordinary/advanced tooltips, cycling, narrow fallback and legacy history passed. Full acceptance remains partial: scroll dismissal and one exposed file-access error failed; sustained Shift and missing/custom ingredient checks remain unverified. Warm chat openings measured about 33–45 ms; cold openings took about 56 ms and 94 ms. See the [acceptance record](docs/validation/2026-10-27-recipe-cards.md).
 - Chat answers show recipe cards, item chips and Shift-pinnable result previews.
 - Recipe citations and item links are classified for cards and chips using each answer's saved detail setting.
 - Drafted assistant instructions for recipe cards and item chips, tailored to the answer detail setting, with consistent citation placement and item link rules.

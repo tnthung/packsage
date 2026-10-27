@@ -2,7 +2,7 @@
 
 Date: 2026-10-27. Tasks 8b and 9 of the [implementation plan](../plans/2026-10-27-recipe-cards.md). Player steps: [testing checklist](../testing/2026-10-27-recipe-cards.md).
 
-Status: category comparisons pass; interaction acceptance remains partial. Prompt candidate 18 passed the nine-question presentation matrix and was promoted in `4953ed32`. Full build passes. Installed-default recheck is in progress. The remaining failures and unverified interactions are separate from the passes.
+Status: all eleven category comparisons pass; interaction acceptance remains partial. Prompt candidate 18 passed both nine-question presentation matrices, before promotion and on the installed default with the developer override cleared. Promoted in `4953ed32`; full build passes. Warm opening timings pass, with cold-opening exceptions recorded below. The remaining failures and unverified interactions are separate from the passes.
 
 ## Installation and method
 
@@ -99,13 +99,37 @@ Promoted the exact candidate 18 text to `GroundingInstructions.java`, updated it
 
 With `JAVA_HOME=D:/Project/packsage/.tools/jdk/jdk-21.0.12.1`, `gradlew.bat build -q` exited 0. `node build/tools/count.cjs` reports **1,340 tests, zero failures/errors, five skipped** (1,335 passed). [Build log](../../build/recipe-cards-live/build.log). This verifies prompt equality and existing regressions; it does not establish model compliance or the unrun Shift interactions.
 
-Cleared the developer override, restored Normal and advanced tooltips off, saved/quit normally, and verified zero instance Java processes using the canonical instance path. Removed temporary JEI from `mods` into `build/recipe-cards-live/temporary-mods/` after the comparison. Ran `powershell -ExecutionPolicy Bypass -File scripts/build.ps1`: exit 0, BUILD SUCCESSFUL, with build/test tasks up-to-date. Installed JAR and dist JAR both have SHA-256 `D7E6C8E8ECEE1F4F9F9064282843C341E49659635E9B953A959E41B9B7B72915`. [Install log](../../build/recipe-cards-live/install.log), [hash metadata](../../build/recipe-cards-live/installed-promoted.json). Relaunch and installed-default questions are pending.
+Cleared the developer override, restored Normal and advanced tooltips off, saved/quit normally, and verified zero instance Java processes using the canonical instance path. Removed temporary JEI from `mods` into `build/recipe-cards-live/temporary-mods/` after the comparison. Ran `powershell -ExecutionPolicy Bypass -File scripts/build.ps1`: exit 0, BUILD SUCCESSFUL, with build/test tasks up-to-date. Installed JAR and dist JAR both have SHA-256 `D7E6C8E8ECEE1F4F9F9064282843C341E49659635E9B953A959E41B9B7B72915`. [Install log](../../build/recipe-cards-live/install.log), [hash metadata](../../build/recipe-cards-live/installed-promoted.json).
+
+### Installed default: passing matrix after restart
+
+Relaunched through CurseForge, reopened the same save, and verified that the developer override was null and the effective prompt exactly matched candidate 18. Changed Answer detail through Settings for each group. Each exact question was submitted once in a fresh chat. All nine completed and saved, with matching persisted replies and expected stored verbosity. All linked item IDs and evidence references occur in the returned tool results; zero tool errors. Normal/Detailed render standalone cards without text grids or slot prose. Concise renders ingredient chips and one result chip per recipe, with no repeated ingredient/output names. Native records remain `navigable:false`, with zero navigation targets; Detailed beacon retains the returned external links. This does not establish destination-opening behavior for adapters absent from this Minecraft-only instance.
+
+| Detail / question | Request ID | Model-terminal time | Result and evidence |
+|---|---|---|---|
+| Normal beacon | `577b9916-772b-4f6e-a2c5-a2f4e2cf4a84` | 27,421 ms | PASS; [JSON](../../build/recipe-cards-live/installed-normal-beacon.json), [crafting](assets/2026-10-27-recipe-cards/installed-normal-beacon-top.png), [furnace](assets/2026-10-27-recipe-cards/installed-normal-beacon.png) |
+| Normal glass | `53153453-85a3-4076-8cb1-5accd4ef26c6` | 16,232 ms | PASS; [JSON](../../build/recipe-cards-live/installed-normal-glass.json), [render](assets/2026-10-27-recipe-cards/installed-normal-glass.png) |
+| Normal Swiftness | `fd2032f8-23cd-456d-b35b-ca50da872967` | 19,408 ms | PASS; [JSON](../../build/recipe-cards-live/installed-normal-swiftness.json), [render](assets/2026-10-27-recipe-cards/installed-normal-swiftness.png) |
+| Detailed beacon | `b846e6ea-fbdb-470e-89d5-7e59f2953fb7` | 38,294 ms | PASS; [JSON](../../build/recipe-cards-live/installed-detailed-beacon.json), [crafting](assets/2026-10-27-recipe-cards/installed-detailed-beacon-top.png), [external links](assets/2026-10-27-recipe-cards/installed-detailed-beacon.png) |
+| Detailed glass | `3387f328-4480-4661-96fd-a5c68939b442` | 27,925 ms | PASS; [JSON](../../build/recipe-cards-live/installed-detailed-glass.json), [render](assets/2026-10-27-recipe-cards/installed-detailed-glass.png) |
+| Detailed Swiftness | `84531a26-fcc8-4d42-abca-32b2707e7356` | 36,606 ms | PASS; [JSON](../../build/recipe-cards-live/installed-detailed-swiftness.json), [first step](assets/2026-10-27-recipe-cards/installed-detailed-swiftness-top.png), [upgrade](assets/2026-10-27-recipe-cards/installed-detailed-swiftness.png) |
+| Concise beacon | `b21a9718-ad2d-48d3-a73d-b5070cf174ad` | 16,066 ms | PASS; [JSON](../../build/recipe-cards-live/installed-concise-beacon.json), [render](assets/2026-10-27-recipe-cards/installed-concise-beacon.png) |
+| Concise glass | `848a7a6b-c77d-4fb6-ac48-3426d6bbdca6` | 16,038 ms | PASS; [JSON](../../build/recipe-cards-live/installed-concise-glass.json), [render](assets/2026-10-27-recipe-cards/installed-concise-glass.png) |
+| Concise Swiftness | `9e3ad4bd-9b96-418a-a6aa-2a06ab0c7253` | 27,813 ms | PASS; [JSON](../../build/recipe-cards-live/installed-concise-swiftness.json), [render](assets/2026-10-27-recipe-cards/installed-concise-swiftness.png) |
+
+[Installed summary](../../build/recipe-cards-live/installed-summary.json) retains calls, arguments, coverage, exact replies and persistence/reference checks. Every group used separate chats concurrently, as before promotion. This is observed compliance on these nine samples, not a guarantee for every future answer. No new candidate was needed after installation.
+
+### Final game state
+
+Minecraft remains running in the same test world, unpaused, with chat/settings closed (`screen:null`). Position `[1583.394432834578, 108.51250108506484, 184.70977029085697]`, yaw `-156.01227`, pitch `6.299982`, creative mode, health 20, selected slot 0 and no mount are unchanged. No gameplay commands, movement or recipe fixtures were used. Normal is restored, advanced tooltips are off, the override is null, and the effective default still equals candidate 18. Final installed hash matches the verified hash above. Temporary JEI is absent from mods. [Final state](../../build/recipe-cards-live/state-final.json), [verification](../../build/recipe-cards-live/final-verification.json), [world screenshot](assets/2026-10-27-recipe-cards/final-world.png).
 
 ## Chat-opening timings
 
 Used P from gameplay, with the completed six-card conversation `2a562715-dbe3-4598-8273-e1290f4146a7` selected. The five warm samples are consecutive logged opening requests at 08:26:41, 08:26:44, 08:26:46, 08:26:49 and 08:26:51. From `client_open_request.start_ns` to `first_frame_rendered.event_ns`: **34.6892, 45.0522, 36.2778, 37.4595 and 32.9329 ms**. All have `loading=false`. PASS against the prior approximately 11–50 ms range for these warm samples. First-frame logging measures render-call completion, not GPU presentation or time before the common key handler.
 
 The first real P opening after launch was **55.5631 ms** (08:19:36); its screen-construction-to-frame portion was 52.5105 ms. This cold sample is outside the earlier 50.383 ms maximum and is retained as a timing acceptance exception, not hidden by the warm results. Bridge-selected openings are excluded from the five key samples. Raw stage lines: [opening-stages.log](../../build/recipe-cards-live/opening-stages.log).
+
+After installing candidate 18, five real P openings on the same six-card conversation measured **35.3310, 33.3311, 37.6480, 33.9087 and 34.0422 ms** at 09:15:02 through 09:15:05, all `loading=false`. These warm samples also pass. The first real P opening after this restart measured **94.0028 ms** (09:09:09), another cold-opening exception. The bridge-selected opening used to select the six-card chat was `loading=true` and is excluded from the five warm samples. [Installed stage lines](../../build/recipe-cards-live/opening-stages-installed.log), [derived summary](../../build/recipe-cards-live/installed-opening-summary.json).
 
 ## Remaining failures and unverified checks
 
@@ -122,4 +146,4 @@ FAIL, observed once on candidate 15's Concise glass completion, request `4c839fe
 - NOT RUN: sustained Shift for three seconds, freeze without a release jump, pinned panel slot tooltips, release outside chip/panel, and pinned panel click-through protection. The available computer-use API exposes complete key chords but no key-down/key-up or timed hold operation. An ordinary Shift tap cannot establish these behaviors.
 - NOT RUN: missing-item barrier and `Missing:` tooltip. No naturally missing registry item was present in these recorded recipes.
 - NOT RUN: custom-ingredient `?` tooltip. The trim unknown-output placeholder was exercised, but it is a different case. No loaded recognized native recipe with a custom ingredient was found in the selected checks; unsupported Nature's Aura recipes remain source-only by design.
-- Candidates 14–17 failures are retained above; candidate 18 passed before promotion. Installed-default acceptance is pending.
+- Candidates 14–17 failures are retained above; candidate 18 passed both before promotion and on the installed default. Full feature acceptance remains incomplete because UI-1/UI-2, the cold timing exceptions and the unverified interactions above remain open.

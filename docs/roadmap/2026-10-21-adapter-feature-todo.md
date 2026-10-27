@@ -1,6 +1,6 @@
 # PackSage adapter feature todo
 
-Updated: 2026-10-26.
+Updated: 2026-10-27.
 
 Feature-grouped summary of the [tool roadmap](2026-10-13-todo.md). A mod can appear under multiple features. Unchecked items include missing implementation and implemented features still awaiting the stated live acceptance. Detailed contracts, evidence and acceptance limits remain in the tool roadmap and its linked reports.
 
@@ -9,6 +9,10 @@ Generic JEI displays or GuideME documentation do not establish dedicated mechani
 On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mods describe `feat/packsage-v1`; the [v2 note](2026-10-22-v2-minecraft-only.md) tracks v2 work.
 
 ## 1. Has adapter, not fully implemented
+
+### Recipe cards and inline chips (v2)
+
+- [ ] Minecraft — all eleven native recipe layouts pass JEI comparison; prompt candidate 18 passes all nine questions before promotion and on the installed default. Ordinary/advanced tooltips, cycling, hover preview, narrow fallback and legacy history pass. Remaining: scroll dismissal, one exposed file-access exception, cold-opening timing exceptions, sustained Shift/pinned-panel checks and missing/custom ingredient tooltips. See the [acceptance record](../validation/2026-10-27-recipe-cards.md).
 
 ### Journal recording and search (v2)
 

@@ -37,14 +37,45 @@ class JeiPlanSourceTest {
         var index = new JeiSearchTest.Fake();
         index.add(0, "minecraft:brewing", "Brewing", true); index.add(1, "minecraft:brewing", "Brewing", true);
         index.focuses.put("OUTPUT:minecraft:potion", List.copyOf(index.layouts.keySet()));
-        var components = new Evidence.JsonObject(Map.of("minecraft:potion_contents", new Evidence.JsonString("minecraft:strength")));
-        index.variants.put(new JeiIndex.ItemVariant("minecraft:potion", Evidence.serialize(components)),
+        var components = Evidence.deserializeObject("{\"minecraft:potion_contents\":{\"potion\":\"minecraft:strength\"},\"minecraft:custom_data\":{\"label\":\"<brew>\",\"level\":1}}");
+        index.variants.put(new JeiIndex.ItemVariant("minecraft:potion",
+                "{ \"minecraft:custom_data\": { \"level\": 1, \"label\": \"<brew>\" }, \"minecraft:potion_contents\": { \"potion\": \"minecraft:strength\" } }"),
                 List.of(new JeiIndex.RecipeRef("minecraft:brewing", 1)));
         var source = new JeiPlanSource(index, scope, "19.27", Instant.EPOCH);
         var records = source.recipeOutputs("minecraft:potion", components, scope);
         assertEquals(List.of("test:recipe1"), records.stream().map(record -> record.recipePayload().canonicalRecipeId()).toList());
+        assertTrue(source.recipesComplete("minecraft:potion", components));
         var other = new Evidence.Scope("world", "en_us", "team", "other-runtime", 2);
         assertFalse(source.available(other));
         assertTrue(source.recipeOutputs("minecraft:potion", components, other).isEmpty());
+    }
+
+    @Test
+    void unmatchedSubtypeVariantIsNotComplete() {
+        var scope = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
+        var index = new JeiSearchTest.Fake() {
+            @Override public boolean hasSubtypes(String identity) { return identity.equals("minecraft:potion"); }
+        };
+        var source = new JeiPlanSource(index, scope, "19.27", Instant.EPOCH);
+        var components = Evidence.deserializeObject("{\"minecraft:potion_contents\":{\"potion\":\"minecraft:strength\"}}");
+        assertTrue(source.recipeOutputs("minecraft:potion", components, scope).isEmpty());
+        assertFalse(source.recipesComplete("minecraft:potion", components));
+        assertTrue(source.recipesComplete("minecraft:stone", components));
+    }
+
+    @Test
+    void focusLookupIsReusedAcrossReadAndCompleteness() {
+        var scope = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var index = new JeiSearchTest.Fake() {
+            @Override public List<RecipeRef> byFocus(JeiLayout.Role role, String identity) {
+                calls.incrementAndGet();
+                return super.byFocus(role, identity);
+            }
+        };
+        var source = new JeiPlanSource(index, scope, "19.27", Instant.EPOCH);
+        assertTrue(source.recipeOutputs("minecraft:stone", new Evidence.JsonObject(Map.of()), scope).isEmpty());
+        assertTrue(source.recipesComplete("minecraft:stone", new Evidence.JsonObject(Map.of())));
+        assertEquals(1, calls.get());
     }
 }

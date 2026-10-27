@@ -186,7 +186,7 @@ class PackSageToolsTest {
         assertTrue(item.contains("enchantmentEligibility lists each enchantment that can still apply, with its conflicts"));
         var plan = definitions.stream().filter(value -> value.name().equals("plan_recipe")).findFirst().orElseThrow().description();
         assertTrue(plan.contains("including brewing routes"));
-        assertTrue(plan.contains("Brewing routes from the game's own recipes withhold operation counts"));
+        assertTrue(plan.contains("Brewing routes withhold operation counts"));
         assertTrue(plan.contains("Routes cover every component variant of the identity; match output components."));
         assertTrue(plan.contains("The live recipe scan is bounded, so a missing route is not absence."));
         for (var name : List.of("read_evidence")) {

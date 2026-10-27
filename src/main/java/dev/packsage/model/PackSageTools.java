@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
@@ -88,13 +89,19 @@ public final class PackSageTools {
     }
 
     public static List<ModelBackend.ToolDefinition> definitions(List<Toolbox.Metadata> metadata) {
+        return definitions(metadata, Set.of());
+    }
+
+    public static List<ModelBackend.ToolDefinition> definitions(List<Toolbox.Metadata> metadata, Set<String> optionalTools) {
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
-        for (var name : List.of("search_recipe", "search_registry", "read_evidence",
+        var names = new ArrayList<>(List.of("search_recipe", "search_registry", "read_evidence",
                 "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
                 "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
                 "list_progress", "inspect_progress", "list_statistics",
                 "read_loot", "locate", "search_commands", "read_command", "run_command", "read_game_state",
-                "search_journal", "remember", "update_note", "forget_note")) {
+                "search_journal", "remember", "update_note", "forget_note"));
+        if (optionalTools.contains("bookmark")) names.add("bookmark");
+        for (var name : names) {
             var properties = new JsonObject();
             var required = new JsonArray();
             switch (name) {
@@ -230,6 +237,12 @@ public final class PackSageTools {
                     properties.add("id", JsonParser.parseString("{\"type\":\"string\",\"pattern\":\"^n[0-9a-f]{8}$\",\"maxLength\":9}"));
                     required.add("id");
                 }
+                case "bookmark" -> {
+                    properties.add("action", JsonParser.parseString("{\"type\":\"string\",\"enum\":[\"add\",\"remove\",\"check\"]}"));
+                    properties.add("item", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"id\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"},\"components\":{\"type\":[\"object\",\"null\"]}},\"required\":[\"id\"],\"additionalProperties\":false}"));
+                    properties.add("recipe", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":1024}"));
+                    required.add("action");
+                }
                 default -> throw new IllegalStateException(name);
             }
             if (List.of("search_recipe", "search_registry").contains(name)) {
@@ -274,6 +287,7 @@ public final class PackSageTools {
                 case "remember" -> "Save the player's report of something they did, built, achieved or found as a note. Pass their statement as text, at for the place they mean (the player for 'here'), and a few lowercase tags such as build, achievement or resource. If possibleDuplicates shows the same thing, update_note it instead.";
                 case "update_note" -> "Correct a saved note by id when the player changes, moves or renames what they reported: replace its text, move it with at, clear its place or replace its tags. Find its id with search_journal notesOnly.";
                 case "forget_note" -> "Delete a saved note by id when the player says it no longer applies or asks you to forget it.";
+                case "bookmark" -> "Add, remove or check an entry in the player's JEI bookmark list beside the inventory. Add or remove only when the player asks; check reports whether one item or recipe is bookmarked. Give exactly one target: item (id and optional components) or recipe, which must be a reference returned by search_recipe.";
                 case "list_progress" -> "List progress entries: Minecraft advancements now, quest books later. After acquisition, pages start with one record per tree (an advancement tab) with done and total counts, then entries in tree order with status done, in_progress, available, locked or hidden, 64 records per page. Filter by tree id, statuses, or text in the title or description. Hidden entries have no title until earned; do not guess what they are. Read criteria, requirements and rewards with inspect_progress. A work-budget page can be empty with nextCursor; pass it with the same filters to resume. Cursors are single-use and bound to this world session.";
                 case "inspect_progress" -> "Read one progress entry by its returned id: description, each criterion with its done state and when it was met (for example the biomes still missing for Adventuring Time), what it requires and unlocks, and rewards. A hidden entry that is not earned returns only its status.";
                 case "list_statistics" -> "Read the player's own counters since the world began: blocks mined; items crafted, used, broken, picked up and dropped; mobs killed and killed by; and custom counters such as deaths, jumps, play time and distance walked. categories narrows to mined, crafted, used, broken, picked_up, dropped, killed, killed_by or custom. subjects filters block, item, entity or counter ids, tags or name text. Distances are in blocks, times in seconds and damage in health points. Counters never incremented are zero and are listed only when named in subjects.ids. Pass categories together with subjects, or a named id gets a zero row in every category that can count it. 64 per page. A work-budget page can be empty with nextCursor; pass it with the same filters to resume. Cursors are single-use and bound to this world session.";
@@ -322,7 +336,8 @@ public final class PackSageTools {
         if (json.isJsonObject()) {
             var object = json.getAsJsonObject();
             var fields = rule.getAsJsonObject("properties");
-            for (var key : object.keySet()) if (fields == null || !fields.has(key) && rule.has("additionalProperties") && !rule.get("additionalProperties").getAsBoolean()) {
+            var closed = rule.has("additionalProperties") && !rule.get("additionalProperties").getAsBoolean();
+            for (var key : object.keySet()) if (fields == null ? closed : !fields.has(key) && closed) {
                 throw new IllegalArgumentException("unknown field: " + key);
             }
             if (fields != null) for (var key : fields.keySet()) if (object.has(key)) validateValue(object.get(key), fields.getAsJsonObject(key), name + "." + key);
@@ -346,7 +361,7 @@ public final class PackSageTools {
     public CompletionStage<ToolResponse> execute(ModelBackend.ToolCall call, Evidence.Scope scope) {
         try {
             if (call.serializedArguments().length() > 16_384) throw new IllegalArgumentException("tool arguments exceed limit");
-            var schema = definitions(metadata).stream().filter(definition -> definition.name().equals(call.name())).findFirst()
+            var schema = definitions(metadata, Set.of("bookmark")).stream().filter(definition -> definition.name().equals(call.name())).findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("unknown read tool"));
             var arguments = Evidence.deserializeObject(call.serializedArguments());
             var properties = JsonParser.parseString(schema.serializedSchema()).getAsJsonObject().getAsJsonObject("properties");

@@ -173,6 +173,36 @@ class PackSageToolsTest {
     }
 
     @Test
+    void bookmarkOfferedOnlyWhenReady() {
+        assertTrue(PackSageTools.definitions().stream().noneMatch(value -> value.name().equals("bookmark")));
+        assertTrue(PackSageTools.definitions(List.of(), java.util.Set.of()).stream().noneMatch(value -> value.name().equals("bookmark")));
+        var offered = PackSageTools.definitions(List.of(), java.util.Set.of("bookmark"));
+        var bookmark = offered.stream().filter(value -> value.name().equals("bookmark")).findFirst().orElseThrow();
+        var schema = JsonParser.parseString(bookmark.serializedSchema()).getAsJsonObject();
+        var properties = schema.getAsJsonObject("properties");
+        assertEquals(List.of("add", "remove", "check"), properties.getAsJsonObject("action").getAsJsonArray("enum").asList().stream().map(value -> value.getAsString()).toList());
+        assertEquals("[\"action\"]", schema.getAsJsonArray("required").toString());
+        assertEquals("^[a-z0-9_.-]+:[a-z0-9/._-]+$", properties.getAsJsonObject("item").getAsJsonObject("properties").getAsJsonObject("id").get("pattern").getAsString());
+        assertEquals(1024, properties.getAsJsonObject("recipe").get("maxLength").getAsInt());
+        assertEquals(PackSageTools.definitions().size() + 1, offered.size());
+    }
+
+    @Test
+    void bookmarkComponentsReachDispatchUnchanged() throws Exception {
+        var seen = new AtomicReference<PackSageTools.ReadRequest>();
+        var tools = new PackSageTools(request -> { seen.set(request); return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)); });
+        var response = tools.execute(new ModelBackend.ToolCall("bm", "bookmark",
+                "{\"action\":\"add\",\"item\":{\"id\":\"minecraft:potion\",\"components\":{\"minecraft:potion_contents\":{\"potion\":\"minecraft:healing\"}}}}"), SCOPE)
+                .toCompletableFuture().get();
+        assertFalse(response.result().error(), response.result().serializedResult());
+        var item = (Evidence.JsonObject) seen.get().arguments().values().get("item");
+        assertEquals("{\"potion\":\"minecraft:healing\"}", Evidence.serialize(((Evidence.JsonObject) item.values().get("components")).values().get("minecraft:potion_contents")));
+        var closed = tools.execute(new ModelBackend.ToolCall("bm2", "bookmark",
+                "{\"action\":\"add\",\"item\":{\"id\":\"minecraft:potion\",\"extra\":1}}"), SCOPE).toCompletableFuture().get();
+        assertTrue(closed.result().error());
+    }
+
+    @Test
     void searchInventoryIsNoLongerOffered() throws Exception {
         assertTrue(PackSageTools.definitions().stream().noneMatch(value -> value.name().equals("search_inventory")));
         var calls = new AtomicInteger();

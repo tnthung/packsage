@@ -457,6 +457,20 @@ class KnowledgeServiceTest {
     }
     private static List<String> handles(Evidence.Result result) { return result.records().stream().map(record -> record.source().sourceHandle()).toList(); }
     private static Evidence.Result page(List<Evidence.Record> records, String next) { return new Evidence.Result(records, Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, next); }
+    @Test
+    void optionalToolsFollowEnabledBookmarkProvider() {
+        var enabled = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var bookmarks = new PagedProvider("jei_bookmarks", query -> page(List.of(), null)) {
+            @Override public boolean enabled() { return enabled.get(); }
+        };
+        var service = new KnowledgeService(List.of(bookmarks), () -> SCOPE);
+        assertEquals(java.util.Set.of("bookmark"), service.optionalTools());
+        enabled.set(false);
+        assertEquals(java.util.Set.of(), service.optionalTools());
+        assertEquals(java.util.Set.of(), new KnowledgeService(List.of(new PagedProvider("other", query -> page(List.of(), null))), () -> SCOPE).optionalTools());
+        assertEquals(java.util.Set.of(), new KnowledgeService(List.of(), () -> SCOPE).optionalTools());
+    }
+
     private static Evidence.JsonString text(String value) { return new Evidence.JsonString(value); }
     private static Evidence.JsonNumber number(int value) { return new Evidence.JsonNumber(BigDecimal.valueOf(value)); }
     private static Evidence.JsonArray strings(String... values) { return new Evidence.JsonArray(java.util.Arrays.stream(values).map(value -> (Evidence.JsonValue) text(value)).toList()); }

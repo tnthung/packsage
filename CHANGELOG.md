@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- The assistant can add, remove and check JEI bookmarks for items and observed JEI recipes when JEI 19.53 or newer is ready; the A key and chat item bookmarking no longer act on older JEI.
 - Ready JEI supplies the default recipe search and planning source, with native recipes used when JEI is unavailable.
 - Chat cards and item chips open JEI recipes and uses with clicks and JEI's configured keys when its runtime is ready.
 - Added JEI recipe search through its focus index.

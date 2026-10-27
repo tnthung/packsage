@@ -11,11 +11,11 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-class JeiSearchTest {
+public class JeiSearchTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "jei", 4);
     private static final Instant NOW = Instant.parse("2026-10-27T00:00:00Z");
 
-    static class Fake implements JeiIndex {
+    public static class Fake implements JeiIndex {
         final Map<RecipeRef, JeiLayout> layouts = new LinkedHashMap<>();
         final Map<String, List<RecipeRef>> focuses = new HashMap<>();
         final Map<String, List<RecipeRef>> categories = new LinkedHashMap<>();
@@ -25,7 +25,7 @@ class JeiSearchTest {
         boolean truncated;
         int layoutCalls;
         boolean forbidCategories;
-        void add(int n, String category, String title, boolean readable) {
+        public void add(int n, String category, String title, boolean readable) {
             var ref = new RecipeRef(category, n);
             layouts.put(ref, new JeiLayout(category, title, "test:recipe" + n, n, 7, false, readable, null, List.of(), List.of()));
             categories.computeIfAbsent(category, ignored -> new ArrayList<>()).add(ref);

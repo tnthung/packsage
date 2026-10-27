@@ -981,8 +981,8 @@ class ScreenTextTest {
             assertEquals(cards.get(source), line.card());
         }
         var multi = ScreenText.inlineLines("\uE200cite\uE202native:minecraft:stone\uE202native:minecraft:stone\uE201",
-                List.of(), List.of(), turn.sources(), java.util.Map.of(), dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, cards).getFirst();
-        assertEquals(null, multi.card());
+                List.of(), List.of(), turn.sources(), java.util.Map.of(), dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, cards);
+        assertTrue(multi.stream().noneMatch(line -> line.card() != null));
     }
 
     @Test
@@ -1015,8 +1015,8 @@ class ScreenTextTest {
         var cards = ScreenText.recipeCards(turn);
         for (String text : List.of("# [native:minecraft:stone]", "> [native:minecraft:stone]",
                 "**[native:minecraft:stone]**", "[ref:e36be868.1.1f] [native:minecraft:stone]")) {
-            assertEquals(null, ScreenText.inlineLines(text, List.of(), List.of(), turn.sources(), java.util.Map.of(),
-                    dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, cards).getFirst().card(), text);
+            assertTrue(ScreenText.inlineLines(text, List.of(), List.of(), turn.sources(), java.util.Map.of(),
+                    dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, cards).stream().noneMatch(line -> line.card() != null), text);
         }
     }
 

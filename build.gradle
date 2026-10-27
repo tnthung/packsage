@@ -61,7 +61,32 @@ sourceSets {
 }
 
 tasks.named('test', Test).configure {
+    useJUnitPlatform {
+        excludeTags 'without-jei'
+    }
+    finalizedBy 'testWithoutJei'
+}
+
+tasks.register('testWithoutJei', Test) {
+    group = 'verification'
+    description = 'Runs the non-JEI tests with all JEI artifacts removed.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath - configurations.testRuntimeClasspath.incoming.artifactView {
+        componentFilter { id -> id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier && id.group == 'mezz.jei' }
+    }.files
     useJUnitPlatform()
+
+    // These fixtures deliberately load JEI APIs, including the supported-version provider construction test.
+    exclude 'dev/packsage/jei/**'
+    filter.excludeTestsMatching('dev.packsage.client.JeiSupportTest.bookmarkProviderLoadsOnlyOnBookmarkCapableJei')
+
+    // Keep ModDevGradle's transformed Minecraft test environment for this second run.
+    def normalTest = tasks.named('test', Test).get()
+    systemProperties normalTest.systemProperties
+    jvmArgs normalTest.jvmArgs
+    jvmArgumentProviders.addAll(normalTest.jvmArgumentProviders)
+    workingDir = normalTest.workingDir
+    dependsOn 'testClasses', 'prepareNeoForgeTestFiles'
 }
 
 if (project.hasProperty('packsageBootstrapOnly')) {

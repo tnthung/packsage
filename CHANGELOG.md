@@ -5,6 +5,7 @@
 ### 2026-10-28
 
 - Recorded component-bearing container, hidden JEI category and temporary-link live checks, including the vanilla water-potion fixture limitation.
+- Run the non-JEI test suite without JEI on the runtime classpath, including optional loading and native recipe discovery, whenever tests run.
 
 ### 2026-10-27
 

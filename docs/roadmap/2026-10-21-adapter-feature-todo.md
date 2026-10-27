@@ -196,6 +196,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 - [x] JEI — the replacement provider passed default search, native fallback, stale-cursor checks, explicit native selection and selected multi-mod reads ([validation](../validation/2026-10-27-jei-adapter.md)).
 - [x] Minecraft — default recipe source when JEI is not installed or not ready, with no JEI-unavailable note; installed acceptance passed for the torch and Potion of Strength questions.
+- [x] PackSage — `testWithoutJei` runs the non-JEI suite without JEI artifacts and checks optional loading and native discovery; it also runs after `test`.
 - [x] PackSage — the installed default used JEI for the focused brewing question and supplied the altar route on a directed follow-up ([validation](../validation/2026-10-27-jei-adapter.md)).
 
 ### JEI output search

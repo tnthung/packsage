@@ -1555,9 +1555,11 @@ class AssistantScreenStateTest {
                 java.util.Map.of(model, new dev.packsage.client.recipe.SlotStacks.ResolvedSlot(
                         List.of(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)), false)),
                 java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
-        assertEquals(List.of(0, 12, 30, 48, 119), layout.runs().stream().map(AssistantScreen.MessageRun::y).toList());
-        assertEquals(List.of(12, 18, 18, 71, 12), layout.runs().stream().map(AssistantScreen.MessageRun::height).toList());
-        assertEquals(131, layout.height());
+        assertEquals(List.of(0, 12, 24, 36, 107), layout.runs().stream().map(AssistantScreen.MessageRun::y).toList());
+        assertEquals(List.of(12, 12, 12, 71, 12), layout.runs().stream().map(AssistantScreen.MessageRun::height).toList());
+        assertEquals(119, layout.height());
+        assertEquals(45, layout.runs().get(1).width());
+        assertEquals(layout.runs().get(2).span().text().length() * 5 + 20, layout.runs().get(2).width());
         assertEquals(71, layout.runs().get(3).height());
     }
 
@@ -1675,7 +1677,7 @@ class AssistantScreenStateTest {
         var narrow = screen.messageLayout(List.of(line), 87, java.util.Map.of(model, card), java.util.Map.of(model, new dev.packsage.client.recipe.SlotStacks.ResolvedSlot(List.of(stack), false)), java.util.Map.of());
         assertSame(card, narrow.runs().getFirst().card());
         assertSame(stack, narrow.runs().getFirst().stack());
-        assertEquals(18, narrow.height());
+        assertEquals(12, narrow.height());
     }
 
     @Test
@@ -1719,7 +1721,7 @@ class AssistantScreenStateTest {
     }
 
     @Test
-    void resolvedItemChipOnlyExpandsItsWrappedRow() {
+    void resolvedItemChipKeepsItsWrappedRowAtTextHeight() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 640;
         screen.height = 480;
@@ -1731,8 +1733,9 @@ class AssistantScreenStateTest {
                 java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
         var chip = layout.runs().stream().filter(run -> run.stack() != null).findFirst().orElseThrow();
         assertEquals(12, chip.y());
-        assertEquals(18, chip.height());
-        assertEquals(30, layout.runs().stream().filter(run -> run.span().text().equals("world")).findFirst().orElseThrow().y());
+        assertEquals(12, chip.height());
+        assertEquals(45, chip.width());
+        assertEquals(24, layout.runs().stream().filter(run -> run.span().text().equals("world")).findFirst().orElseThrow().y());
     }
 
     @Test

@@ -1071,7 +1071,7 @@ public final class AssistantScreen extends Screen {
                 if (result != null) stack = outputs.get(span.resultCard());
                 boolean item = stack != null;
                 if (item || span.target() != null || span.source() != null || span.externalUrl() != null) {
-                    boolean navigation = !item && (span.target() != null || span.externalUrl() != null);
+                    boolean navigation = !item && line.card() == null && (span.target() != null || span.externalUrl() != null);
                     String labelText = item && result != null ? stack.getHoverName().getString() : span.text();
                     String verb = span.target() == null ? "Open" : ScreenText.navigationVerb(span.target());
                     if (navigation && !labelText.regionMatches(true, 0, verb + " ", 0, verb.length() + 1)) labelText = verb + " " + labelText;
@@ -1088,9 +1088,9 @@ public final class AssistantScreen extends Screen {
                         x = indent; y += rowHeight; rowHeight = ModernUi.MESSAGE_LINE_HEIGHT; rowStart = runs.size();
                     }
                     String clipped = font.substrByWidth(label, Math.max(1, chipWidth - padding)).getString();
-                    runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, item ? null : span.target(),
+                    runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, item || line.card() != null ? null : span.target(),
                             navigation ? ModernUi.ACCENT : ModernUi.TEXT, bold, false, item ? null : span.source(),
-                            item ? null : span.externalUrl()), x, y, chipWidth, line.quote(), item ? result : null, stack, item ? 18 : rowHeight));
+                            item || line.card() != null ? null : span.externalUrl()), x, y, chipWidth, line.quote(), item ? result : null, stack, item ? 18 : rowHeight));
                     if (item) rowHeight = 18;
                     x += chipWidth + 4;
                     continue;

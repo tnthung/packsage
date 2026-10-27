@@ -101,7 +101,7 @@ Stages 1–5 are implemented. Checked entries below describe the accepted scope,
   - [x] Holder section/slot summaries and armor-slot facts appear in candidate equipment reads; all four pieces inspected (Q1/W3).
   - [x] Complete returned enchantment eligibility and tooltip-filter search (W3/C1/C4); source item facts support the answers.
   - [x] Other missing-holder cases, menu-close staleness (W10), the opened mount menu path (W11r), every potion/component/fingerprint variant with stale handle rereads (W9) and holder/progress-tree rereads (W16) passed live.
-  - [ ] Modded-menu PARTIAL sections: not exercised live.
+  - Modded-menu PARTIAL sections: not exercised live; deferred by the player (2026-10-27) until the storage mod adapters (for example Sophisticated Storage or Iron Chests).
   - [x] N2–N5 fixed with automated tests (internal; see world-reading backlog above).
 - [x] 2. Progress and statistics ([plan](../plans/2026-10-22-v2-progress-statistics.md)): singleplayer P1–P8 and P10 pass, including P5's fixed-build recheck. P9/P11 and broader clauses remain unchecked above.
 - [x] 3. More world knowledge ([plan](../plans/2026-10-25-v2-world-knowledge.md)): C5–C8 and L1/L2 pass within the following scope.
@@ -147,5 +147,5 @@ The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include 
 - [x] Holder and progress-tree evidence rereads (W16), saved v1 citations rendered with unavailable destinations (round 3 W17) and the wandering trader (round 3 D1 ruling) passed live.
 - [ ] Uncached-POI section branch of inspect_block and the progress acquisition-budget continuation branch cannot be set up live; they have automated coverage only.
 - [ ] Recorded reply-compliance failures: A3 (accepted by the player on 2026-10-27; the from-scratch beacon reply does not say obsidian is obtained, though the plan detail is correct) and J8 (the withdrawal reply omits the donkey amounts and coordinates, though the journal is correct). Accepted limitation: the statistics one-step owned key copy (Astra accepted).
-- [ ] Modded-menu PARTIAL sections were not exercised live; the rest of the item/menu, world-knowledge, journal and progress clauses are accepted above.
+- Modded-menu PARTIAL sections are deferred until the storage mod adapters (player decision, 2026-10-27); the rest of the item/menu, world-knowledge, journal and progress clauses are accepted above.
 - The paused JEI recipe-planning tasks J3–J7 belong to feat/packsage-v1 and do not apply until a JEI adapter returns.

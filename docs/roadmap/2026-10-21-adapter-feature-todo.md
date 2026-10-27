@@ -6,7 +6,7 @@ Feature-grouped summary of the [tool roadmap](2026-10-13-todo.md). A mod can app
 
 Generic JEI displays or GuideME documentation do not establish dedicated mechanics or storage adapter coverage. Reliquified Artifacts shares the existing Artifacts logical integration.
 
-On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mods describe `feat/packsage-v1`; the [v2 note](2026-10-22-v2-minecraft-only.md) tracks v2 work.
+On this v2 branch, Minecraft and JEI have adapters. Other mod entries describe `feat/packsage-v1`; the [v2 note](2026-10-22-v2-minecraft-only.md) tracks v2 work.
 
 ## 1. Has adapter, not fully implemented
 
@@ -188,24 +188,28 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 - [x] Minecraft — localized potion-name matching and empty-page progress; installed acceptance passed: the potion was searched by name, the empty page was continued and the localized transformation was found in 2 recipe searches ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — planner brewing batch presentation; installed acceptance passed: `plan_recipe` was called and the reply stated the batch semantics and derived totals under a stated grouping ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — plan_recipe routes reach every loaded recipe (beacon, enchanting table, oak planks) with concrete PARTIAL details, intermediate expansion and smithing inputs (A1r/A3 plan detail/W20/W21, native readiness rounds 3–8; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
+- [x] JEI — altar, mixing, fluid and returned-container plans passed, including the machine relationship and blank crafting positions. Possible extras, fluid details and a component-bearing water-bucket contents and equipment fixture passed via follow-up ([validation](../validation/2026-10-27-jei-adapter.md)).
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
 
 ### Default recipe source
 
-- [x] JEI — default source of an unqualified recipe search whenever its runtime is available; installed acceptance passed for the torch question ([specification](../specs/2026-10-22-jei-default-recipe-source.md), [validation record](../validation/2026-10-22-jei-default-recipe-source.md)).
+- [x] JEI — the replacement provider passed default search, native fallback, stale-cursor checks, explicit native selection and selected multi-mod reads ([validation](../validation/2026-10-27-jei-adapter.md)).
 - [x] Minecraft — default recipe source when JEI is not installed or not ready, with no JEI-unavailable note; installed acceptance passed for the torch and Potion of Strength questions.
-- [ ] PackSage — prompt: the assistant still selects `provider: native` for brewing while JEI is installed, and omits a returned modded route without saying so ([validation record](../validation/2026-10-22-jei-output-focus.md)).
+- [x] PackSage — `testWithoutJei` runs the non-JEI suite without JEI artifacts and checks optional loading and native discovery; it also runs after `test`.
+- [x] PackSage — the installed default used JEI for the focused brewing question and supplied the altar route on a directed follow-up ([validation](../validation/2026-10-27-jei-adapter.md)).
 
 ### JEI output search
 
-- [x] JEI — output-item searches use JEI's recipe index for items without JEI-distinguished variants; installed acceptance passed: the torch was found on the first JEI page in about 22 seconds, down from about 40 ([specification](../specs/2026-10-22-jei-output-focus.md), [validation record](../validation/2026-10-22-jei-output-focus.md)).
-- [x] JEI — output-item searches match modded-category recipes with their captured slots and OPAQUE coverage; installed retrieval passed for Nature's Aura's Natural Altar Infusion recipe for Gold Powder. Using that route in the reply is tracked under the prompt item above.
-- [ ] JEI — items with JEI-distinguished variants, such as potions, still use the bounded scan; the installed potion path was not exercised because the assistant selected native.
+- [x] JEI — installed reads returned torch, Strength potion, Nature's Aura altar and selected Create, Mekanism and Immersive Engineering slots and fluids ([validation](../validation/2026-10-27-jei-adapter.md)).
 
 ### Recipe cards and navigation
 
-- [ ] JEI — draw recipe cards with JEI; R, U and clicks on card slots open recipes or uses, and R, U and clicks on item or result chips open their JEI recipes or uses (chip clicks open recipes).
+- [x] JEI — saved torch and Natural Altar plan links reopened after restart; Create plan navigation, foreign-world read-only refusal, temporary-link restart refusal and hidden-category refusal passed. Cards, clicks, R/U, tooltips, chips and narrow layouts also passed ([validation](../validation/2026-10-27-jei-adapter.md)).
+
+### JEI bookmarks
+
+- [x] JEI — item add, check, remove, offer-only behavior and card A-key toggling passed on 19.64; 19.27 did not expose the tool ([validation](../validation/2026-10-27-jei-adapter.md)).
 
 ### Native crafting grid layout
 

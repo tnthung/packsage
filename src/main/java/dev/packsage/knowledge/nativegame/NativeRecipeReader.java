@@ -63,7 +63,7 @@ final class NativeRecipeReader {
 
     private NativeRecipeReader() { }
 
-    static Page search(Minecraft client, String outputItem, String text, int offset, int limit, Evidence.Scope scope) {
+    static Page search(Minecraft client, String outputItem, String inputItem, String text, int offset, int limit, Evidence.Scope scope) {
         if (!client.isSameThread()) throw new IllegalStateException("native recipe read must run on the client thread");
         if (client.level == null) throw new IllegalStateException("client level unavailable");
         Registry<Item> itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
@@ -74,7 +74,7 @@ final class NativeRecipeReader {
         int startOffset = Math.max(offset, 0);
         var ordinary = startOffset < recipeCount
                 ? searchCandidates(orderedRecipes, client.level.registryAccess(), itemRegistry, client.getResourceManager(),
-                        outputItem, text, startOffset, limit, scope)
+                        outputItem, inputItem, text, startOffset, limit, scope)
                 : new Page(List.of(), recipeCount, true, 0, false);
         if (!readableRecipes) ordinary = new Page(ordinary.records(), ordinary.nextOffset(), ordinary.exhausted(),
                 ordinary.scanned(), true);
@@ -86,7 +86,7 @@ final class NativeRecipeReader {
                 ordinary.scanned(), ordinary.partial(), progressDetail(startOffset, recipeCount, recipeCount, brewingCount,
                 ordinary.records().size(), true));
         var brewing = NativeBrewingReader.searchCandidates(client.level.potionBrewing(), client.level.registryAccess(),
-                itemRegistry, client.getResourceManager(), outputItem, text, Math.max(0, startOffset - recipeCount),
+                itemRegistry, client.getResourceManager(), outputItem, inputItem, text, Math.max(0, startOffset - recipeCount),
                 limit - ordinary.records().size(), scope);
         var combined = new ArrayList<Evidence.Record>(ordinary.records());
         combined.addAll(brewing.records());
@@ -106,16 +106,22 @@ final class NativeRecipeReader {
 
     static Page searchCandidates(List<?> orderedRecipes, HolderLookup.Provider registries,
                                  Registry<Item> itemRegistry, ResourceManager resourceManager,
-                                 String outputItem, String text, int offset, int limit, Evidence.Scope scope) {
+                                 String outputItem, String inputItem, String text, int offset, int limit, Evidence.Scope scope) {
         var records = new ArrayList<Evidence.Record>();
         int index = Math.min(offset, orderedRecipes.size());
         int scanned = 0;
-        while (index < orderedRecipes.size() && scanned < (outputItem == null ? MAX_CANDIDATES : MAX_OUTPUT_CANDIDATES)) {
+        var inputHolder = inputItem == null ? null : itemRegistry.getHolder(ResourceLocation.parse(inputItem)).orElse(null);
+        while (index < orderedRecipes.size() && scanned < (outputItem == null && inputItem == null ? MAX_CANDIDATES : MAX_OUTPUT_CANDIDATES)) {
             RecipeHolder<?> holder = (RecipeHolder<?>) orderedRecipes.get(index);
             index++;
             scanned++;
             var record = NativeSnapshot.copyRecipe(holder, registries, itemRegistry, resourceManager, scope, outputItem);
             if (record == null) continue;
+            if (inputItem != null && record.recipePayload().inputs().stream().flatMap(slot -> slot.alternatives().stream())
+                    .noneMatch(alternative -> inputItem.equals(alternative.comparisonIdentity())
+                            || (inputHolder != null && alternative.type().equals("tag") && alternative.comparisonIdentity().startsWith("#")
+                            && inputHolder.is(net.minecraft.tags.TagKey.create(Registries.ITEM,
+                            ResourceLocation.parse(alternative.comparisonIdentity().substring(1))))))) continue;
             if (text != null && !(record.title() + " " + record.source().sourceHandle() + " "
                     + Evidence.serialize(record.payload())).toLowerCase(Locale.ROOT).contains(text.toLowerCase(Locale.ROOT))) continue;
             records.add(record);

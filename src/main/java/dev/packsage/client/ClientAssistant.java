@@ -74,6 +74,7 @@ import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 public final class ClientAssistant {
+    private static final JeiSupport JEI_SUPPORT = new JeiSupport();
     public record CopiedWorld(String source, String readableLabel, boolean privateSingleplayer,
                               String serverConfigPath) {
         public CopiedWorld {
@@ -113,6 +114,7 @@ public final class ClientAssistant {
     private long resourcesEpoch;
     private String locale;
     private long providerRuntimeEpoch;
+    private long activeJeiRuntimeGeneration;
     private DebugBridge debugBridge;
     private MinecraftDebugAdapter debugAdapter;
     private DebugRequestLog debugTiming;
@@ -241,6 +243,8 @@ public final class ClientAssistant {
         long startNs = System.nanoTime();
         dev.packsage.PackSageLog.LOGGER.info("PackSage timing phase=client_open_request start_ns={} event_ns={} elapsed_ms=0", startNs, startNs);
         assistantScreen = runtime.openScreen(() -> openSettings(false));
+        assistantScreen.setItemViewer(JEI_SUPPORT.viewer().orElse(null));
+        assistantScreen.setRecipeCardSource(JEI_SUPPORT.cardSource().orElse(null));
         assistantScreen.setContainerScreen(containerScreen);
         assistantScreen.setAdvancedSettingsOpener(() -> openSettings(true));
         assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
@@ -301,6 +305,11 @@ public final class ClientAssistant {
         }
         CopiedWorld copied = copyWorld();
         if (copied == null) return;
+        long jeiRuntimeGeneration = JEI_SUPPORT.runtimeGeneration();
+        if (activeWorld != null && activeJeiRuntimeGeneration != jeiRuntimeGeneration) {
+            activeJeiRuntimeGeneration = jeiRuntimeGeneration;
+            invalidateEvidence();
+        }
         String playerUuid = copyPlayerUuid();
         if (activeWorld == null || !activeWorld.source().equals(copied.source())
                 || !Objects.equals(activePlayerUuid, playerUuid)) {
@@ -361,6 +370,7 @@ public final class ClientAssistant {
         activeWorld = copied;
         activeIdentity = result.world();
         activePlayerUuid = pending.playerUuid();
+        activeJeiRuntimeGeneration = JEI_SUPPORT.runtimeGeneration();
         activeScope = result.scope();
         runtime.enterWorld(activeIdentity, activeScope);
     }
@@ -469,6 +479,7 @@ public final class ClientAssistant {
 
     private KnowledgeService knowledge(Supplier<Evidence.Scope> scope) {
         var providers = new ArrayList<KnowledgeProvider>();
+        providers.addAll(JEI_SUPPORT.providers(client, clientExecutor, scope));
         providers.add(new NativeProvider(client, workerExecutor, scope));
         providers.add(ConfigProvider.production(configRoots(), clientExecutor, workerExecutor, client::isSameThread));
         var world = new WorldRegistry();

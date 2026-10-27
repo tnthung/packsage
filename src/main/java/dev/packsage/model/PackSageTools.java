@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
@@ -88,17 +89,23 @@ public final class PackSageTools {
     }
 
     public static List<ModelBackend.ToolDefinition> definitions(List<Toolbox.Metadata> metadata) {
+        return definitions(metadata, Set.of());
+    }
+
+    public static List<ModelBackend.ToolDefinition> definitions(List<Toolbox.Metadata> metadata, Set<String> optionalTools) {
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
-        for (var name : List.of("search_recipe", "search_registry", "read_evidence",
+        var names = new ArrayList<>(List.of("search_recipe", "search_registry", "read_evidence",
                 "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
                 "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
                 "list_progress", "inspect_progress", "list_statistics",
                 "read_loot", "locate", "search_commands", "read_command", "run_command", "read_game_state",
-                "search_journal", "remember", "update_note", "forget_note")) {
+                "search_journal", "remember", "update_note", "forget_note"));
+        if (optionalTools.contains("bookmark")) names.add("bookmark");
+        for (var name : names) {
             var properties = new JsonObject();
             var required = new JsonArray();
             switch (name) {
-                case "search_recipe" -> properties.add("filter", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":512},\"outputItem\":{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"additionalProperties\":false}"));
+                case "search_recipe" -> properties.add("filter", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":512},\"outputItem\":{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"},\"inputItem\":{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"additionalProperties\":false}"));
                 case "search_registry" -> {
                     var registry = JsonParser.parseString("{\"type\":\"string\",\"maxLength\":64}").getAsJsonObject();
                     registry.add("enum", JSON.toJsonTree(metadata.stream().flatMap(adapter -> adapter.registries().stream()).distinct().toList()));
@@ -116,6 +123,8 @@ public final class PackSageTools {
                     properties.add("identity", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}"));
                     properties.add("quantity", JsonParser.parseString("{\"type\":\"integer\",\"minimum\":1,\"maximum\":1000000}"));
                     properties.add("depth", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":0,\"maximum\":8}"));
+                    // Only continues a plan whose routes exceeded one output page; plans have no provider cursor.
+                    properties.add("cursor", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":1024}"));
                     required.add("identity");
                     required.add("quantity");
                 }
@@ -230,16 +239,22 @@ public final class PackSageTools {
                     properties.add("id", JsonParser.parseString("{\"type\":\"string\",\"pattern\":\"^n[0-9a-f]{8}$\",\"maxLength\":9}"));
                     required.add("id");
                 }
+                case "bookmark" -> {
+                    properties.add("action", JsonParser.parseString("{\"type\":\"string\",\"enum\":[\"add\",\"remove\",\"check\"]}"));
+                    properties.add("item", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"id\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"},\"components\":{\"type\":[\"object\",\"null\"]}},\"required\":[\"id\"],\"additionalProperties\":false}"));
+                    properties.add("recipe", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":1024}"));
+                    required.add("action");
+                }
                 default -> throw new IllegalStateException(name);
             }
-            if (List.of("search_recipe", "search_registry").contains(name)) {
+            if (List.of("search_recipe", "search_registry", "plan_recipe").contains(name)) {
                 var provider = JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":32}").getAsJsonObject();
                 var choices = new JsonArray();
-                metadata.stream().filter(adapter -> name.equals("search_recipe") ? adapter.recipes() : !adapter.registries().isEmpty())
+                metadata.stream().filter(adapter -> name.equals("search_registry") ? !adapter.registries().isEmpty() : adapter.recipes())
                         .map(Toolbox.Metadata::id).distinct().forEach(choices::add);
                 choices.add(com.google.gson.JsonNull.INSTANCE);
                 provider.add("enum", choices);
-                properties.getAsJsonObject("filter").getAsJsonObject("properties").add("provider", provider);
+                (name.equals("plan_recipe") ? properties : properties.getAsJsonObject("filter").getAsJsonObject("properties")).add("provider", provider);
             }
             if (List.of("search_recipe", "search_registry", "list_configs", "search_config", "search_history").contains(name)) {
                 var limit = JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":64}").getAsJsonObject();
@@ -253,11 +268,11 @@ public final class PackSageTools {
             schema.add("properties", properties);
             schema.add("required", required);
             definitions.add(new ModelBackend.ToolDefinition(name, switch (name) {
-                case "search_recipe" -> "Find Minecraft's loaded recipes, including supported brewing transformations. Text is a case-insensitive literal match. For an exact output, use outputItem without text unless text is an additional intended filter; variants can differ in components. requiredInputTotals, when present, totals only unambiguous returned inputs and inherits record coverage. An advancing nextCall can scan other recipes before brewing and return empty pages.";
+                case "search_recipe" -> "Find recipes in the default recipe source: JEI while it is ready, including mod machine recipes, otherwise the game's own recipes; both include supported brewing transformations. Name native only for a recipe type JEI does not list. Text is a case-insensitive literal match; in JEI it matches category titles and item names, while IDs and component IDs match only in the game's own recipes. Use inputItem to find what an item is used in. For an exact output, use outputItem without text unless text is an additional intended filter; variants can differ in components. requiredInputTotals, when present, totals only unambiguous returned inputs and inherits record coverage. Mod machine records are PARTIAL: constraints consumption=assumed and output=assumed-guaranteed mark counts that rest on assumed consumption, chance lines mark possible outputs, not-read marks values JEI only draws, and hidden marks a recipe JEI hides. In the game's own recipes, an advancing nextCall can scan other recipes before brewing and return empty pages.";
                 case "search_registry" -> "Find identities in one registry catalog. active_effect lists the player's current effect instances (durationTicks, amplifier, ambient, attributeModifiers), with description when the mod provides one; descriptionStatus reports not_provided, unknown, or bounded for a truncated description; one read shows a duration, not whether it refreshes. player_attribute lists current attribute base and value with modifiers whose IDs name their sources, such as minecraft:effect.luck or an item's modifier ID. Runtime dimensions differ from dimension-type definitions, client-known lists can be partial, dimension tags are unsupported, and searches do not create or load worlds.";
                 case "search_config" -> "Find accessible config keys and comments, including machine speed, energy and upgrade settings. Read values with read_config, passing a returned config reference.";
                 case "read_config" -> "Read a discovered config key or section at call time, with its authority and scope. A file value is not necessarily the effective server setting.";
-                case "plan_recipe" -> "Plan recipe routes for an item identity and quantity, including brewing routes, with unresolved dependencies and coverage. It does not read owned materials or establish affordability. Routes cover every component variant of the identity; match output components. The live recipe scan is bounded, so a missing route is not absence. Brewing routes withhold operation counts (batches null) and report operationSemantics instead.";
+                case "plan_recipe" -> "Plan recipe routes for an item identity and quantity from the same default recipe source as search_recipe, including brewing routes and mod machine routes, with unresolved dependencies and coverage. It does not read owned materials or establish affordability. Routes cover every component variant of the identity; match output components. Each item's routes are listed before its inputs' routes, so the planned item's own routes come first; a plan longer than one page returns nextCall for the rest. The live recipe scan is bounded, so a missing route is not absence. A mod machine step is marked assumed and credits only the planned item; a step's other outputs are possibleExtras that never count. unexpandedNeeds lists fluids and container contents to supply, with oneOf naming alternatives for one input; the coverage detail lists equipment, needed once for the whole plan. Brewing routes withhold operation counts (batches null) and report operationSemantics instead.";
                 case "read_evidence" -> "Reread current evidence for returned record references only. Do not pass search cursors, labels or guessed references. An item record's reference rereads that item's current record, including enchantmentEligibility.";
                 case "inspect_area" -> "Summarize the loaded world around center (default the player, radius 16): block counts, notable blocks such as containers, workstations, beds and spawners grouped by role and block, and nearby entities. Then list_blocks or list_entities with a filter for linkable places, and inspect_block or inspect_entity what matters.";
                 case "list_blocks" -> "List blocks matching filter (ids, tags or name text) within radius of center, 64 per page, each with its place and a highlight link. Inspect what matters with inspect_block.";
@@ -274,6 +289,7 @@ public final class PackSageTools {
                 case "remember" -> "Save the player's report of something they did, built, achieved or found as a note. Pass their statement as text, at for the place they mean (the player for 'here'), and a few lowercase tags such as build, achievement or resource. If possibleDuplicates shows the same thing, update_note it instead.";
                 case "update_note" -> "Correct a saved note by id when the player changes, moves or renames what they reported: replace its text, move it with at, clear its place or replace its tags. Find its id with search_journal notesOnly.";
                 case "forget_note" -> "Delete a saved note by id when the player says it no longer applies or asks you to forget it.";
+                case "bookmark" -> "Add, remove or check an entry in the player's JEI bookmark list beside the inventory. Add or remove only when the player asks; offer a bookmark that is your own idea without adding it. check reports whether one item or recipe is bookmarked; the whole list cannot be read. Give exactly one target: item (id and optional components) or recipe, which must be a reference returned by search_recipe.";
                 case "list_progress" -> "List progress entries: Minecraft advancements now, quest books later. After acquisition, pages start with one record per tree (an advancement tab) with done and total counts, then entries in tree order with status done, in_progress, available, locked or hidden, 64 records per page. Filter by tree id, statuses, or text in the title or description. Hidden entries have no title until earned; do not guess what they are. Read criteria, requirements and rewards with inspect_progress. A work-budget page can be empty with nextCursor; pass it with the same filters to resume. Cursors are single-use and bound to this world session.";
                 case "inspect_progress" -> "Read one progress entry by its returned id: description, each criterion with its done state and when it was met (for example the biomes still missing for Adventuring Time), what it requires and unlocks, and rewards. A hidden entry that is not earned returns only its status.";
                 case "list_statistics" -> "Read the player's own counters since the world began: blocks mined; items crafted, used, broken, picked up and dropped; mobs killed and killed by; and custom counters such as deaths, jumps, play time and distance walked. categories narrows to mined, crafted, used, broken, picked_up, dropped, killed, killed_by or custom. subjects filters block, item, entity or counter ids, tags or name text. Distances are in blocks, times in seconds and damage in health points. Counters never incremented are zero and are listed only when named in subjects.ids. Pass categories together with subjects, or a named id gets a zero row in every category that can count it. 64 per page. A work-budget page can be empty with nextCursor; pass it with the same filters to resume. Cursors are single-use and bound to this world session.";
@@ -322,7 +338,8 @@ public final class PackSageTools {
         if (json.isJsonObject()) {
             var object = json.getAsJsonObject();
             var fields = rule.getAsJsonObject("properties");
-            for (var key : object.keySet()) if (fields == null || !fields.has(key) && rule.has("additionalProperties") && !rule.get("additionalProperties").getAsBoolean()) {
+            var closed = rule.has("additionalProperties") && !rule.get("additionalProperties").getAsBoolean();
+            for (var key : object.keySet()) if (fields == null ? closed : !fields.has(key) && closed) {
                 throw new IllegalArgumentException("unknown field: " + key);
             }
             if (fields != null) for (var key : fields.keySet()) if (object.has(key)) validateValue(object.get(key), fields.getAsJsonObject(key), name + "." + key);
@@ -346,7 +363,7 @@ public final class PackSageTools {
     public CompletionStage<ToolResponse> execute(ModelBackend.ToolCall call, Evidence.Scope scope) {
         try {
             if (call.serializedArguments().length() > 16_384) throw new IllegalArgumentException("tool arguments exceed limit");
-            var schema = definitions(metadata).stream().filter(definition -> definition.name().equals(call.name())).findFirst()
+            var schema = definitions(metadata, Set.of("bookmark")).stream().filter(definition -> definition.name().equals(call.name())).findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("unknown read tool"));
             var arguments = Evidence.deserializeObject(call.serializedArguments());
             var properties = JsonParser.parseString(schema.serializedSchema()).getAsJsonObject().getAsJsonObject("properties");
@@ -382,6 +399,8 @@ public final class PackSageTools {
                 pendingRecords = pending.encoded();
                 read = CompletableFuture.completedFuture(pending.result());
             } else {
+                if (call.name().equals("plan_recipe") && arguments.values().get("cursor") instanceof Evidence.JsonString)
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "plan cursor was not returned by plan_recipe; restart without a cursor");
                 pendingRecords = null;
                 read = dispatch.apply(request);
             }
@@ -567,14 +586,7 @@ public final class PackSageTools {
                 error.addProperty("detail", boundedString(failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage()));
                 if (failure instanceof Toolbox.Failure typed) {
                     error.addProperty("code", typed.code().name());
-                    if (typed.code() == Toolbox.Code.INVALID_CURSOR && properties.has("cursor")) {
-                        var restart = new JsonObject();
-                        restart.addProperty("name", call.name());
-                        var restartArguments = JsonParser.parseString(call.serializedArguments()).getAsJsonObject();
-                        restartArguments.add("cursor", com.google.gson.JsonNull.INSTANCE);
-                        restart.add("arguments", restartArguments);
-                        error.add("restartCall", restart);
-                    }
+                    if (typed.code() == Toolbox.Code.INVALID_CURSOR && properties.has("cursor")) error.add("restartCall", restartCall(call));
                 }
                 error.add("records", new JsonArray());
                 return new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of());
@@ -584,9 +596,22 @@ public final class PackSageTools {
             error.addProperty("coverage", "ERROR");
             error.addProperty("outcome", "ERROR");
             error.addProperty("detail", failure instanceof IllegalArgumentException || failure instanceof Toolbox.Failure ? boundedString(failure.getMessage()) : "invalid read tool arguments");
-            if (failure instanceof Toolbox.Failure typed) error.addProperty("code", typed.code().name());
+            if (failure instanceof Toolbox.Failure typed) {
+                error.addProperty("code", typed.code().name());
+                // Only tools whose schema accepts a cursor get past argument validation with one.
+                if (typed.code() == Toolbox.Code.INVALID_CURSOR) error.add("restartCall", restartCall(call));
+            }
             return CompletableFuture.completedFuture(new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of()));
         }
+    }
+
+    private static JsonObject restartCall(ModelBackend.ToolCall call) {
+        var restart = new JsonObject();
+        restart.addProperty("name", call.name());
+        var restartArguments = JsonParser.parseString(call.serializedArguments()).getAsJsonObject();
+        restartArguments.add("cursor", com.google.gson.JsonNull.INSTANCE);
+        restart.add("arguments", restartArguments);
+        return restart;
     }
 
     /** The wire representation shared by tool output and provider page budgets. */

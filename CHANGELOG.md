@@ -2,8 +2,51 @@
 
 ## Unreleased
 
+### 2026-10-28
+
+- Recorded component-bearing container, hidden JEI category and temporary-link live checks, including the vanilla water-potion fixture limitation.
+- Run the non-JEI test suite without JEI on the runtime classpath, including optional loading and native recipe discovery, whenever tests run.
+
 ### 2026-10-27
 
+- Recorded the JEI planner-fix recheck, stable mod-machine plan navigation, explicit native selection and remaining acceptance limits.
+- A rejected or already used output cursor now returns the restart call for the same request without a cursor, as other cursor errors do.
+- Blank positions of a vanilla JEI crafting grid no longer appear as empty inputs or make a plan partial when the game's own recipe confirms they are blank; an input JEI could not resolve, such as an empty tag, still does.
+- Recipe plans list every route for the planned item before the routes for its inputs, and a plan longer than one output page continues with nextCall instead of dropping the rest, so a large pack no longer hides the requested route; JEI plans also draw each recipe only when the planner reads it and once per plan.
+- Recorded JEI 19.27 and 19.64 live acceptance checks, ATM10 compatibility evidence and remaining planning limitations.
+
+- JEI recipe cards can draw from a bounded record's retained typed recipe when its display payload was trimmed.
+- Hovering an item slot on a JEI-drawn chat card shows JEI's whole slot tooltip, including lines such as output chances.
+- A plan explicitly asked of JEI while JEI is not ready, and a saved bookmark call on JEI older than 19.53, now report that JEI is unavailable and why instead of a generic unhandled-request error.
+- The adapter list shows JEI with its availability.
+- Card and chip clicks and the R, U and A keys do nothing in a read-only chat from another world, so it cannot open JEI or change bookmarks in the current world.
+- Recipe plans no longer list every container of alternative inputs as needed equipment; a container that depends on the chosen alternative is named on that choice's need instead.
+- Plan needs that the planner does not expand keep fluid and container contents with different components, such as different potion fluids, apart and list their components.
+- Recipe routes from a JEI plan now draw as JEI cards and open, bookmark and reopen after a restart as the recipe they planned; temporary routes still expire with their runtime.
+- JEI mod machine records include the machines JEI registers for the whole category, such as the Nature's Aura altar, as catalysts kept apart from drawn catalyst slots, and plans list them once as equipment. Several category machines, such as Create's mixer and basin, are listed together as machines shown by JEI without claiming they are alternatives or all needed; a drawn catalyst slot with several machines is still "one of [...]".
+- JEI recipes that mods register as raw native recipe objects, such as Nature's Aura altar recipes, now carry their native recipe ID, so their saved links reopen after a restart; ambiguous, missing or over-large native data keeps them temporary.
+- Hidden JEI recipes returned by search can be reread, drawn as cards and bookmarked by their recipe ID; links still never open them.
+- JEI reads, recipe cards, links and bookmarks capture the JEI runtime and its generation together, so an index built while JEI reloads is never kept as current.
+- Temporary JEI recipe links saved before a Minecraft restart no longer open, draw, reread or bookmark a different recipe: temporary handles carry a random per-process session, and handles from another session, including those saved before this change, never resolve. Stable recipe links are unaffected.
+- The assistant instructions cover JEI recipes, mod machine plans and bookmarks, including returned equipment and unexpanded needs, and search named brewing variants directly.
+- Recipe plans list `possibleExtras` as a step's outputs other than the planned item for every multi-output step, and JEI recipe search records no longer carry the field.
+- JEI brewing recipes are planned as shared bottle batches like native brewing, so the planner no longer reports one reagent per bottle.
+- Narrow JEI recipe-card fallbacks include an "Open in JEI" link beside the category caption when the recipe has a navigation target and JEI is available.
+- With JEI ready, chat recipe cards for JEI and vanilla recipes are drawn by JEI's own layouts, scaled down to three quarters to fit; narrower columns fall back to native cards or to the usual result or source chips, with the JEI category shown beside the chip. Cards are rebuilt when JEI becomes ready, reloads or goes away, and JEI drawing failures are logged once per category.
+- JEI recipe planning matches structurally equal component variants and keeps unmatched subtype requirements incomplete.
+- The assistant can add, remove and check JEI bookmarks for items and observed JEI recipes when JEI 19.53 or newer is ready; the A key and chat item bookmarking no longer act on older JEI.
+- Saved JEI recipe links resolve against the current runtime by category and recipe ID; anonymous links expire with their runtime, and hidden, removed or ambiguous recipes cannot open.
+- Ready JEI supplies the default recipe search and planning source, with native recipes used when JEI is unavailable.
+- Chat cards and item chips open JEI recipes and uses with clicks and JEI's configured keys when its runtime is ready.
+- Added JEI recipe search through its focus index.
+- Added the optional JEI integration foundation with version checks and runtime lifecycle tracking.
+- The assistant gets a `bookmark` tool schema only when a ready bookmark provider is enabled (core side of the JEI bookmark tool).
+- JEI recipe layouts project slots, tooltips and assumed machine behavior into recipe evidence.
+
+- Chat cards and item chips can now hand items to an external item viewer: left click shows recipes, right click shows uses, and R, U and A act on the hovered item when no text field is focused. The JEI-backed viewer comes later; nothing changes without one.
+- Recipe searches can find recipes that use a specified input item, including item tags.
+
+- Recipe plans expand mod machine steps under assumed consumption and mark them assumed: fluids and filled-container contents are listed as unexpanded needs, returned containers and reused machines are listed once as plan equipment, chance outputs never count, and a step's other outputs are listed as possible extras. `plan_recipe` accepts the same optional `provider` as `search_recipe`; native plans are unchanged.
 - World listing page details no longer mistake scan limits for the number of matches delivered or the total.
 - The model and effort pickers and chat tooltips draw above recipe card and chip items instead of under them.
 - The assistant receives the local player's name and UUID and uses that identity for first-person requests and command targets.

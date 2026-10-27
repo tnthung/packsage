@@ -34,6 +34,12 @@ public final class KnowledgeService {
     public void register(Toolbox adapter) { registry.register(adapter); }
     public PackSageTools.OutputPages outputPages() { return outputPages; }
     public List<Toolbox.Metadata> metadata() { return registry.metadata(); }
+
+    public Set<String> optionalTools() {
+        return providers.stream().anyMatch(provider -> provider.id().equals("jei_bookmarks") && provider.enabled())
+                ? Set.of("bookmark") : Set.of();
+    }
+
     public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request) { return execute(request, null); }
 
     public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request, String replacingRequestId) {

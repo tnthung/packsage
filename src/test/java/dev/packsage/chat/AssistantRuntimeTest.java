@@ -2018,6 +2018,27 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void adapterAvailabilityReportsJeiProviderWhenRegistered() throws Exception {
+        var runtime = runtime(new FakeBackend(), captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
+                current -> new KnowledgeService(List.of(new KnowledgeProvider() {
+                    @Override public String id() { return "jei"; }
+                    @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
+                    @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                        return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                                Evidence.Outcome.COMPLETE, null));
+                    }
+                    @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                        return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "fixture");
+                    }
+                }), current), DIRECT);
+
+        runtime.enterWorld(WORLD, SCOPE);
+
+        assertEquals(Boolean.TRUE, runtime.adapterAvailability().get("jei"));
+    }
+
+    @Test
     void selectedHolderPublishesCurrentToolSourcesAndNavigationWhileTurnIsActive() throws Exception {
         FakeBackend backend = new FakeBackend();
         AtomicReference<Evidence.Source> observedSource = new AtomicReference<>();

@@ -45,6 +45,7 @@ final class RecipeCardLayouts {
             case BREWING -> new Layout(114, 61, "Brewing stand", List.of(new Position("bottle", 1, 37, false),
                     new Position("bottle", 24, 44, false), new Position("bottle", 47, 37, false),
                     new Position("reagent", 24, 3, false), new Position("output", 81, 3, true)));
+            case VIEWER -> throw new IllegalArgumentException("viewer cards are laid out by the viewer");
         };
     }
 

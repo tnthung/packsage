@@ -32,6 +32,7 @@ final class ActivityLabels {
             case "read_history" -> "Reading history";
             case "read_inventory" -> "Reading inventory";
             case "list_configs" -> "Listing configs";
+            case "bookmark" -> "Updating bookmarks";
             default -> "Using tool: " + safeName(call.name());
         };
         return label + " (step " + step + ")";

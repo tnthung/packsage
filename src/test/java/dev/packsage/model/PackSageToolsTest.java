@@ -76,6 +76,32 @@ class PackSageToolsTest {
     }
 
     @Test
+    void recipeInputItemHasTheSameSchemaAsOutputItem() {
+        var definition = PackSageTools.definitions().stream().filter(value -> value.name().equals("search_recipe")).findFirst().orElseThrow();
+        var properties = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject().getAsJsonObject("properties")
+                .getAsJsonObject("filter").getAsJsonObject("properties");
+        assertNotNull(properties.get("inputItem"));
+        assertEquals(properties.get("outputItem"), properties.get("inputItem"));
+        assertTrue(definition.description().contains("Use inputItem to find what an item is used in."));
+    }
+
+    @Test
+    void planRecipeOffersTheSearchRecipeProviders() {
+        var metadata = List.of(new Toolbox.Metadata("jei", List.of(), true, List.of()), new Toolbox.Metadata("native", List.of(), true, List.of("item")),
+                new Toolbox.Metadata("guides", List.of("guide"), false, List.of()));
+        var definitions = PackSageTools.definitions(metadata);
+        java.util.function.Function<String, com.google.gson.JsonObject> properties = name -> JsonParser.parseString(definitions.stream()
+                .filter(value -> value.name().equals(name)).findFirst().orElseThrow().serializedSchema()).getAsJsonObject().getAsJsonObject("properties");
+
+        var provider = properties.apply("plan_recipe").getAsJsonObject("provider");
+
+        assertEquals(properties.apply("search_recipe").getAsJsonObject("filter").getAsJsonObject("properties").get("provider"), provider);
+        assertEquals("[\"jei\",\"native\",null]", provider.getAsJsonArray("enum").toString());
+        assertFalse(JsonParser.parseString(definitions.stream().filter(value -> value.name().equals("plan_recipe")).findFirst().orElseThrow()
+                .serializedSchema()).getAsJsonObject().getAsJsonArray("required").toString().contains("provider"));
+    }
+
+    @Test
     void runCommandTargetsFirstPersonUsingContextIdentity() {
         var definition = PackSageTools.definitions().stream().filter(value -> value.name().equals("run_command")).findFirst().orElseThrow();
         assertTrue(definition.description().contains("For first-person targets, use playerName from the gameplay context or @s where valid; do not ask for the player's name."));
@@ -138,8 +164,10 @@ class PackSageToolsTest {
         assertTrue(definitions.stream().noneMatch(value -> value.name().equals("search_document") || value.name().equals("read_progress")));
         var recipe = definitions.stream().filter(value -> value.name().equals("search_recipe")).findFirst().orElseThrow().description();
         assertTrue(recipe.contains("outputItem without text"));
-        assertTrue(recipe.contains("Find Minecraft's loaded recipes"));
+        assertTrue(recipe.contains("Find recipes in the default recipe source: JEI while it is ready"));
         assertTrue(recipe.contains("case-insensitive literal match"));
+        assertTrue(recipe.contains("in JEI it matches category titles and item names, while IDs and component IDs match only in the game's own recipes."));
+        assertFalse(java.util.regex.Pattern.compile("[a-z]\\.[A-Z]").matcher(recipe).find());
         var registry = definitions.stream().filter(value -> value.name().equals("search_registry")).findFirst().orElseThrow().description();
         assertTrue(registry.contains("active_effect lists the player's current effect instances"));
         assertTrue(registry.contains("(durationTicks, amplifier, ambient, attributeModifiers)"));
@@ -170,6 +198,36 @@ class PackSageToolsTest {
         }
         var evidence = definitions.stream().filter(value -> value.name().equals("read_evidence")).findFirst().orElseThrow().description();
         assertTrue(evidence.contains("An item record's reference rereads that item's current record, including enchantmentEligibility."));
+    }
+
+    @Test
+    void bookmarkOfferedOnlyWhenReady() {
+        assertTrue(PackSageTools.definitions().stream().noneMatch(value -> value.name().equals("bookmark")));
+        assertTrue(PackSageTools.definitions(List.of(), java.util.Set.of()).stream().noneMatch(value -> value.name().equals("bookmark")));
+        var offered = PackSageTools.definitions(List.of(), java.util.Set.of("bookmark"));
+        var bookmark = offered.stream().filter(value -> value.name().equals("bookmark")).findFirst().orElseThrow();
+        var schema = JsonParser.parseString(bookmark.serializedSchema()).getAsJsonObject();
+        var properties = schema.getAsJsonObject("properties");
+        assertEquals(List.of("add", "remove", "check"), properties.getAsJsonObject("action").getAsJsonArray("enum").asList().stream().map(value -> value.getAsString()).toList());
+        assertEquals("[\"action\"]", schema.getAsJsonArray("required").toString());
+        assertEquals("^[a-z0-9_.-]+:[a-z0-9/._-]+$", properties.getAsJsonObject("item").getAsJsonObject("properties").getAsJsonObject("id").get("pattern").getAsString());
+        assertEquals(1024, properties.getAsJsonObject("recipe").get("maxLength").getAsInt());
+        assertEquals(PackSageTools.definitions().size() + 1, offered.size());
+    }
+
+    @Test
+    void bookmarkComponentsReachDispatchUnchanged() throws Exception {
+        var seen = new AtomicReference<PackSageTools.ReadRequest>();
+        var tools = new PackSageTools(request -> { seen.set(request); return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)); });
+        var response = tools.execute(new ModelBackend.ToolCall("bm", "bookmark",
+                "{\"action\":\"add\",\"item\":{\"id\":\"minecraft:potion\",\"components\":{\"minecraft:potion_contents\":{\"potion\":\"minecraft:healing\"}}}}"), SCOPE)
+                .toCompletableFuture().get();
+        assertFalse(response.result().error(), response.result().serializedResult());
+        var item = (Evidence.JsonObject) seen.get().arguments().values().get("item");
+        assertEquals("{\"potion\":\"minecraft:healing\"}", Evidence.serialize(((Evidence.JsonObject) item.values().get("components")).values().get("minecraft:potion_contents")));
+        var closed = tools.execute(new ModelBackend.ToolCall("bm2", "bookmark",
+                "{\"action\":\"add\",\"item\":{\"id\":\"minecraft:potion\",\"extra\":1}}"), SCOPE).toCompletableFuture().get();
+        assertTrue(closed.result().error());
     }
 
     @Test
@@ -547,6 +605,56 @@ class PackSageToolsTest {
     }
 
     @Test
+    void aPlanLongerThanOnePageContinuesWithoutReplanning() throws Exception {
+        var records = java.util.stream.IntStream.range(0, 256).mapToObj(i -> new Evidence.Record(new Evidence.Source(
+                SCOPE, "native", "1", "plan|route_" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.RECIPE, "Route " + i,
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("x".repeat(4_000)))), List.of())).toList();
+        var plans = new AtomicInteger();
+        var tools = new PackSageTools(request -> {
+            plans.incrementAndGet();
+            return CompletableFuture.completedFuture(new Evidence.Result(records, Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, null, "node-cap=256"));
+        });
+        var arguments = "{\"identity\":\"minecraft:result\",\"quantity\":8,\"depth\":1}";
+        var delivered = new java.util.ArrayList<String>();
+        var json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("plan", "plan_recipe", arguments), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        int pages = 1;
+        String firstCursorArguments = null;
+        while (true) {
+            json.getAsJsonArray("records").forEach(value -> delivered.add(value.getAsJsonObject().get("title").getAsString()));
+            if (!json.has("nextCall")) break;
+            var next = json.getAsJsonObject("nextCall");
+            if (firstCursorArguments == null) firstCursorArguments = next.get("arguments").toString();
+            assertEquals("plan_recipe", next.get("name").getAsString());
+            assertTrue(next.getAsJsonObject("arguments").get("cursor").getAsString().startsWith("output:"));
+            json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("next", "plan_recipe", next.get("arguments").toString()), SCOPE)
+                    .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+            pages++;
+        }
+        assertTrue(pages > 2, "pages=" + pages);
+        assertEquals(java.util.stream.IntStream.range(0, 256).mapToObj(i -> "Route " + i).toList(), delivered);
+        assertEquals(1, plans.get());
+        assertTrue(json.get("detail").getAsString().contains("node-cap=256"));
+
+        var foreign = tools.execute(new ModelBackend.ToolCall("foreign", "plan_recipe",
+                "{\"identity\":\"minecraft:result\",\"quantity\":8,\"depth\":1,\"cursor\":\"provider-cursor\"}"), SCOPE).toCompletableFuture().get();
+        assertTrue(foreign.result().serializedResult().contains("INVALID_CURSOR"), foreign.result().serializedResult());
+        var consumed = tools.execute(new ModelBackend.ToolCall("consumed", "plan_recipe", firstCursorArguments), SCOPE).toCompletableFuture().get();
+        assertTrue(consumed.result().serializedResult().contains("INVALID_CURSOR"), consumed.result().serializedResult());
+        for (var rejected : List.of(foreign, consumed)) {
+            var restart = JsonParser.parseString(rejected.result().serializedResult()).getAsJsonObject().getAsJsonObject("restartCall");
+            assertNotNull(restart, rejected.result().serializedResult());
+            assertEquals("plan_recipe", restart.get("name").getAsString());
+            var restartArguments = restart.getAsJsonObject("arguments");
+            assertTrue(restartArguments.get("cursor").isJsonNull());
+            assertEquals("minecraft:result", restartArguments.get("identity").getAsString());
+            assertEquals(8, restartArguments.get("quantity").getAsInt());
+        }
+        assertEquals(1, plans.get());
+    }
+
+    @Test
     void exactRecordCapAndUnshrinkableIdentitiesNeverOverflowTheResponse() throws Exception {
         for (var handle : List.of("route", "x".repeat(140_000))) {
             var records = java.util.stream.IntStream.range(0, 256).mapToObj(i -> new Evidence.Record(new Evidence.Source(
@@ -560,7 +668,8 @@ class PackSageToolsTest {
             assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
             var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
             assertEquals(handle.equals("route") ? 64 : 0, json.getAsJsonArray("records").size());
-            assertTrue(json.get("detail").getAsString().contains((256 - response.records().size()) + " records omitted"));
+            if (handle.equals("route")) assertTrue(json.has("nextCall"));
+            else assertTrue(json.get("detail").getAsString().contains((256 - response.records().size()) + " records omitted"));
         }
     }
 

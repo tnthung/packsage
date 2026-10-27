@@ -1,6 +1,7 @@
 package dev.packsage.knowledge.nativegame;
 
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.RecipePlanner;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
@@ -52,14 +53,15 @@ final class NativeBrewingReader {
 
     static Page searchCandidates(PotionBrewing brewing, RegistryAccess registries,
                                  Registry<Item> itemRegistry, ResourceManager resourceManager,
-                                 String outputItem, String text, int offset, int limit, Evidence.Scope scope) {
+                                 String outputItem, String inputItem, String text, int offset, int limit, Evidence.Scope scope) {
         var source = source(brewing, registries);
         var records = new ArrayList<Evidence.Record>();
         var normalizedText = text == null ? null : text.toLowerCase(Locale.ROOT);
         int index = Math.max(offset, 0);
         int scanned = 0;
         boolean partial = source.partial();
-        int candidateLimit = outputItem == null ? MAX_CANDIDATES : MAX_OUTPUT_CANDIDATES;
+        var inputHolder = inputItem == null ? null : itemRegistry.getHolder(net.minecraft.resources.ResourceLocation.parse(inputItem)).orElse(null);
+        int candidateLimit = outputItem == null && inputItem == null ? MAX_CANDIDATES : MAX_OUTPUT_CANDIDATES;
         if (limit < 1) return new Page(records, index, index >= source.count(), 0, partial);
         while (index < source.count() && scanned < candidateLimit) {
             var projected = candidateAt(source, index++, registries, itemRegistry, scope);
@@ -69,6 +71,11 @@ final class NativeBrewingReader {
             var record = projected.record();
             if (record == null) continue;
             if (outputItem != null && (!projected.outputKnown() || !outputItem.equals(projected.outputItem()))) continue;
+            if (inputItem != null && record.recipePayload().inputs().stream().flatMap(slot -> slot.alternatives().stream())
+                    .noneMatch(alternative -> inputItem.equals(alternative.comparisonIdentity())
+                            || (inputHolder != null && alternative.type().equals("tag") && alternative.comparisonIdentity().startsWith("#")
+                            && inputHolder.is(net.minecraft.tags.TagKey.create(Registries.ITEM,
+                            net.minecraft.resources.ResourceLocation.parse(alternative.comparisonIdentity().substring(1))))))) continue;
             if (normalizedText != null && !(record.title() + " " + record.source().sourceHandle() + " "
                     + Evidence.serialize(record.payload())).toLowerCase(Locale.ROOT).contains(normalizedText)) continue;
             records.add(record);
@@ -480,7 +487,7 @@ final class NativeBrewingReader {
             outputKnown = true;
         }
         var constraints = new ArrayList<String>();
-        constraints.add("brewing-batch=up-to-3-bottles; reagent=one-per-operation; fuel=unknown-per-operation; remainders=unknown");
+        constraints.add(RecipePlanner.BREWING_BATCH_CONSTRAINT);
         constraints.add("effective-server-rules=unknown");
         constraints.add("overlap-precedence=not-evaluated");
         if (outputComponents.bounded()) constraints.add("components=bounded");
@@ -510,7 +517,7 @@ final class NativeBrewingReader {
                 + System.identityHashCode(rule));
         var output = new Evidence.RecipeOutput("unknown", "unknown:brewing-output",
                 new Evidence.JsonObject(Map.of()), null);
-        var constraints = List.of("brewing-batch=up-to-3-bottles; reagent=one-per-operation; fuel=unknown-per-operation; remainders=unknown",
+        var constraints = List.of(RecipePlanner.BREWING_BATCH_CONSTRAINT,
                 "effective-server-rules=unknown", "overlap-precedence=not-evaluated", "unsupported-brewing-rule=opaque");
         var payload = NativeSnapshot.recipePayloadJson(null, List.of(), List.of(output), List.of(), List.of(), constraints,
                 Evidence.DecodingStatus.OPAQUE, new LinkedHashSet<>());

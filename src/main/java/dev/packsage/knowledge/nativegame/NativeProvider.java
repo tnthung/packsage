@@ -5,6 +5,7 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeIndex;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.RecipePlanner;
+import dev.packsage.knowledge.RecipePlanSupport;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import net.minecraft.client.Minecraft;
@@ -96,21 +97,8 @@ public final class NativeProvider implements KnowledgeProvider {
 
     static Evidence.Result planRecipe(NativeRecipeReader.PlanSource candidates, String itemIdentity, long quantity,
                                       Evidence.Scope scope, int maxDepth) {
-        var result = new RecipePlanner(candidates).plan(itemIdentity, quantity, scope, maxDepth);
-        var planRecords = new ArrayList<Evidence.Record>();
-        for (int route = 0; route < result.records().size(); route++) {
-            var record = result.records().get(route);
-            var sourceHandle = "plan|" + itemIdentity + "|" + quantity + "|" + maxDepth + "|" + route + "|"
-                    + record.source().sourceHandle();
-            var source = record.source();
-            var targets = record.targets().stream().map(target -> new Evidence.NavigationTarget(target.scope(), target.providerId(),
-                    sourceHandle, target.targetId())).toList();
-            planRecords.add(new Evidence.Record(new Evidence.Source(source.scope(), source.providerId(), source.providerVersion(),
-                    sourceHandle, source.observedGeneration(), source.observedAt(), source.activity(), source.coverage(),
-                    source.authority(), source.provenance()), record.kind(), record.title(), record.payload(), targets,
-                    record.recipePayload()));
-        }
-        result = new Evidence.Result(planRecords, result.coverage(), result.outcome(), result.nextCursor(), result.detail());
+        var result = RecipePlanSupport.wrap(new RecipePlanner(candidates).plan(itemIdentity, quantity, scope, maxDepth),
+                itemIdentity, quantity, maxDepth);
         if (candidates.reasons.isEmpty()) return result;
         var sourceReasons = new ArrayList<String>();
         candidates.reasons.stream().filter(reason -> reason.contains("cap")).limit(8).forEach(sourceReasons::add);
@@ -199,18 +187,27 @@ public final class NativeProvider implements KnowledgeProvider {
         if (!providerSelected(filter)) return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "different recipe source"));
         if (client == null) return unavailable(request.scope(), "live native recipe source unavailable");
         var outputValue = filter.values().get("outputItem");
+        var inputValue = filter.values().get("inputItem");
         var textValue = filter.values().get("text");
         if (outputValue != null && !(outputValue instanceof Evidence.JsonNull) && !(outputValue instanceof Evidence.JsonString)) {
             return invalid("outputItem must be a string");
+        }
+        if (inputValue != null && !(inputValue instanceof Evidence.JsonNull) && !(inputValue instanceof Evidence.JsonString)) {
+            return invalid("inputItem must be a string");
         }
         if (textValue != null && !(textValue instanceof Evidence.JsonNull) && !(textValue instanceof Evidence.JsonString)) {
             return invalid("text must be a string");
         }
         var output = outputValue instanceof Evidence.JsonString value ? value.value() : null;
+        var input = inputValue instanceof Evidence.JsonString value ? value.value() : null;
         var text = textValue instanceof Evidence.JsonString value ? value.value() : null;
         if (output != null) {
             var key = ResourceLocation.tryParse(output);
             if (key == null || !key.toString().equals(output)) return invalid("outputItem must be a canonical item identity");
+        }
+        if (input != null) {
+            var key = ResourceLocation.tryParse(input);
+            if (key == null || !key.toString().equals(input)) return invalid("inputItem must be a canonical item identity");
         }
         try {
             var limitValue = request.arguments().values().get("limit");
@@ -226,7 +223,10 @@ public final class NativeProvider implements KnowledgeProvider {
                 if (output != null && !client.level.registryAccess().registryOrThrow(Registries.ITEM)
                         .containsKey(ResourceLocation.parse(output))) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS,
                         "recipe output item is unknown");
-                return NativeRecipeReader.search(client, output, text, offset, limit, request.scope());
+                if (input != null && !client.level.registryAccess().registryOrThrow(Registries.ITEM)
+                        .containsKey(ResourceLocation.parse(input))) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS,
+                        "recipe input item is unknown");
+                return NativeRecipeReader.search(client, output, input, text, offset, limit, request.scope());
             }).thenApply(page -> {
                 String next = page.exhausted() || page.nextOffset() <= offset ? null : storeCursor(page.nextOffset(), signature, request.scope());
                 boolean partial = page.partial() || !page.exhausted()
@@ -244,24 +244,17 @@ public final class NativeProvider implements KnowledgeProvider {
 
     @Override
     public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Toolbox.Context context) {
-        var identityValue = request.arguments().values().get("identity");
-        if (identityValue != null && !(identityValue instanceof Evidence.JsonNull) && !(identityValue instanceof Evidence.JsonString)) {
-            return invalid("identity must be a string");
+        try {
+            providerSelected(request.arguments());
+        } catch (Toolbox.Failure failure) {
+            return CompletableFuture.failedFuture(failure);
         }
-        var identity = identityValue instanceof Evidence.JsonString value ? value.value() : null;
-        if (identity == null) return invalid("identity is required");
-        var quantityValue = request.arguments().values().get("quantity");
-        var depthValue = request.arguments().values().get("depth");
-        if (quantityValue != null && !(quantityValue instanceof Evidence.JsonNull) && !(quantityValue instanceof Evidence.JsonNumber)) {
-            return invalid("quantity must be an integer");
+        try {
+            var arguments = RecipePlanSupport.arguments(request);
+            return planRecipe(arguments.identity(), arguments.quantity(), request.scope(), arguments.depth());
+        } catch (Toolbox.Failure failure) {
+            return CompletableFuture.failedFuture(failure);
         }
-        if (depthValue != null && !(depthValue instanceof Evidence.JsonNull) && !(depthValue instanceof Evidence.JsonNumber)) {
-            return invalid("depth must be an integer");
-        }
-        var quantity = quantityValue instanceof Evidence.JsonNumber number ? number.value().longValueExact() : 1;
-        var depth = depthValue instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 4;
-        if (quantity < 1 || quantity > 1_000_000 || depth < 0 || depth > 8) return invalid("recipe quantity or depth is outside bounds");
-        return planRecipe(identity, quantity, request.scope(), depth);
     }
 
     @Override

@@ -1594,6 +1594,37 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void legacyTurnLayoutUnchanged() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var lines = ScreenText.inlineLines("alpha beta gamma\n[Glass](item:minecraft:glass)", List.of());
+        var layout = screen.messageLayout(lines, 55);
+        assertEquals(12, layout.runs().stream().filter(run -> run.span().text().equals("gamma")).findFirst().orElseThrow().y());
+        assertTrue(layout.runs().stream().noneMatch(run -> run.card() != null || run.stack() != null));
+        assertEquals("[Glass](item:minecraft:glass)", layout.runs().stream().filter(run -> run.y() >= 24)
+                .map(run -> run.span().text()).reduce("", String::concat));
+    }
+
+    @Test
+    void resolvedItemChipOnlyExpandsItsWrappedRow() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var item = new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, null, null, null, "minecraft:glass");
+        var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("hello ", null, ModernUi.TEXT, false, false), item,
+                new ScreenText.InlineSpan(" world", null, ModernUi.TEXT, false, false)));
+        var layout = screen.messageLayout(List.of(line), 55, java.util.Map.of(),
+                java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
+        var chip = layout.runs().stream().filter(run -> run.stack() != null).findFirst().orElseThrow();
+        assertEquals(12, chip.y());
+        assertEquals(18, chip.height());
+        assertEquals(30, layout.runs().stream().filter(run -> run.span().text().equals("world")).findFirst().orElseThrow().y());
+    }
+
+    @Test
     void messageWrappingKeepsWordsWholeAndChipsWithinTheirRows() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 640;

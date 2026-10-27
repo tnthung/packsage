@@ -1707,8 +1707,70 @@ class AssistantScreenStateTest {
                         List.of(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)), false)), java.util.Map.of());
         var run = layout.runs().getFirst();
         assertTrue(run.stack().is(net.minecraft.world.item.Items.GLASS));
-        assertEquals("Glass · Mixing", run.span().text());
+        assertEquals("Glass", run.span().text());
         assertNull(run.card());
+        assertEquals("Mixing", layout.runs().get(1).span().text());
+    }
+
+    @Test
+    void viewerFallbackFollowsNativeVerbosityRulesAndAlwaysShowsItsCaption() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var source = new Evidence.Source(SCOPE, "jei", "19.27", "create:mixing|create:mixing/glass", 1, Instant.ofEpochSecond(0),
+                Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.VIEWER, List.of("jei"));
+        var record = com.google.gson.JsonParser.parseString("""
+                {"reference":"jei:create:mixing|create:mixing/glass","kind":"RECIPE","title":"Mixing",
+                 "payload":{"canonicalRecipeId":"create:mixing/glass","category":"Mixing","inputs":[],
+                 "outputs":[{"type":"item","comparisonIdentity":"minecraft:glass","components":{},"quantity":1,"groupId":"slot-0"}],
+                 "constraints":["recipeType=create:mixing"],"decodingStatus":"PARTIAL"}}
+                """).getAsJsonObject();
+        var observed = new com.google.gson.JsonObject();
+        observed.addProperty("providerId", "jei");
+        observed.addProperty("sourceHandle", source.sourceHandle());
+        observed.addProperty("observedGeneration", source.observedGeneration());
+        observed.addProperty("observedAt", source.observedAt().toString());
+        observed.add("scope", new com.google.gson.Gson().toJsonTree(SCOPE));
+        record.add("source", observed);
+        var result = new com.google.gson.JsonObject();
+        var records = new com.google.gson.JsonArray();
+        records.add(record);
+        result.add("records", records);
+        var turn = new ChatContracts.Turn(new ChatContracts.RequestId("recipes"), "question", "answer",
+                List.of(new ModelBackend.ToolResult("recipes", result.toString(), false)),
+                new ChatContracts.Context("{}", null, SCOPE), List.of(source),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+        var models = ScreenText.recipeCards(turn);
+        var model = models.get(source);
+        var oversized = new dev.packsage.client.recipe.RecipeCard() {
+            @Override public int width() { return 200; }
+            @Override public int height() { return 71; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
+        };
+        var outputs = java.util.Map.of(model, new dev.packsage.client.recipe.SlotStacks.ResolvedSlot(
+                List.of(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)), false));
+        for (var cards : List.<java.util.Map<dev.packsage.client.recipe.RecipeCardModel, dev.packsage.client.recipe.RecipeCard>>of(
+                java.util.Map.of(model, oversized), java.util.Map.of())) {
+            for (var verbosity : PackSageSettings.Verbosity.values()) {
+                var lines = ScreenText.inlineLines("[jei:create:mixing|create:mixing/glass]", List.of(), List.of(), turn.sources(),
+                        java.util.Map.of(), verbosity, models);
+                // Detailed answers resolve no result outputs, as for native cards.
+                var layout = screen.messageLayout(lines, 149, cards,
+                        verbosity == PackSageSettings.Verbosity.DETAILED ? java.util.Map.of() : outputs, java.util.Map.of());
+                var texts = layout.runs().stream().map(run -> run.span().text()).toList();
+                assertEquals("Mixing", texts.getLast(), verbosity + " " + texts);
+                var chip = layout.runs().getFirst();
+                if (verbosity == PackSageSettings.Verbosity.DETAILED) {
+                    assertNull(chip.stack());
+                    assertTrue(chip.span().text().startsWith("Source: "), texts.toString());
+                } else {
+                    assertTrue(chip.stack().is(net.minecraft.world.item.Items.GLASS), verbosity + " " + texts);
+                    assertSame(cards.isEmpty() ? null : oversized, chip.card());
+                }
+            }
+        }
     }
 
     @Test

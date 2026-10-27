@@ -1077,8 +1077,6 @@ public final class AssistantScreen extends Screen {
                     String labelText = output == null ? span.text() : output.missing() ? "Missing: " + recordedOutput.identity()
                             : output.stacks().isEmpty() || recordedOutput.kind() == RecipeCardModel.Stack.Kind.UNKNOWN ? "Unknown result"
                             : stack.getHoverName().getString();
-                    // Without a card to pin, the chip names the recipe category itself.
-                    if (output != null && result == null && !span.resultCard().caption().isEmpty()) labelText += " · " + span.resultCard().caption();
                     String verb = span.target() == null ? "Open" : ScreenText.navigationVerb(span.target());
                     if (navigation && !labelText.regionMatches(true, 0, verb + " ", 0, verb.length() + 1)) labelText = verb + " " + labelText;
                     else if (!item && !navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;
@@ -1094,6 +1092,18 @@ public final class AssistantScreen extends Screen {
                             navigation ? ModernUi.ACCENT : ModernUi.TEXT, bold, false, item ? null : span.source(),
                             item || line.card() != null ? null : span.externalUrl()), x, y, chipWidth, line.quote(), item ? result : null, stack, rowHeight));
                     x += chipWidth + 4;
+                    // A viewer recipe shown as a chip instead of an inline card names its category beside the chip.
+                    var viewer = span.resultCard() != null ? span.resultCard() : span.source() != null ? line.card() : null;
+                    if (viewer != null && viewer.category() == RecipeCardModel.Category.VIEWER && !viewer.caption().isEmpty()) {
+                        Component caption = Component.literal(viewer.caption()).withStyle(style -> style.withFont(ModernUi.FONT));
+                        int captionWidth = Math.min(Math.max(1, width - indent), font.width(caption));
+                        if (x > indent && x + captionWidth > width) {
+                            x = indent; y += rowHeight;
+                        }
+                        runs.add(new MessageRun(new ScreenText.InlineSpan(font.substrByWidth(caption, captionWidth).getString(), null,
+                                ModernUi.MUTED, false, false), x, y, captionWidth, line.quote(), null, null, rowHeight));
+                        x += captionWidth + 4;
+                    }
                     continue;
                 }
                 for (String token : span.text().split("(?<=\\s)(?=\\S)|(?<=\\S)(?=\\s)")) {

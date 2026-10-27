@@ -917,6 +917,18 @@ class ScreenTextTest {
     }
 
     @Test
+    void hiddenSourceOnlyParagraphDropsItsSeparatingBlankLine() {
+        var source = recipeSource("x", 0);
+        for (var text : java.util.Map.of("before\n\n[native:x]", List.of("before"),
+                "before\n\n[native:x]\n\nafter", List.of("before", "", "after")).entrySet()) {
+            var lines = ScreenText.inlineLines(text.getKey(), List.of(), List.of(), List.of(source),
+                    java.util.Map.of(), dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, java.util.Map.of());
+            assertEquals(text.getValue(), lines.stream()
+                    .map(line -> line.spans().stream().map(ScreenText.InlineSpan::text).collect(java.util.stream.Collectors.joining())).toList());
+        }
+    }
+
+    @Test
     void hiddenSourceOnlyListItemIsDropped() {
         var source = recipeSource("x", 0);
         var lines = ScreenText.inlineLines("before\n- [native:x]\nafter", List.of(), List.of(), List.of(source),

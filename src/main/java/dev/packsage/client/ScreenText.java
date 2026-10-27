@@ -374,11 +374,21 @@ final class ScreenText {
                 }
                 if (removed && spans.stream().skip(listItem ? 1 : 0).allMatch(span -> span.text().isBlank()
                         && span.target() == null && span.source() == null && span.externalUrl() == null
-                        && span.resultCard() == null && span.itemId() == null)) continue;
+                        && span.resultCard() == null && span.itemId() == null)) {
+                    // A dropped source-only paragraph must not leave its separating blank row behind.
+                    boolean nextBlank = lineIndex + 1 >= rawLines.length || rawLines[lineIndex + 1].isBlank();
+                    if (nextBlank && !lines.isEmpty() && blank(lines.getLast())) lines.removeLast();
+                    continue;
+                }
             }
             lines.add(new InlineLine(spans.isEmpty() ? List.of(new InlineSpan("", null, TEXT_COLOR, false, false)) : spans, quote, card));
         }
         return lines;
+    }
+
+    private static boolean blank(InlineLine line) {
+        return line.card() == null && line.spans().stream().allMatch(span -> span.text().isBlank() && span.target() == null
+                && span.source() == null && span.externalUrl() == null && span.resultCard() == null && span.itemId() == null);
     }
 
     static Map<Evidence.Source, RecipeCardModel> recipeCards(ChatContracts.Turn turn) {

@@ -166,6 +166,8 @@ class PackSageToolsTest {
         assertTrue(recipe.contains("outputItem without text"));
         assertTrue(recipe.contains("Find recipes in the default recipe source: JEI while it is ready"));
         assertTrue(recipe.contains("case-insensitive literal match"));
+        assertTrue(recipe.contains("in JEI it matches category titles and item names, while IDs and component IDs match only in the game's own recipes."));
+        assertFalse(java.util.regex.Pattern.compile("[a-z]\\.[A-Z]").matcher(recipe).find());
         var registry = definitions.stream().filter(value -> value.name().equals("search_registry")).findFirst().orElseThrow().description();
         assertTrue(registry.contains("active_effect lists the player's current effect instances"));
         assertTrue(registry.contains("(durationTicks, amplifier, ambient, attributeModifiers)"));

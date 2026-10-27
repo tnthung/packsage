@@ -123,7 +123,6 @@ public final class JeiProjection {
         payload.put("constraints", new Evidence.JsonArray(constraints.stream().map(Evidence.JsonString::new).map(value -> (Evidence.JsonValue) value).toList()));
         payload.put("decodingStatus", new Evidence.JsonString(decoding.name()));
         payload.put("category", new Evidence.JsonString(layout.categoryTitle()));
-        payload.put("possibleExtras", new Evidence.JsonArray(outputJson));
         payload.put("recipeTooltip", new Evidence.JsonArray(layout.recipeTooltip().stream().map(Evidence.JsonString::new).map(value -> (Evidence.JsonValue) value).toList()));
         var source = new Evidence.Source(scope, "jei", providerVersion, handle(layout), layout.generation(), observedAt,
                 Evidence.Activity.ACTIVE, coverage, Evidence.Authority.VIEWER, List.of("jei"));

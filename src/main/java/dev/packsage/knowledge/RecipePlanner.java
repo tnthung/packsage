@@ -224,10 +224,14 @@ public final class RecipePlanner {
         return anyComplete && !anyIncomplete;
     }
 
-    /** Plans one route, adding the mod machine fields and plan equipment only for records that carry the machine constraints. */
+    /**
+     * Plans one route, adding the mod machine fields and plan equipment only for records that carry the machine constraints.
+     * possibleExtras, the step's outputs other than the planned item, is added for machine routes and any multi-output route.
+     */
     private static Evidence.Record route(Evidence.Record candidate, MachineRules rules, Evidence.RecipeOutput output, long quantity, Long batches,
                                          String bound, PlanState state) {
-        if (!rules.extended) return planned(candidate, quantity, output == null ? null : output.quantity(), batches, bound, Map.of());
+        if (!rules.extended) return planned(candidate, quantity, output == null ? null : output.quantity(), batches, bound,
+                candidate.recipePayload().outputs().size() > 1 ? Map.of("possibleExtras", possibleExtras(candidate, output)) : Map.of());
         var needs = new LinkedHashMap<List<String>, Long>();
         if (batches != null) {
             var processedAlternativeSets = new HashSet<List<Evidence.RecipeAlternative>>();
@@ -265,17 +269,21 @@ public final class RecipePlanner {
             if (!need.getKey().get(2).isEmpty()) fields.put("oneOf", new Evidence.JsonString(need.getKey().get(2)));
             return (Evidence.JsonValue) new Evidence.JsonObject(fields);
         }).toList()));
-        var counted = batches == null ? null : output;
-        values.put("possibleExtras", new Evidence.JsonArray(candidate.recipePayload().outputs().stream().filter(value -> value != counted).map(value -> {
+        values.put("possibleExtras", possibleExtras(candidate, output));
+        if (rules.assumed) values.put("assumed", new Evidence.JsonBoolean(true));
+        return planned(candidate, quantity, output == null ? null : output.quantity(), batches, bound, values);
+    }
+
+    /** The step's outputs other than the planned one; they never count toward the plan. */
+    private static Evidence.JsonArray possibleExtras(Evidence.Record candidate, Evidence.RecipeOutput planned) {
+        return new Evidence.JsonArray(candidate.recipePayload().outputs().stream().filter(value -> value != planned).map(value -> {
             var fields = new LinkedHashMap<String, Evidence.JsonValue>();
             fields.put("type", new Evidence.JsonString(value.type()));
             fields.put("comparisonIdentity", new Evidence.JsonString(value.comparisonIdentity()));
             fields.put("components", value.components());
             fields.put("quantity", value.quantity() == null ? new Evidence.JsonNull() : new Evidence.JsonNumber(BigDecimal.valueOf(value.quantity())));
             return (Evidence.JsonValue) new Evidence.JsonObject(fields);
-        }).toList()));
-        if (rules.assumed) values.put("assumed", new Evidence.JsonBoolean(true));
-        return planned(candidate, quantity, output == null ? null : output.quantity(), batches, bound, values);
+        }).toList());
     }
 
     private static Evidence.Record planned(Evidence.Record record, long requestedQuantity, Integer outputQuantity, Long batches, String bound,

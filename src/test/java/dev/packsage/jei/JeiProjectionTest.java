@@ -31,7 +31,7 @@ class JeiProjectionTest {
         assertEquals(1, payload.getAsJsonArray("inputs").size());
         assertEquals(1, payload.getAsJsonArray("outputs").size());
         assertEquals(1, payload.getAsJsonArray("catalysts").size());
-        assertEquals(1, payload.getAsJsonArray("possibleExtras").size());
+        assertFalse(payload.has("possibleExtras"));
         assertEquals("Altar", payload.get("category").getAsString());
         assertEquals("recipe text", payload.getAsJsonArray("recipeTooltip").get(0).getAsString());
         assertEquals(1, payload.getAsJsonArray("inputs").get(0).getAsJsonObject().getAsJsonArray("alternatives").get(0).getAsJsonObject().getAsJsonObject("components").get("foo").getAsInt());

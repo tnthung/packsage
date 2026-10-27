@@ -83,6 +83,8 @@ class GroundingInstructionsTest {
         assertTrue(text.contains("add a bookmark directly when the player asks for one; when a bookmark is your own idea, offer it without adding it; remove one only when the player asks."));
         assertFalse(text.contains("search_recipe reads Minecraft's loaded recipes"));
         assertFalse(text.contains("provider"));
+        assertFalse(text.contains("such as a variant term or component ID"));
+        assertTrue(text.contains("JEI matches only category titles and item names, so returned IDs and component IDs help as text only in a search of the game's own recipes"));
         var joined = java.util.regex.Pattern.compile("[a-z]\\.[A-Z]").matcher(text);
         assertFalse(joined.find(), () -> joined.group());
     }

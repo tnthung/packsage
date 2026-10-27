@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Normal and Concise answers hide source chips, with a result preview when a recipe card is too wide.
 - Chat answers show recipe cards, item chips and Shift-pinnable result previews.
 - Recipe citations and item links are classified for cards and chips using each answer's saved detail setting.
 - Drafted assistant instructions for recipe cards and item chips, tailored to the answer detail setting, with consistent citation placement and item link rules.

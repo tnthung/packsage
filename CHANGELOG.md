@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Chat completion read state retries temporary file replacement failures and shows a short message if acknowledgement still fails.
 - Prompt candidate 18 passed the nine-question recipe-card presentation check before promotion and on the installed default with the developer override cleared: Normal and Detailed use cards for explained transformations; Concise uses one result chip per recipe without repeated item names.
 - All eleven native recipe layouts passed live comparison with JEI. Hover, ordinary/advanced tooltips, cycling, narrow fallback and legacy history passed. Full acceptance remains partial: scroll dismissal and one exposed file-access error failed; sustained Shift and missing/custom ingredient checks remain unverified. Warm chat openings measured about 33–45 ms; cold openings took about 56 ms and 94 ms. See the [acceptance record](docs/validation/2026-10-27-recipe-cards.md).
 - Made chat item and result chips shorter and rounded, with smaller item icons and a lighter neutral fill for item chips.

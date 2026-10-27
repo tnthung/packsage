@@ -69,6 +69,7 @@ public final class ConversationStore {
     private record CompletionState(String latestCompletedRequestId, String acknowledgedRequestId) {
     }
 
+    private static final Object COMPLETION_STATE_LOCK = new Object();
     private static final int HISTORY_MAX_ROOT_ENTRIES = 512;
     private static final int HISTORY_MAX_SESSIONS = 256;
     private static final int HISTORY_MAX_SCAN_BYTES = 8 * 1024 * 1024;
@@ -76,9 +77,15 @@ public final class ConversationStore {
     private static final int HISTORY_MAX_RECORD_BYTES = 2 * 1024 * 1024;
     private static final int HISTORY_MAX_HEADER_BYTES = 16 * 1024;
 
+    @FunctionalInterface
+    interface StateMove {
+        void move(Path source, Path target) throws IOException;
+    }
+
     private final Path root;
     private final Executor ioExecutor;
     private final Executor catalogExecutor;
+    private final StateMove stateMove;
     private final Object writeLock = new Object();
     private CompletableFuture<Void> writes = CompletableFuture.completedFuture(null);
     private final List<String> errors = new ArrayList<>();
@@ -88,9 +95,15 @@ public final class ConversationStore {
     }
 
     public ConversationStore(Path root, Executor ioExecutor, Executor catalogExecutor) {
+        this(root, ioExecutor, catalogExecutor, (source, target) -> Files.move(source, target,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING));
+    }
+
+    ConversationStore(Path root, Executor ioExecutor, Executor catalogExecutor, StateMove stateMove) {
         this.root = root;
         this.ioExecutor = ioExecutor;
         this.catalogExecutor = catalogExecutor;
+        this.stateMove = stateMove;
     }
 
     CompletionStage<HistoryPage> searchHistory(ChatContracts.WorldIdentity world, String text,
@@ -911,13 +924,15 @@ public final class ConversationStore {
                     .filter(turn -> turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED)
                     .reduce((firstTurn, lastTurn) -> lastTurn).orElse(null);
             if (latestCompleted == null || !latestCompleted.requestId().equals(requestId)) return;
-            CompletionState state = readCompletionState(file);
-            if (requestId.value().equals(state.latestCompletedRequestId())) return;
-            try {
-                writeCompletionState(file, new CompletionState(requestId.value(), state.acknowledgedRequestId()));
-            } catch (IOException exception) {
-                report(exception);
-                throw new RuntimeException(exception);
+            synchronized (COMPLETION_STATE_LOCK) {
+                CompletionState state = readCompletionState(file);
+                if (requestId.value().equals(state.latestCompletedRequestId())) return;
+                try {
+                    writeCompletionState(file, new CompletionState(requestId.value(), state.acknowledgedRequestId()));
+                } catch (IOException exception) {
+                    report(exception);
+                    throw new RuntimeException(exception);
+                }
             }
         });
     }
@@ -932,14 +947,16 @@ public final class ConversationStore {
                     .filter(turn -> turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED)
                     .reduce((firstTurn, lastTurn) -> lastTurn).orElse(null);
             if (latestCompleted == null || !latestCompleted.requestId().equals(expectedCompletion)) return;
-            CompletionState state = readCompletionState(file);
-            if (!expectedCompletion.value().equals(state.latestCompletedRequestId())
-                    || expectedCompletion.value().equals(state.acknowledgedRequestId())) return;
-            try {
-                writeCompletionState(file, new CompletionState(state.latestCompletedRequestId(), expectedCompletion.value()));
-            } catch (IOException exception) {
-                report(exception);
-                throw new RuntimeException(exception);
+            synchronized (COMPLETION_STATE_LOCK) {
+                CompletionState state = readCompletionState(file);
+                if (!expectedCompletion.value().equals(state.latestCompletedRequestId())
+                        || expectedCompletion.value().equals(state.acknowledgedRequestId())) return;
+                try {
+                    writeCompletionState(file, new CompletionState(state.latestCompletedRequestId(), expectedCompletion.value()));
+                } catch (IOException exception) {
+                    report(exception);
+                    throw new RuntimeException(exception);
+                }
             }
         });
     }
@@ -1492,7 +1509,10 @@ public final class ConversationStore {
             if (!safePath(stateFile) || !Files.isRegularFile(stateFile, LinkOption.NOFOLLOW_LINKS)) {
                 throw new IOException("conversation state file is unsafe");
             }
-            JsonElement parsed = JsonParser.parseString(Files.readString(stateFile, StandardCharsets.UTF_8));
+            JsonElement parsed;
+            synchronized (COMPLETION_STATE_LOCK) {
+                parsed = JsonParser.parseString(Files.readString(stateFile, StandardCharsets.UTF_8));
+            }
             if (!parsed.isJsonObject()) throw new IOException("conversation state is malformed");
             JsonObject value = parsed.getAsJsonObject();
             if (!value.has("latestCompletedRequestId") || !value.has("acknowledgedRequestId")) {
@@ -1525,8 +1545,20 @@ public final class ConversationStore {
         try {
             Files.writeString(temporary, value.toString(), StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-            Files.move(temporary, stateFile, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            for (int attempt = 0; ; attempt++) {
+                try {
+                    stateMove.move(temporary, stateFile);
+                    break;
+                } catch (java.nio.file.FileSystemException exception) {
+                    if (attempt == 4) throw exception;
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted while replacing conversation state", interrupted);
+                    }
+                }
+            }
         } finally {
             Files.deleteIfExists(temporary);
         }

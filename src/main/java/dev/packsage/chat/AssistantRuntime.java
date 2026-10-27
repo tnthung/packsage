@@ -511,12 +511,13 @@ public final class AssistantRuntime implements ChatActions {
         acknowledgment.whenCompleteAsync((ignored, failure) -> {
             boolean refresh = false;
             boolean publish;
+            if (failure != null) PackSageLog.LOGGER.warn("Could not mark completion state as read", failure);
             synchronized (stateLock) {
                 if (failure != null) {
                     if (expectedCompletion.equals(holder.readAttemptRequestId)
                             && holder.readAttemptSelectionGeneration == selectionGeneration
                             && holder.readAttemptScreen == screen) {
-                        holder.errors.add("Completion state could not be marked as read: " + failureMessage(failure));
+                        holder.errors.add("Couldn't mark this answer as read; reopen the chat to retry.");
                     }
                 } else if (!holder.deleting
                         && holders.get(new HolderKey(holder.world.worldOrServer(), holder.id)) == holder) {

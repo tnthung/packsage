@@ -851,7 +851,7 @@ class AssistantIntegrationTest {
             Path movedConversationFile = conversationFile.resolveSibling("temporarily-hidden.jsonl");
             Files.move(conversationFile, movedConversationFile);
             runtime.markRead(summary, completion);
-            assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("could not be marked as read")), retryPath);
+            assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("mark this answer as read")), retryPath);
             var persistedErrors = store.errors().size();
             Files.move(movedConversationFile, conversationFile);
             assertEquals(completion, store.sessions().toCompletableFuture().join().stream()
@@ -912,7 +912,7 @@ class AssistantIntegrationTest {
             Path movedConversationFile = conversationFile.resolveSibling("temporarily-hidden.jsonl");
             Files.move(conversationFile, movedConversationFile);
             runtime.markRead(summary, completion);
-            assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("could not be marked as read")), terminal);
+            assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("mark this answer as read")), terminal);
             Files.move(movedConversationFile, conversationFile);
             assertEquals(completion, store.sessions().toCompletableFuture().join().stream()
                     .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId(), terminal);

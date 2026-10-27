@@ -2926,6 +2926,51 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void failedReadAcknowledgementHidesFilesystemDetailsAndRetriesOnReopen() throws Exception {
+        var root = Files.createTempDirectory("packsage-read-failure");
+        ConversationStore setup = new ConversationStore(root, DIRECT);
+        ChatContracts.Conversation conversation = setup.newConversation(WORLD).toCompletableFuture().join();
+        ChatContracts.RequestId request = new ChatContracts.RequestId("completed");
+        setup.appendTurn(WORLD, SCOPE, conversation.id(), new ChatContracts.Turn(request, "Question", "Answer", List.of(),
+                new ChatContracts.Context("", null, SCOPE), List.of(), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1, Instant.EPOCH)).toCompletableFuture().join();
+        setup.recordCompletion(WORLD, conversation.id(), request).toCompletableFuture().join();
+        AtomicBoolean fail = new AtomicBoolean(true);
+        AtomicInteger attempts = new AtomicInteger();
+        ConversationStore store = new ConversationStore(root, DIRECT, DIRECT, (source, target) -> {
+            attempts.incrementAndGet();
+            if (fail.get()) throw new java.nio.file.AccessDeniedException(source.toString(), target.toString(), "busy");
+            Files.move(source, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        });
+        AssistantRuntime runtime = new AssistantRuntime(store, new FakeBackend(), captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                ignored -> { throw new AssertionError("no request expected"); }, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        ChatContracts.SessionSummary summary = runtime.sessions().toCompletableFuture().join().stream()
+                .filter(session -> session.id().equals(conversation.id())).findFirst().orElseThrow();
+        var screen = runtime.openScreen();
+        runtime.openSession(summary);
+        screen.refresh(runtime.view());
+
+        runtime.markRead(summary, request);
+
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("mark") && error.contains("read")));
+        assertTrue(runtime.view().errors().stream().noneMatch(error -> error.contains("AccessDeniedException")
+                || error.contains(root.toString()) || error.contains(".state.json")), runtime.view().errors().toString());
+        assertEquals(5, attempts.get());
+        assertEquals(request, store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+        try (var files = Files.list(store.conversationPath(WORLD, conversation.id()).getParent())) {
+            assertTrue(files.noneMatch(path -> path.getFileName().toString().endsWith(".tmp")));
+        }
+
+        fail.set(false);
+        runtime.openSession(summary);
+        screen.refresh(runtime.view());
+        runtime.markRead(summary, request);
+        assertNull(store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+    }
+
+    @Test
     void loadedAndActiveFollowupSessionTitleRemainsTheFirstQuestion() throws Exception {
         ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-first-question-title"), DIRECT);
         ChatContracts.Conversation saved = store.newConversation(WORLD).toCompletableFuture().join();

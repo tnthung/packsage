@@ -677,6 +677,25 @@ class ConversationStoreTest {
     }
 
     @Test
+    void completionStateRetriesTransientReplaceFailures() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger attempts = new java.util.concurrent.atomic.AtomicInteger();
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT, DIRECT, (source, target) -> {
+            if (attempts.incrementAndGet() <= 2) throw new java.nio.file.AccessDeniedException(source.toString(), target.toString(), "busy");
+            Files.move(source, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        });
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Turn turn = simpleTurn("completion");
+        store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
+
+        store.recordCompletion(world, conversation.id(), turn.requestId()).toCompletableFuture().join();
+
+        assertEquals(3, attempts.get());
+        assertEquals(turn.requestId(), store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+        assertTrue(store.errors().isEmpty());
+    }
+
+    @Test
     void completionStateSurvivesReopenAndOnlyAcknowledgesTheLatestCompletion() throws Exception {
         ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
         ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);

@@ -2954,10 +2954,10 @@ class AssistantRuntimeTest {
 
         runtime.markRead(summary, request);
 
-        assertEquals(5, attempts.get());
         assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("mark") && error.contains("read")));
         assertTrue(runtime.view().errors().stream().noneMatch(error -> error.contains("AccessDeniedException")
                 || error.contains(root.toString()) || error.contains(".state.json")), runtime.view().errors().toString());
+        assertEquals(5, attempts.get());
         assertEquals(request, store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
         try (var files = Files.list(store.conversationPath(WORLD, conversation.id()).getParent())) {
             assertTrue(files.noneMatch(path -> path.getFileName().toString().endsWith(".tmp")));

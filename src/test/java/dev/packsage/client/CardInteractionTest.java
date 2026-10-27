@@ -65,6 +65,10 @@ class CardInteractionTest {
         final AssistantScreen screen;
 
         Harness(boolean withViewer) throws Exception {
+            this(withViewer, false);
+        }
+
+        Harness(boolean withViewer, boolean foreignHistory) throws Exception {
             var source = new Evidence.Source(SCOPE, "provider", "1", "source", 1, java.time.Instant.EPOCH,
                     Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
             var target = new Evidence.NavigationTarget(SCOPE, "provider", "source", "target");
@@ -74,7 +78,8 @@ class CardInteractionTest {
                             List.of(new ChatContracts.Turn(new ChatContracts.RequestId("request"), "question", "answer", List.of(),
                                     context, List.of(source), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)),
                             new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
-                    context, List.of(source), List.of(target), List.of());
+                    context, List.of(source), List.of(target), List.of(), "", "",
+                    foreignHistory ? new ChatContracts.WorldIdentity("other", "Other") : new ChatContracts.WorldIdentity("world", "World"), foreignHistory);
             actions = new FakeActions(view);
             screen = new AssistantScreen(actions);
             screen.width = 640;
@@ -205,6 +210,33 @@ class CardInteractionTest {
             field.setAccessible(true);
             assertEquals("rua", ((MultilineEditor) field.get(h.screen)).value(), editor);
         }
+    }
+
+    @Test
+    void foreignWorldHistoryKeepsClicksAndKeysInert() throws Exception {
+        var h = new Harness(true, true);
+        h.card();
+        h.itemChip();
+        h.resultChip();
+        assertFalse(h.screen.mouseClicked(60, 110, 0));
+        assertFalse(h.screen.mouseClicked(60, 110, 1));
+        assertFalse(h.screen.mouseClicked(60, 205, 0));
+        assertFalse(h.screen.mouseClicked(60, 255, 0));
+        for (int[] position : new int[][] {{60, 110}, {60, 205}, {60, 255}}) {
+            h.mouse(position[0], position[1]);
+            for (int key : new int[] {GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_U, GLFW.GLFW_KEY_A}) h.key(key);
+        }
+        assertEquals(List.of(), h.viewer.calls);
+    }
+
+    @Test
+    void sameWorldSavedHistoryStillOpensRecipes() throws Exception {
+        var h = new Harness(true, false);
+        h.card();
+        assertTrue(h.screen.mouseClicked(60, 110, 0));
+        h.mouse(60, 110);
+        assertTrue(h.key(GLFW.GLFW_KEY_A));
+        assertEquals(List.of("recipes:" + Items.GLASS, "bookmark:" + Items.GLASS), h.viewer.calls);
     }
 
     @Test

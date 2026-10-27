@@ -2116,15 +2116,20 @@ public final class AssistantScreen extends Screen {
         return ItemStack.EMPTY;
     }
 
+    /** Viewer actions open and bookmark in the current world, so a read-only history from another world stays inert. */
+    private boolean viewerActsHere() {
+        return !view.readOnly() && view.activeWorld().worldOrServer().equals(view.conversation().world().worldOrServer());
+    }
+
     private boolean viewerClicked(double mouseX, double mouseY, int button) {
-        if (itemViewer == null || (button != 0 && button != 1)) return false;
+        if (itemViewer == null || (button != 0 && button != 1) || !viewerActsHere()) return false;
         ItemStack stack = viewerItemAt(mouseX, mouseY);
         if (stack.isEmpty()) return false;
         return button == 1 ? itemViewer.showUses(stack) : itemViewer.showRecipes(stack);
     }
 
     private boolean viewerKey(int keyCode, int scanCode) {
-        if (itemViewer == null) return false;
+        if (itemViewer == null || !viewerActsHere()) return false;
         boolean recipes = itemViewer.matchesShowRecipes(keyCode, scanCode);
         boolean uses = itemViewer.matchesShowUses(keyCode, scanCode);
         boolean bookmark = itemViewer.matchesBookmark(keyCode, scanCode);

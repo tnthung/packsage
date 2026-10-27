@@ -1662,8 +1662,9 @@ public final class AssistantRuntime implements ChatActions {
                     view.active() ? view.streamingAnswer() : last == null
                             ? base == null ? "" : base.lastMessage() : last.answer(),
                     view.active() && view.activeSentAt() != null ? view.activeSentAt()
+                            : base != null ? base.updatedAt()
                             : last != null && last.sentAt() != null ? last.sentAt()
-                            : base == null ? Instant.EPOCH : base.updatedAt(),
+                            : Instant.EPOCH,
                     view.active(), base == null ? null : base.unreadRequestId()));
         }
         return summaries.values().stream().sorted(java.util.Comparator.comparing(ChatContracts.SessionSummary::updatedAt).reversed())

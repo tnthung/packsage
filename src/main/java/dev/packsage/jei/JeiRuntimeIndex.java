@@ -183,6 +183,8 @@ public final class JeiRuntimeIndex implements JeiIndex {
         }
     }
 
+    // These tooltip APIs are retained for compatibility with JEI 19.27.
+    @SuppressWarnings({"deprecation", "removal"})
     private <T> JeiLayout layout(IRecipeCategory<T> category, RecipeRef ref) {
         var cached = categoryRecipes(category);
         if (ref.ordinal() < 0 || ref.ordinal() >= cached.recipes().size()) throw new IllegalArgumentException("invalid recipe reference");
@@ -230,6 +232,8 @@ public final class JeiRuntimeIndex implements JeiIndex {
         return encoded.toString();
     }
 
+    // This tooltip API is retained for compatibility with JEI 19.27.
+    @SuppressWarnings({"deprecation", "removal"})
     private <T> List<String> tooltip(ITypedIngredient<T> ingredient) {
         return runtime.getIngredientManager().getIngredientRenderer(ingredient.getType()).getTooltip(ingredient.getIngredient(), TooltipFlag.NORMAL)
                 .stream().map(value -> value.getString()).toList();

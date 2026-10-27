@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Added JEI recipe search through its focus index.
 - Added the optional JEI integration foundation with version checks and runtime lifecycle tracking.
 - The assistant gets a `bookmark` tool schema only when a ready bookmark provider is enabled (core side of the JEI bookmark tool).
 - JEI recipe layouts project slots, tooltips and assumed machine behavior into recipe evidence.

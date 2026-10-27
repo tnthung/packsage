@@ -50,7 +50,12 @@ final class ScreenText {
     private static final Pattern HASH_SUFFIX = Pattern.compile("#\\d+$");
 
     record InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code,
-                      Evidence.Source source, String externalUrl, RecipeCardModel resultCard, String itemId) {
+                      Evidence.Source source, String externalUrl, RecipeCardModel resultCard, String itemId, boolean bareCitation) {
+        InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code,
+                   Evidence.Source source, String externalUrl, RecipeCardModel resultCard, String itemId) {
+            this(text, target, color, bold, code, source, externalUrl, resultCard, itemId, false);
+        }
+
         InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code,
                    Evidence.Source source, String externalUrl) {
             this(text, target, color, bold, code, source, externalUrl, null, null);
@@ -299,7 +304,7 @@ final class ScreenText {
                         InlineSpan span = spans.get(index);
                         if (span.target() == null && !span.code()) {
                             spans.set(index, new InlineSpan(span.text().replace("|", CELL_GAP), span.target(), span.color(), span.bold(), false,
-                                    span.source(), span.externalUrl(), span.resultCard(), span.itemId()));
+                                    span.source(), span.externalUrl(), span.resultCard(), span.itemId(), span.bareCitation()));
                         }
                     }
                 }
@@ -326,6 +331,34 @@ final class ScreenText {
                         spans.set(index, new InlineSpan(span.text(), span.target(), span.color(), span.bold(), span.code(),
                                 span.source(), span.externalUrl(), cards.get(span.source()), span.itemId()));
                     }
+                }
+            }
+            if (verbosity == PackSageSettings.Verbosity.NORMAL && card != null) {
+                for (int index = 0; index < spans.size(); index++) {
+                    InlineSpan span = spans.get(index);
+                    if (span.source() != null) spans.set(index, new InlineSpan(span.text(), span.target(), span.color(), span.bold(), span.code(),
+                            span.source(), span.externalUrl(), card, span.itemId(), span.bareCitation()));
+                }
+            } else if (verbosity == PackSageSettings.Verbosity.NORMAL || verbosity == PackSageSettings.Verbosity.CONCISE) {
+                for (int index = 0; index < spans.size(); index++) {
+                    InlineSpan span = spans.get(index);
+                    if (span.source() == null || span.target() != null || span.externalUrl() != null || span.resultCard() != null) continue;
+                    if (!span.bareCitation()) {
+                        spans.set(index, new InlineSpan(span.text(), null, TEXT_COLOR, span.bold(), span.code()));
+                        continue;
+                    }
+                    spans.remove(index);
+                    if (index > 0 && (index == spans.size() || spans.get(index).text().isEmpty()
+                            || Character.isWhitespace(spans.get(index).text().charAt(0))
+                            || ".,;:!?)".indexOf(spans.get(index).text().charAt(0)) >= 0)) {
+                        InlineSpan previous = spans.get(index - 1);
+                        if (previous.target() == null && previous.source() == null && previous.externalUrl() == null
+                                && previous.resultCard() == null && previous.itemId() == null) {
+                            spans.set(index - 1, new InlineSpan(previous.text().replaceFirst(" +$", ""), null,
+                                    previous.color(), previous.bold(), previous.code()));
+                        }
+                    }
+                    index--;
                 }
             }
             lines.add(new InlineLine(spans.isEmpty() ? List.of(new InlineSpan("", null, TEXT_COLOR, false, false)) : spans, quote, card));
@@ -517,7 +550,7 @@ final class ScreenText {
                                     : markerTag(reference.group(1), reference.group(2))
                                     : sourceLabels.getOrDefault(source, sourceFallbackLabel(source, reference.group(1), reference.group(2)));
                             spans.add(new InlineSpan(label, null, source == null ? DIM_COLOR : ModernUi.TEXT,
-                                    false, false, source));
+                                    false, false, source, null, null, null, true));
                         }
                     }
                     index = group.end();
@@ -540,7 +573,7 @@ final class ScreenText {
                         default -> "Source";
                     }, target, ModernUi.TEXT, false, false, source));
                     else if (source != null) spans.add(new InlineSpan(sourceLabels.getOrDefault(source,
-                            sourceFallbackLabel(source, marker.group(1), marker.group(2))), null, ModernUi.TEXT, false, false, source));
+                            sourceFallbackLabel(source, marker.group(1), marker.group(2))), null, ModernUi.TEXT, false, false, source, null, null, null, true));
                     else spans.add(new InlineSpan(sourceFallbackLabel(null, marker.group(1), marker.group(2)), null, DIM_COLOR, false, false));
                     index = marker.end();
                     continue;

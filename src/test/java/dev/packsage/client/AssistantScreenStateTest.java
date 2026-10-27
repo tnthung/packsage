@@ -1669,7 +1669,7 @@ class AssistantScreenStateTest {
         var line = ScreenText.inlineLines("[native:minecraft:glass]", List.of(), List.of(), List.of(source), java.util.Map.of(),
                 PackSageSettings.Verbosity.NORMAL, java.util.Map.of(source, model)).getFirst();
         var stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS);
-        var narrow = screen.messageLayout(List.of(line), 87, java.util.Map.of(model, card), java.util.Map.of(model, stack), java.util.Map.of());
+        var narrow = screen.messageLayout(List.of(line), 87, java.util.Map.of(model, card), java.util.Map.of(model, new dev.packsage.client.recipe.SlotStacks.ResolvedSlot(List.of(stack), false)), java.util.Map.of());
         assertSame(card, narrow.runs().getFirst().card());
         assertSame(stack, narrow.runs().getFirst().stack());
         assertEquals(18, narrow.height());

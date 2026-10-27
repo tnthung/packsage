@@ -94,6 +94,25 @@ class NativeProviderTest {
     }
 
     @Test
+    void planRecipeAnswersOnlyForNativeOrUnspecifiedProvider() throws Exception {
+        var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of(recipe("mod:free"))), Runnable::run);
+        java.util.function.Function<Evidence.JsonValue, PackSageTools.ReadRequest> request = value -> {
+            var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+            arguments.put("identity", new Evidence.JsonString("mod:free"));
+            arguments.put("quantity", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+            if (value != null) arguments.put("provider", value);
+            return new PackSageTools.ReadRequest("plan_recipe", new Evidence.JsonObject(arguments), SCOPE);
+        };
+
+        for (var value : java.util.Arrays.asList(null, new Evidence.JsonNull(), new Evidence.JsonString("native"))) {
+            assertEquals(Evidence.Outcome.COMPLETE, provider.planRecipe(request.apply(value), null).toCompletableFuture().get().outcome());
+        }
+        var thrown = assertThrows(CompletionException.class, () -> provider.planRecipe(request.apply(new Evidence.JsonString("jei")), null)
+                .toCompletableFuture().join());
+        assertEquals(Toolbox.Code.NOT_HANDLED, assertInstanceOf(Toolbox.Failure.class, thrown.getCause()).code());
+    }
+
+    @Test
     void removedInventoryHandlesRereadAsUnavailable() {
         var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of()), Runnable::run, () -> SCOPE);
 

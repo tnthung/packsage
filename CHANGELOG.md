@@ -11,6 +11,7 @@
 - Chat cards and item chips can now hand items to an external item viewer: left click shows recipes, right click shows uses, and R, U and A act on the hovered item when no text field is focused. The JEI-backed viewer comes later; nothing changes without one.
 - Recipe searches can find recipes that use a specified input item, including item tags.
 
+- Recipe plans expand mod machine steps under assumed consumption and mark them assumed: fluids and filled-container contents are listed as unexpanded needs, returned containers and reused machines are listed once as plan equipment, chance outputs never count, and a step's other outputs are listed as possible extras. `plan_recipe` accepts the same optional `provider` as `search_recipe`; native plans are unchanged.
 - World listing page details no longer mistake scan limits for the number of matches delivered or the total.
 - The model and effort pickers and chat tooltips draw above recipe card and chip items instead of under them.
 - The assistant receives the local player's name and UUID and uses that identity for first-person requests and command targets.

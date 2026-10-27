@@ -256,6 +256,11 @@ public final class NativeProvider implements KnowledgeProvider {
 
     @Override
     public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Toolbox.Context context) {
+        try {
+            providerSelected(request.arguments());
+        } catch (Toolbox.Failure failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
         var identityValue = request.arguments().values().get("identity");
         if (identityValue != null && !(identityValue instanceof Evidence.JsonNull) && !(identityValue instanceof Evidence.JsonString)) {
             return invalid("identity must be a string");

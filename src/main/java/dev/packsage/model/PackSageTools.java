@@ -245,14 +245,14 @@ public final class PackSageTools {
                 }
                 default -> throw new IllegalStateException(name);
             }
-            if (List.of("search_recipe", "search_registry").contains(name)) {
+            if (List.of("search_recipe", "search_registry", "plan_recipe").contains(name)) {
                 var provider = JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":32}").getAsJsonObject();
                 var choices = new JsonArray();
-                metadata.stream().filter(adapter -> name.equals("search_recipe") ? adapter.recipes() : !adapter.registries().isEmpty())
+                metadata.stream().filter(adapter -> name.equals("search_registry") ? !adapter.registries().isEmpty() : adapter.recipes())
                         .map(Toolbox.Metadata::id).distinct().forEach(choices::add);
                 choices.add(com.google.gson.JsonNull.INSTANCE);
                 provider.add("enum", choices);
-                properties.getAsJsonObject("filter").getAsJsonObject("properties").add("provider", provider);
+                (name.equals("plan_recipe") ? properties : properties.getAsJsonObject("filter").getAsJsonObject("properties")).add("provider", provider);
             }
             if (List.of("search_recipe", "search_registry", "list_configs", "search_config", "search_history").contains(name)) {
                 var limit = JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":64}").getAsJsonObject();

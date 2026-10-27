@@ -40,7 +40,7 @@ public final class RecipePlanner {
         if (state.routes.isEmpty()) return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, null, state.detail());
         return new Evidence.Result(state.routes, complete && !state.partial ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
                 complete && !state.partial ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, null,
-                complete && !state.partial ? null : state.detail());
+                complete && !state.partial ? state.equipment.isEmpty() ? null : state.equipmentLine() : state.detail());
     }
 
     private boolean visit(String itemIdentity, Evidence.JsonObject components, long quantity, Evidence.Scope scope,
@@ -59,8 +59,11 @@ public final class RecipePlanner {
             if (!cycle.isEmpty() && state.routes.size() < MAX_NODES) {
                 var candidate = cycle.getFirst();
                 var output = candidate.recipePayload().outputs().stream().filter(value -> itemIdentity.equals(value.comparisonIdentity())).findFirst().orElse(null);
-                state.routes.add(planned(candidate, quantity, output == null ? null : output.quantity(), output == null || output.quantity() == null
-                        || sharedBatch(candidate) ? null : batches(quantity, output.quantity()), "bounded-depth"));
+                var rules = MachineRules.of(candidate);
+                var chance = output == null ? null : rules.chanceReason(candidate, output);
+                if (chance != null) state.reasons.add(chance);
+                state.routes.add(route(candidate, rules, output, quantity, output == null || output.quantity() == null
+                        || sharedBatch(candidate) || chance != null ? null : batches(quantity, output.quantity()), "bounded-depth", state));
             } else if (!cycle.isEmpty()) state.reasons.add("node-cap=" + MAX_NODES);
             return false;
         }
@@ -90,14 +93,21 @@ public final class RecipePlanner {
             branchCount++;
             var output = candidate.recipePayload().outputs().stream().filter(value -> itemIdentity.equals(value.comparisonIdentity())
                     && (components.values().isEmpty() || components.equals(value.components()))).findFirst().orElse(null);
-            var batches = output == null || output.quantity() == null || sharedBatch(candidate) ? null : batches(quantity, output.quantity());
+            var rules = MachineRules.of(candidate);
+            var chance = output == null ? null : rules.chanceReason(candidate, output);
+            var batches = output == null || output.quantity() == null || sharedBatch(candidate) || chance != null ? null : batches(quantity, output.quantity());
             boolean candidateComplete = output != null && batches != null
                     && candidate.source().coverage() == Evidence.Coverage.COMPLETE;
             if (output == null) state.reasons.add("unknown-output:" + candidate.source().sourceHandle());
             else if (output.quantity() == null || output.quantity() < 1) state.reasons.add("unknown-output-quantity:" + candidate.source().sourceHandle());
             if (sharedBatch(candidate)) state.reasons.add("operation-count-unknown:" + candidate.source().sourceHandle());
+            else if (chance != null) state.reasons.add(chance);
             else if (batches == null && output != null && output.quantity() != null && output.quantity() > 0)
                 state.reasons.add("batch-count-overflow:" + candidate.source().sourceHandle());
+            if (rules.assumed) {
+                candidateComplete = false;
+                state.reasons.add("assumed-consumption:" + candidate.source().sourceHandle());
+            }
             if (candidate.source().coverage() != Evidence.Coverage.COMPLETE)
                 state.reasons.add("source-coverage=" + candidate.source().coverage() + ":" + candidate.source().sourceHandle());
             for (String constraint : candidate.recipePayload().constraints()) {
@@ -108,8 +118,13 @@ public final class RecipePlanner {
             }
             if (candidate.recipePayload().decodingStatus() != Evidence.DecodingStatus.VERIFIED)
                 state.reasons.add("decoding-status=" + candidate.recipePayload().decodingStatus() + ":" + candidate.source().sourceHandle());
-            Evidence.Record planned = planned(candidate, quantity, output == null ? null : output.quantity(), batches, depth <= 0 ? "bounded-depth" : null);
-            state.routes.add(planned);
+            state.routes.add(route(candidate, rules, output, quantity, batches, depth <= 0 ? "bounded-depth" : null, state));
+            if (chance != null) {
+                // A chance output cannot be planned for, so its inputs are not expanded.
+                anyIncomplete = true;
+                state.partial = true;
+                continue;
+            }
             if (depth <= 0) {
                 anyIncomplete = true;
                 state.partial = true;
@@ -126,6 +141,7 @@ public final class RecipePlanner {
                     state.reasons.add("empty-input-slot:" + candidate.source().sourceHandle() + ":" + slot.groupId());
                 } else if (slot.alternatives().size() == 1) {
                     var alternative = slot.alternatives().getFirst();
+                    if (batches != null && rules.unexpanded(alternative)) continue;
                     if (alternative.consumption() != Evidence.Consumption.CONSUMED || alternative.quantity() == null
                             || batches == null || !alternative.type().equals("item")) {
                         candidateComplete = false;
@@ -164,7 +180,10 @@ public final class RecipePlanner {
                             break;
                         }
                         state.branches++;
-                        if (alternative.consumption() != Evidence.Consumption.CONSUMED || alternative.quantity() == null
+                        if (groupedBatches != null && rules.unexpanded(alternative)) {
+                            // Listed by route() as an unexpanded choice; it satisfies the slot without a refill route.
+                            alternativeComplete = true;
+                        } else if (alternative.consumption() != Evidence.Consumption.CONSUMED || alternative.quantity() == null
                                 || groupedBatches == null || !alternative.type().equals("item")) {
                             alternativeIncomplete = true;
                             state.partial = true;
@@ -187,7 +206,7 @@ public final class RecipePlanner {
                 if (!visit(requirement.getKey().identity(), requirement.getKey().components(), requirement.getValue(), scope,
                         depth - 1, visiting, state)) candidateComplete = false;
             }
-            if (!candidate.recipePayload().catalysts().isEmpty()) {
+            if (!candidate.recipePayload().catalysts().isEmpty() && !rules.reusedCatalysts(candidate)) {
                 candidateComplete = false;
                 state.partial = true;
                 state.reasons.add("catalysts-present:" + candidate.source().sourceHandle());
@@ -203,8 +222,64 @@ public final class RecipePlanner {
         return anyComplete && !anyIncomplete;
     }
 
-    private static Evidence.Record planned(Evidence.Record record, long requestedQuantity, Integer outputQuantity, Long batches, String bound) {
+    /** Plans one route, adding the mod machine fields and plan equipment only for records that carry the machine constraints. */
+    private static Evidence.Record route(Evidence.Record candidate, MachineRules rules, Evidence.RecipeOutput output, long quantity, Long batches,
+                                         String bound, PlanState state) {
+        if (!rules.extended) return planned(candidate, quantity, output == null ? null : output.quantity(), batches, bound, Map.of());
+        var needs = new LinkedHashMap<List<String>, Long>();
+        if (batches != null) {
+            var processedAlternativeSets = new HashSet<List<Evidence.RecipeAlternative>>();
+            for (Evidence.RecipeSlot slot : candidate.recipePayload().inputs()) {
+                boolean single = slot.alternatives().size() == 1;
+                // Alternatives are choices: one entry per alternative, tied by oneOf to the first slot of that alternative set,
+                // at the quantity for every slot sharing the set, as the alternative branch in visit() groups them.
+                if (!single && !processedAlternativeSets.add(slot.alternatives())) continue;
+                var multiplier = single ? Long.valueOf(batches) : multiply(batches, candidate.recipePayload().inputs().stream()
+                        .filter(other -> other.alternatives().equals(slot.alternatives())).count());
+                for (int index = 0; index < slot.alternatives().size(); index++) {
+                    var alternative = slot.alternatives().get(index);
+                    if (!rules.unexpanded(alternative)) continue;
+                    // Required needs aggregate by identity; each choice keeps its own entry, even when it repeats an identity.
+                    var key = List.of(alternative.type().equals("fluid") ? "fluid" : "contents", alternative.comparisonIdentity(),
+                            single ? "" : slot.groupId(), single ? "" : Integer.toString(index));
+                    var amount = multiplier == null ? null : multiply(alternative.quantity(), multiplier);
+                    var total = amount == null ? null : needs.containsKey(key) ? needs.get(key) == null ? null : add(needs.get(key), amount) : amount;
+                    if (total == null) {
+                        state.partial = true;
+                        state.reasons.add("input-quantity-overflow:" + candidate.source().sourceHandle() + ":" + slot.groupId());
+                    }
+                    needs.put(key, total);
+                    if (key.getFirst().equals("contents")) state.equipment.add(rules.containers.get(alternative.comparisonIdentity()));
+                }
+            }
+        }
+        if (batches != null && rules.reusedCatalysts(candidate)) candidate.recipePayload().catalysts().forEach(catalyst -> state.equipment.add(catalyst.comparisonIdentity()));
+        var values = new LinkedHashMap<String, Evidence.JsonValue>();
+        values.put("unexpandedNeeds", new Evidence.JsonArray(needs.entrySet().stream().map(need -> {
+            var fields = new LinkedHashMap<String, Evidence.JsonValue>();
+            fields.put("type", new Evidence.JsonString(need.getKey().get(0)));
+            fields.put("identity", new Evidence.JsonString(need.getKey().get(1)));
+            fields.put("quantity", need.getValue() == null ? new Evidence.JsonNull() : new Evidence.JsonNumber(BigDecimal.valueOf(need.getValue())));
+            if (!need.getKey().get(2).isEmpty()) fields.put("oneOf", new Evidence.JsonString(need.getKey().get(2)));
+            return (Evidence.JsonValue) new Evidence.JsonObject(fields);
+        }).toList()));
+        var counted = batches == null ? null : output;
+        values.put("possibleExtras", new Evidence.JsonArray(candidate.recipePayload().outputs().stream().filter(value -> value != counted).map(value -> {
+            var fields = new LinkedHashMap<String, Evidence.JsonValue>();
+            fields.put("type", new Evidence.JsonString(value.type()));
+            fields.put("comparisonIdentity", new Evidence.JsonString(value.comparisonIdentity()));
+            fields.put("components", value.components());
+            fields.put("quantity", value.quantity() == null ? new Evidence.JsonNull() : new Evidence.JsonNumber(BigDecimal.valueOf(value.quantity())));
+            return (Evidence.JsonValue) new Evidence.JsonObject(fields);
+        }).toList()));
+        if (rules.assumed) values.put("assumed", new Evidence.JsonBoolean(true));
+        return planned(candidate, quantity, output == null ? null : output.quantity(), batches, bound, values);
+    }
+
+    private static Evidence.Record planned(Evidence.Record record, long requestedQuantity, Integer outputQuantity, Long batches, String bound,
+                                           Map<String, Evidence.JsonValue> machine) {
         var payload = new LinkedHashMap<>(record.payload().values());
+        payload.putAll(machine);
         payload.put("requestedQuantity", new Evidence.JsonNumber(BigDecimal.valueOf(requestedQuantity)));
         payload.put("batches", batches == null ? new Evidence.JsonNull() : new Evidence.JsonNumber(BigDecimal.valueOf(batches)));
         if (sharedBatch(record)) {
@@ -246,6 +321,55 @@ public final class RecipePlanner {
     private record RequirementKey(String type, String identity, Evidence.JsonObject components) {
     }
 
+    /** Planning conventions a mod machine record declares through its constraints; native records declare none. */
+    private record MachineRules(boolean assumed, boolean extended, Map<String, String> containers, Set<String> chanceGroups) {
+        static MachineRules of(Evidence.Record record) {
+            var payload = record.recipePayload();
+            boolean assumed = false;
+            boolean guaranteed = false;
+            var containers = new LinkedHashMap<String, String>();
+            var chanceGroups = new HashSet<String>();
+            for (String constraint : payload.constraints()) {
+                if (constraint.equals("consumption=assumed")) assumed = true;
+                else if (constraint.equals("output=assumed-guaranteed")) guaranteed = true;
+                else if (constraint.startsWith("container-returned=")) {
+                    var value = constraint.substring("container-returned=".length());
+                    int separator = value.indexOf('>');
+                    if (separator > 0 && separator < value.length() - 1) containers.put(value.substring(0, separator), value.substring(separator + 1));
+                } else if (constraint.startsWith("chance:") && constraint.indexOf('=') > "chance:".length()) {
+                    chanceGroups.add(constraint.substring("chance:".length(), constraint.indexOf('=')));
+                }
+            }
+            boolean fluid = payload.inputs().stream().flatMap(slot -> slot.alternatives().stream()).anyMatch(value -> value.type().equals("fluid"));
+            return new MachineRules(assumed, assumed || guaranteed || fluid || !containers.isEmpty() || !chanceGroups.isEmpty(), containers, chanceGroups);
+        }
+
+        /** A consumed fluid or container contents, listed as a need rather than expanded into routes. */
+        boolean unexpanded(Evidence.RecipeAlternative alternative) {
+            return alternative.consumption() == Evidence.Consumption.CONSUMED && alternative.quantity() != null
+                    && (alternative.type().equals("fluid") || alternative.type().equals("item") && containers.containsKey(alternative.comparisonIdentity()));
+        }
+
+        boolean reusedCatalysts(Evidence.Record record) {
+            var catalysts = record.recipePayload().catalysts();
+            return assumed && !catalysts.isEmpty() && catalysts.stream().allMatch(value -> value.consumption() == Evidence.Consumption.REUSED);
+        }
+
+        /** Null when the planned output counts; otherwise why it cannot. The output's group comes from the payload JSON outputs[i].groupId. */
+        String chanceReason(Evidence.Record record, Evidence.RecipeOutput output) {
+            if (chanceGroups.isEmpty()) return null;
+            int index = -1;
+            for (int i = 0; i < record.recipePayload().outputs().size(); i++) if (record.recipePayload().outputs().get(i) == output) index = i;
+            String group = null;
+            if (index >= 0 && record.payload().values().get("outputs") instanceof Evidence.JsonArray outputs && index < outputs.values().size()
+                    && outputs.values().get(index) instanceof Evidence.JsonObject value && value.values().get("groupId") instanceof Evidence.JsonString id) {
+                group = id.value();
+            }
+            if (group == null) return "chance-output-group-unknown:" + record.source().sourceHandle();
+            return chanceGroups.contains(group) ? "chance-output:" + record.source().sourceHandle() : null;
+        }
+    }
+
     private static final class PlanState {
         private final List<Evidence.Record> routes = new ArrayList<>();
         private final Set<String> reasons = new LinkedHashSet<>();
@@ -256,11 +380,18 @@ public final class RecipePlanner {
         private final Set<String> omittedNoRecipeLeaves = new HashSet<>();
         // Bounded by the planner's node cap.
         private final Set<String> omittedUncheckedLeaves = new HashSet<>();
+        // Reused machines and returned containers, needed once for the whole plan.
+        private final Set<String> equipment = new LinkedHashSet<>();
         private boolean partial;
+
+        private String equipmentLine() {
+            return "equipment=" + List.copyOf(equipment);
+        }
 
         private String detail() {
             var detail = new ArrayList<>(reasons.stream().limit(16).toList());
             if (reasons.size() > 16) detail.add("reason-cap=16; omitted=" + (reasons.size() - 16));
+            if (!equipment.isEmpty()) detail.add(equipmentLine());
             if (!noRecipeLeaves.isEmpty()) detail.add("materials with no recipe here, obtained rather than crafted=" + noRecipeLeaves.stream().limit(16).toList());
             if (!uncheckedLeaves.isEmpty()) detail.add("materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them="
                     + uncheckedLeaves);

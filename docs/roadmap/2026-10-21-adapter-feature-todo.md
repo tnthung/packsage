@@ -12,7 +12,7 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 
 ### Recipe cards and inline chips (v2)
 
-- [ ] Minecraft — all eleven native recipe layouts pass JEI comparison; prompt candidate 18 passes all nine questions before promotion and on the installed default. The follow-up installed build passes JEI loading/R, compact 12-pixel chips, hover, beacon/glass cards, verbosity source visibility, retained links/legacy sources, and Normal-result/Detailed-source narrow fallbacks. Remaining: scroll dismissal, a trailing blank row after hiding a standalone source paragraph, the earlier exposed file-access exception, cold and one warm timing exception, sustained Shift/pinned-panel checks and missing/custom ingredient tooltips. The later e9ea9e4f icon-inset change remains outside this installed acceptance. See the [acceptance record](../validation/2026-10-27-recipe-cards.md).
+- [ ] Minecraft — all eleven native recipe layouts pass JEI comparison; prompt candidate 18 passes all nine questions before promotion and on the installed default. The follow-up installed build passes JEI loading/R, compact 12-pixel chips, hover, beacon/glass cards, verbosity source visibility, retained links/legacy sources, and Normal-result/Detailed-source narrow fallbacks. The follow-up fixes are installed, and the player confirmed the final build works as intended. Still open: live evidence for missing and custom ingredient tooltips, and cold-opening timing exceptions. See the [acceptance record](../validation/2026-10-27-recipe-cards.md).
 
 ### Journal recording and search (v2)
 

@@ -213,3 +213,21 @@ UI-2 was not observed in these eleven saved completions. Missing/custom ingredie
 ### Final state
 
 Minecraft is left running in **PackSage Adapter Filter Live Test**, with chat and settings closed, Answer detail **Normal**, the original 1024 by 768 client size restored, and the developer override still null. [Normal selected](assets/2026-10-27-recipe-cards/recheck-final-settings-normal.png), [world with chat closed](assets/2026-10-27-recipe-cards/recheck-final-world.png). The installed PackSage hash is unchanged and JEI remains installed. No push or merge was performed.
+
+## Player confirmation on the final installed build
+
+After the follow-up fixes, the installed build (`017dd4ba`, packsage.jar SHA-256 starting `94E116536E2C`) contains:
+
+- **Read state:** the completion read-state retry; the message it shows no longer contains file paths (`03f2ee6e`).
+- **Chip icons:** the 10 px chip icon inset (`e9ea9e4f`).
+- **Blank row:** hiding a source-only paragraph no longer leaves an empty row (`0e230028`).
+- **Answer layout:** answers are drawn without a bubble and keep their sent time; result chips use the standard chip border (`017dd4ba`).
+
+The player used this build in game and reported that everything works as intended.
+
+**UI-1 ruling.** The hovered preview staying visible after a wheel step in a chat too short to scroll is intended behavior. The content did not move and the pointer stayed on the chip, so the chip was still hovered. Pinned panels close on scroll.
+
+**Still open:**
+
+- **Missing and custom ingredient tooltips.** These have no live evidence; only unit tests cover them.
+- **Cold-opening timings.** Cold openings remain recorded exceptions to the warm 11–50 ms target.

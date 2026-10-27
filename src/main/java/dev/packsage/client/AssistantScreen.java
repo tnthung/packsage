@@ -1242,7 +1242,7 @@ public final class AssistantScreen extends Screen {
                               int tooltipWidth, int labelWidth, int scrollTrackHeight, int scrollThumbHeight,
                               int scrollThumbOffset) { }
 
-    private static final List<Map.Entry<String, String>> ADAPTERS = List.of(Map.entry("native", "Minecraft"),
+    private static final List<Map.Entry<String, String>> ADAPTERS = List.of(Map.entry("native", "Minecraft"), Map.entry("jei", "JEI"),
             Map.entry("config", "NeoForge configs"), Map.entry("world", "World"), Map.entry("progress", "Progress"), Map.entry("journal", "Journal"), Map.entry("history", "Chat history"));
 
     static AdapterTooltipRows adapterTooltipRows(Font font, Map<String, Boolean> availability, boolean hideInactive,

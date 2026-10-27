@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- The adapter list shows JEI with its availability.
 - Card and chip clicks and the R, U and A keys do nothing in a read-only chat from another world, so it cannot open JEI or change bookmarks in the current world.
 - Recipe plans no longer list every container of alternative inputs as needed equipment; a container that depends on the chosen alternative is named on that choice's need instead.
 - Plan needs that the planner does not expand keep fluid and container contents with different components, such as different potion fluids, apart and list their components.

@@ -255,7 +255,7 @@ public final class JeiProvider implements KnowledgeProvider {
                 return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI recipe unavailable");
             if (!scope.equals(currentScope.get()))
                 return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "JEI scope changed");
-            return new JeiViewer(runtime.get().getRecipesGui(), runtimeIndex::resolve).showRecipe(ref.get())
+            return new JeiViewer(runtime.get().getRecipesGui(), runtimeIndex::resolveVisible).showRecipe(ref.get())
                     ? new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null)
                     : new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI recipe unavailable");
         } catch (RuntimeException failure) {

@@ -35,9 +35,12 @@ class JeiSupportTest {
     }
 
     @Test
-    void availableRecipeProviderLoadsWhenBookmarkProviderIsMissing() {
-        var support = new JeiSupport(id -> Optional.of("19.64.0.454"));
-        assertEquals(java.util.List.of("jei"), support.providers(null, Runnable::run, () -> null).stream()
+    void bookmarkProviderLoadsOnlyOnBookmarkCapableJei() {
+        var current = new JeiSupport(id -> Optional.of("19.64.0.454"));
+        assertEquals(java.util.List.of("jei", "jei_bookmarks"), current.providers(null, Runnable::run, () -> null).stream()
+                .map(provider -> provider.id()).toList());
+        var older = new JeiSupport(id -> Optional.of("19.27.0.340"));
+        assertEquals(java.util.List.of("jei"), older.providers(null, Runnable::run, () -> null).stream()
                 .map(provider -> provider.id()).toList());
     }
 }

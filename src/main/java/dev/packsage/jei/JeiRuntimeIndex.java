@@ -37,7 +37,6 @@ public final class JeiRuntimeIndex implements JeiIndex {
     private final long createdGeneration;
     private long generation;
     private record CategoryRecipes(List<?> recipes, IdentityHashMap<Object, Integer> ordinals) { }
-    record Resolved(IRecipeCategory<?> category, Object recipe) { }
     private boolean truncated;
 
     public JeiRuntimeIndex(IJeiRuntime runtime) {
@@ -192,7 +191,8 @@ public final class JeiRuntimeIndex implements JeiIndex {
         return Optional.of(new RecipeRef(uid, recipes.size() - 1));
     }
 
-    Optional<Resolved> resolve(RecipeRef ref) {
+    /** Like resolve, but only for recipes JEI currently shows, so navigation never opens a hidden recipe. */
+    Optional<Resolved<?>> resolveVisible(RecipeRef ref) {
         generation();
         var category = runtime.getRecipeManager().createRecipeCategoryLookup().get()
                 .filter(value -> value.getRecipeType().getUid().toString().equals(ref.categoryUid())).findFirst().orElse(null);
@@ -202,13 +202,13 @@ public final class JeiRuntimeIndex implements JeiIndex {
         var recipe = recipes.get(ref.ordinal());
         if (runtime.getRecipeManager().createRecipeLookup(category.getRecipeType()).get().noneMatch(value -> value == recipe))
             return Optional.empty();
-        return Optional.of(new Resolved(category, recipe));
+        return Optional.of(resolve(category, ref));
     }
 
-    record Resolved<T>(IRecipeCategory<T> category, T recipe) { }
+    public record Resolved<T>(IRecipeCategory<T> category, T recipe) { }
 
     /** The category and recipe object behind a reference, or empty when the reference is no longer valid. */
-    Optional<Resolved<?>> resolve(RecipeRef ref) {
+    public Optional<Resolved<?>> resolve(RecipeRef ref) {
         generation();
         return runtime.getRecipeManager().createRecipeCategoryLookup().includeHidden().get()
                 .filter(value -> value.getRecipeType().getUid().toString().equals(ref.categoryUid())).findFirst()

@@ -171,7 +171,7 @@ class JeiNavigationTest {
                 });
         var ref = new JeiIndex.RecipeRef("mod:machine", 3);
         var viewer = new JeiViewer(gui, value -> value.equals(ref)
-                ? Optional.of(new JeiRuntimeIndex.Resolved(category, recipe)) : Optional.empty());
+                ? Optional.<JeiRuntimeIndex.Resolved<?>>of(new JeiRuntimeIndex.Resolved<>(category, recipe)) : Optional.empty());
 
         assertFalse(viewer.showRecipe(new JeiIndex.RecipeRef("mod:machine", 0)));
         assertNull(shown.get());

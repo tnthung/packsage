@@ -9,4 +9,9 @@ public interface RecipeCardSource {
     default Optional<RecipeCard> card(RecipeCardModel model, int maxWidth) {
         return card(model);
     }
+
+    /** Changes whenever cards made earlier may be stale or a new card could differ; prepared cards are rebuilt then. */
+    default long generation() {
+        return 0;
+    }
 }

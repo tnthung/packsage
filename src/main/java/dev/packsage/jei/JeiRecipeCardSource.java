@@ -1,5 +1,6 @@
 package dev.packsage.jei;
 
+import dev.packsage.PackSageLog;
 import dev.packsage.client.ModernUi;
 import dev.packsage.client.recipe.RecipeCard;
 import dev.packsage.client.recipe.RecipeCardModel;
@@ -7,6 +8,8 @@ import dev.packsage.client.recipe.RecipeCardSource;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.Minecraft;
@@ -27,9 +30,21 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
         @Override protected boolean removeEldestEntry(Map.Entry<Key, V> eldest) { return size() > CACHE_SIZE; }
     }
 
+    static final int REPORT_LIMIT = 32;
+    private static final Set<String> REPORTED = ConcurrentHashMap.newKeySet();
+
     private final Cache<Optional<Layout>> cache = new Cache<>();
+    private final Set<String> reported;
     private JeiRuntimeIndex index;
     private long indexGeneration;
+
+    public JeiRecipeCardSource() {
+        this(REPORTED);
+    }
+
+    JeiRecipeCardSource(Set<String> reported) {
+        this.reported = reported;
+    }
 
     @Override
     public Optional<RecipeCard> card(RecipeCardModel model) {
@@ -38,31 +53,46 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
 
     @Override
     public Optional<RecipeCard> card(RecipeCardModel model, int maxWidth) {
+        var runtime = JeiRuntimeHolder.current();
+        var handle = handle(model);
+        if (runtime.isEmpty() || handle == null) return Optional.empty();
+        long generation = JeiRuntimeHolder.generation();
+        var key = new Key(handle, generation);
+        Optional<Layout> layout;
         try {
-            var runtime = JeiRuntimeHolder.current();
-            if (runtime.isEmpty()) return Optional.empty();
-            long generation = JeiRuntimeHolder.generation();
             if (index == null || indexGeneration != generation) {
                 index = new JeiRuntimeIndex(runtime.get());
                 indexGeneration = generation;
                 cache.clear();
             }
-            var handle = handle(model);
-            if (handle == null) return Optional.empty();
-            var key = new Key(handle, generation);
-            var layout = cache.get(key);
+            layout = cache.get(key);
             if (layout == null) {
                 var resolved = ref(index, model).flatMap(index::resolve);
                 layout = resolved.flatMap(value -> drawable(runtime.get(), value)).map(Layout::new);
                 cache.put(key, layout);
             }
-            if (layout.isEmpty()) return Optional.empty();
-            double scale = scale(layout.get().width, maxWidth);
-            if (scale == 0) return Optional.empty();
-            return Optional.of(new JeiCard(layout.get(), model.caption(), scale));
         } catch (RuntimeException | LinkageError failure) {
+            // Missing recipes return empty above; anything thrown is a broken category or API, so fall back and say so once.
+            cache.put(key, Optional.empty());
+            var category = JeiProjection.parseHandle(handle).map(JeiProjection.Handle::categoryUid).orElse(handle);
+            if (reported.size() < REPORT_LIMIT && reported.add(category))
+                PackSageLog.LOGGER.warn("Could not draw JEI recipe card for category {} (recipe {}); using the fallback", category, handle, failure);
             return Optional.empty();
         }
+        if (layout.isEmpty()) return Optional.empty();
+        double scale = scale(layout.get().width, maxWidth);
+        if (scale == 0) return Optional.empty();
+        return Optional.of(new JeiCard(layout.get(), model.caption(), scale, generation));
+    }
+
+    /** The JEI runtime generation: cards made under another generation no longer draw. */
+    @Override
+    public long generation() {
+        return JeiRuntimeHolder.generation();
+    }
+
+    Set<String> reportedCategories() {
+        return reported;
     }
 
     /** The JEI reference for a model: viewer handles directly, native models through their vanilla category. */
@@ -110,7 +140,7 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
     }
 
     /** A JEI layout positioned so its border starts at the local origin; shared by every card of the same recipe. */
-    private static final class Layout {
+    static final class Layout {
         final IRecipeLayoutDrawable<?> drawable;
         final int offsetX;
         final int offsetY;
@@ -119,15 +149,19 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
         long lastTick = System.currentTimeMillis();
 
         Layout(IRecipeLayoutDrawable<?> drawable) {
-            this.drawable = drawable;
-            var rect = drawable.getRect();
-            var border = drawable.getRectWithBorder();
             // The border JEI draws around getRect() belongs to the card, matching the native card's padding.
-            offsetX = rect.getX() - border.getX();
-            offsetY = rect.getY() - border.getY();
-            width = border.getWidth();
-            height = border.getHeight();
+            this(drawable, drawable.getRect().getX() - drawable.getRectWithBorder().getX(),
+                    drawable.getRect().getY() - drawable.getRectWithBorder().getY(),
+                    drawable.getRectWithBorder().getWidth(), drawable.getRectWithBorder().getHeight());
             drawable.setPosition(offsetX, offsetY);
+        }
+
+        Layout(IRecipeLayoutDrawable<?> drawable, int offsetX, int offsetY, int width, int height) {
+            this.drawable = drawable;
+            this.offsetX = offsetX;
+            this.offsetY = offsetY;
+            this.width = width;
+            this.height = height;
         }
 
         void tick() {
@@ -142,22 +176,33 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
         private final Layout layout;
         private final Component caption;
         private final double scale;
+        private final long generation;
         private final int areaWidth;
         private final int areaHeight;
 
-        private JeiCard(Layout layout, String caption, double scale) {
+        JeiCard(Layout layout, String caption, double scale, long generation) {
             this.layout = layout;
             this.caption = Component.literal(caption).withStyle(style -> style.withFont(ModernUi.FONT));
             this.scale = scale;
+            this.generation = generation;
             this.areaWidth = (int) Math.floor(layout.width * scale);
             this.areaHeight = (int) Math.floor(layout.height * scale);
+        }
+
+        /** Whether the JEI runtime that built this card's layout is still the current one; any availability change advances it. */
+        boolean current() {
+            return JeiRuntimeHolder.generation() == generation;
         }
 
         @Override public int width() { return areaWidth; }
         @Override public int height() { return areaHeight + 4 + Minecraft.getInstance().font.lineHeight; }
 
+        // drawHoverOverlays is deprecated in later JEI versions, but it is the 19.27 way to draw only the slot highlight.
+        @SuppressWarnings("removal")
         @Override
         public void draw(GuiGraphics graphics, int x, int y, int mouseX, int mouseY) {
+            // A stale layout belongs to a replaced runtime; the screen rebuilds its cards on the generation change.
+            if (!current()) return;
             layout.tick();
             var drawable = layout.drawable;
             boolean inside = inside(x, y, mouseX, mouseY);
@@ -189,7 +234,7 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
 
         @Override
         public ItemStack itemAt(int x, int y, double mouseX, double mouseY) {
-            if (!inside(x, y, mouseX, mouseY)) return ItemStack.EMPTY;
+            if (!current() || !inside(x, y, mouseX, mouseY)) return ItemStack.EMPTY;
             layout.drawable.setPosition(layout.offsetX, layout.offsetY);
             return layout.drawable.getItemStackUnderMouse(local(mouseX, x), local(mouseY, y)).orElse(ItemStack.EMPTY);
         }

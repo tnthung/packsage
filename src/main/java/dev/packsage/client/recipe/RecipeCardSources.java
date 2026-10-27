@@ -25,6 +25,13 @@ public final class RecipeCardSources {
                 }
                 return Optional.empty();
             }
+
+            @Override
+            public long generation() {
+                long generation = 0;
+                for (var source : ordered) generation = generation * 31 + source.generation();
+                return generation;
+            }
         };
     }
 

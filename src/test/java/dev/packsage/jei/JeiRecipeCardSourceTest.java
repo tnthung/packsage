@@ -45,6 +45,45 @@ class JeiRecipeCardSourceTest {
         assertEquals(0, JeiRecipeCardSource.scale(200, 149));
     }
 
+    private static <T> T proxy(Class<T> type, java.lang.reflect.InvocationHandler handler) {
+        return type.cast(java.lang.reflect.Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, handler));
+    }
+
+    @Test void cardsFromAnotherRuntimeGenerationStopDrawing() {
+        // A null drawable proves a stale card never touches its layout.
+        var card = new JeiRecipeCardSource.JeiCard(new JeiRecipeCardSource.Layout(null, 4, 4, 108, 58), "Mixing", 1.0, JeiRuntimeHolder.generation());
+        assertTrue(card.current());
+        JeiRuntimeHolder.unavailable();
+        assertFalse(card.current());
+        card.draw(null, 0, 0, 10, 10);
+        assertTrue(card.itemAt(0, 0, 10, 10).isEmpty());
+        assertTrue(card.hoverAt(0, 0, 10, 10).isEmpty());
+        assertEquals(108, card.width());
+    }
+
+    @Test void unexpectedFailuresAreReportedOncePerCategory() {
+        var runtime = proxy(mezz.jei.api.runtime.IJeiRuntime.class, (self, method, args) -> { throw new IllegalStateException("broken"); });
+        try {
+            JeiRuntimeHolder.available(runtime);
+            var source = new JeiRecipeCardSource(new java.util.HashSet<>());
+            assertTrue(source.card(model(RecipeCardModel.Category.VIEWER, null, "create:mixing|create:mixing/brass")).isEmpty());
+            assertTrue(source.card(model(RecipeCardModel.Category.VIEWER, null, "create:mixing|create:mixing/bronze")).isEmpty());
+            assertTrue(source.card(model(RecipeCardModel.Category.SMELTING, "minecraft:glass", null)).isEmpty());
+            assertEquals(java.util.Set.of("create:mixing", "minecraft:smelting"), source.reportedCategories());
+            for (int i = 0; i < 100; i++) source.card(model(RecipeCardModel.Category.VIEWER, null, "mod:c" + i + "|mod:r"));
+            assertEquals(JeiRecipeCardSource.REPORT_LIMIT, source.reportedCategories().size());
+        } finally {
+            JeiRuntimeHolder.unavailable();
+        }
+    }
+
+    @Test void absentRuntimeIsSilent() {
+        JeiRuntimeHolder.unavailable();
+        var source = new JeiRecipeCardSource(new java.util.HashSet<>());
+        assertTrue(source.card(model(RecipeCardModel.Category.VIEWER, null, "create:mixing|create:mixing/brass")).isEmpty());
+        assertTrue(source.reportedCategories().isEmpty());
+    }
+
     @Test void cacheIsBoundedAndKeyedByGeneration() {
         var cache = new JeiRecipeCardSource.Cache<String>();
         for (int i = 0; i < 65; i++) cache.put(new JeiRecipeCardSource.Key("h" + i, 1), "v" + i);

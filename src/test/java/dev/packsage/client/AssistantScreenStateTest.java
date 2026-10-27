@@ -1691,6 +1691,54 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void viewerModelWithoutCardKeepsCaptionAndResultChip() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var model = new dev.packsage.client.recipe.RecipeCardModel(dev.packsage.client.recipe.RecipeCardModel.Category.VIEWER, 0, 0, List.of(
+                new dev.packsage.client.recipe.RecipeCardModel.Slot("slot-1", 0, 0, true, List.of(
+                        new dev.packsage.client.recipe.RecipeCardModel.Stack(dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.ITEM,
+                                "minecraft:glass", "{}", 1, "")))), "Mixing", List.of(), 0, null, "create:mixing|create:mixing/glass");
+        var result = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false,
+                SOURCE, null, model, null)), false, model);
+        var layout = screen.messageLayout(List.of(result), 300, java.util.Map.of(),
+                java.util.Map.of(model, new dev.packsage.client.recipe.SlotStacks.ResolvedSlot(
+                        List.of(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)), false)), java.util.Map.of());
+        var run = layout.runs().getFirst();
+        assertTrue(run.stack().is(net.minecraft.world.item.Items.GLASS));
+        assertEquals("Glass · Mixing", run.span().text());
+        assertNull(run.card());
+    }
+
+    @Test
+    void preparedTurnsFollowTheCardSourceGeneration() throws Exception {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var font = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        font.setAccessible(true);
+        font.set(screen, new ScreenPreparationFont());
+        long[] generation = { 1 };
+        screen.setRecipeCardSource(new dev.packsage.client.recipe.RecipeCardSource() {
+            @Override public java.util.Optional<dev.packsage.client.recipe.RecipeCard> card(dev.packsage.client.recipe.RecipeCardModel model) {
+                return java.util.Optional.empty();
+            }
+            @Override public long generation() { return generation[0]; }
+        });
+        var turn = screen.view().conversation().turns().getFirst();
+        var prepare = AssistantScreen.class.getDeclaredMethod("prepareTurn", ChatContracts.Turn.class);
+        prepare.setAccessible(true);
+        var first = prepare.invoke(screen, turn);
+        assertSame(first, prepare.invoke(screen, turn));
+        generation[0] = 2;
+        var second = prepare.invoke(screen, turn);
+        assertFalse(first == second);
+        assertSame(second, prepare.invoke(screen, turn));
+    }
+
+    @Test
     void cardWiderThanBubbleFallsBackToSourceChip() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 640;

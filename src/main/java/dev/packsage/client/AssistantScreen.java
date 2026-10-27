@@ -885,8 +885,10 @@ public final class AssistantScreen extends Screen {
         int width = Math.max(1, Math.max(1, Math.min(360, readableWidth - 26)) - 20);
         // Answers are not bubbled: they use the full readable width beside the avatar; the cache key follows it.
         int answerWidth = Math.max(1, readableWidth - 26);
+        // A card source change (such as JEI becoming ready, unavailable or reloaded) rebuilds cards.
+        long cardGeneration = recipeCardSource.generation();
         PreparedTurn cached = preparedTurns.get(turn.requestId());
-        if (cached != null && cached.turn() == turn && cached.width() == answerWidth) return cached;
+        if (cached != null && cached.turn() == turn && cached.width() == answerWidth && cached.cardGeneration() == cardGeneration) return cached;
         userLines(turn.question(), width);
         List<Evidence.NavigationTarget> targets = turnTargets(turn);
         Map<MessageSegment, MessageLayout> answers = new HashMap<>();
@@ -903,9 +905,11 @@ public final class AssistantScreen extends Screen {
             copy = new StringBuilder();
             if (!models.isEmpty()) {
                 for (var model : new HashSet<>(models.values())) {
-                    var card = recipeCardSource.card(model, answerWidth).orElse(null);
-                    if (card == null) continue;
-                    cards.put(model, card);
+                    // A card too wide for the column still opens in the pinned panel behind its result chip.
+                    var card = recipeCardSource.card(model, answerWidth).or(() -> recipeCardSource.card(model)).orElse(null);
+                    if (card != null) cards.put(model, card);
+                    // Viewer models keep their recorded result chip even when no card can be drawn.
+                    if (card == null && model.category() != RecipeCardModel.Category.VIEWER) continue;
                     if (turn.verbosity() != PackSageSettings.Verbosity.DETAILED && minecraft != null && minecraft.level != null) for (var slot : model.slots()) {
                         if (!slot.output() || slot.stacks().isEmpty()) continue;
                         outputs.put(model, SlotStacks.resolve(slot.stacks().getFirst(), minecraft.level.registryAccess()));
@@ -918,7 +922,7 @@ public final class AssistantScreen extends Screen {
             if (segment.player()) userLines(segment.text(), width);
             else answers.put(segment, assistantLayout(turn.answer(), segment, turn, targets, answerWidth, models, cards, outputs, items, copy));
         }
-        PreparedTurn prepared = new PreparedTurn(turn, answerWidth, GroundingInstructions.historyTokenCounts(turn), Map.copyOf(answers),
+        PreparedTurn prepared = new PreparedTurn(turn, answerWidth, cardGeneration, GroundingInstructions.historyTokenCounts(turn), Map.copyOf(answers),
                 turn.verbosity() == null ? turn.answer() : copy.toString());
         if (turn.verbosity() == null || minecraft != null && minecraft.level != null) preparedTurns.put(turn.requestId(), prepared);
         return prepared;
@@ -934,7 +938,7 @@ public final class AssistantScreen extends Screen {
         return lines;
     }
 
-    private record PreparedTurn(ChatContracts.Turn turn, int width, ChatContracts.TokenCounts tokens,
+    private record PreparedTurn(ChatContracts.Turn turn, int width, long cardGeneration, ChatContracts.TokenCounts tokens,
                                 Map<MessageSegment, MessageLayout> answers, String copy) { }
     private record UserLines(int width, List<net.minecraft.util.FormattedCharSequence> lines) { }
 
@@ -1062,7 +1066,8 @@ public final class AssistantScreen extends Screen {
             for (ScreenText.InlineSpan span : line.spans()) {
                 RecipeCard result = span.resultCard() == null ? null : cards.get(span.resultCard());
                 ItemStack stack = span.itemId() == null ? null : items.get(span.itemId());
-                var output = result == null ? null : outputs.get(span.resultCard());
+                // Outputs are recorded for every card, and for viewer models even when no card could be drawn.
+                var output = span.resultCard() == null ? null : outputs.get(span.resultCard());
                 var recordedOutput = output == null ? null : span.resultCard().slots().stream()
                         .filter(slot -> slot.output() && !slot.stacks().isEmpty()).findFirst().orElseThrow().stacks().getFirst();
                 if (output != null) stack = output.stacks().isEmpty() ? new ItemStack(Items.BARRIER) : output.stacks().getFirst();
@@ -1072,6 +1077,8 @@ public final class AssistantScreen extends Screen {
                     String labelText = output == null ? span.text() : output.missing() ? "Missing: " + recordedOutput.identity()
                             : output.stacks().isEmpty() || recordedOutput.kind() == RecipeCardModel.Stack.Kind.UNKNOWN ? "Unknown result"
                             : stack.getHoverName().getString();
+                    // Without a card to pin, the chip names the recipe category itself.
+                    if (output != null && result == null && !span.resultCard().caption().isEmpty()) labelText += " · " + span.resultCard().caption();
                     String verb = span.target() == null ? "Open" : ScreenText.navigationVerb(span.target());
                     if (navigation && !labelText.regionMatches(true, 0, verb + " ", 0, verb.length() + 1)) labelText = verb + " " + labelText;
                     else if (!item && !navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;

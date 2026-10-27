@@ -39,6 +39,21 @@ class RecipeCardSourcesTest {
         assertTrue(RecipeCardSources.first(List.of(empty)).card(NATIVE, 120).isEmpty());
     }
 
+    @Test void generationChangesWithAnySource() {
+        long[] generation = { 3 };
+        RecipeCardSource viewer = new RecipeCardSource() {
+            @Override public Optional<RecipeCard> card(RecipeCardModel model) { return Optional.empty(); }
+            @Override public long generation() { return generation[0]; }
+        };
+        RecipeCardSource nativeSource = model -> Optional.empty();
+        var source = RecipeCardSources.first(List.of(viewer, nativeSource));
+        long before = source.generation();
+        assertEquals(before, source.generation());
+        generation[0] = 4;
+        assertNotEquals(before, source.generation());
+        assertEquals(0, nativeSource.generation());
+    }
+
     @Test void nativeFallbackWhenViewerEmpty() {
         RecipeCardSource viewer = model -> model.category() == RecipeCardModel.Category.VIEWER ? Optional.of(new Card(3)) : Optional.empty();
         RecipeCardSource nativeSource = model -> model.category() == RecipeCardModel.Category.VIEWER ? Optional.empty() : Optional.of(new Card(4));

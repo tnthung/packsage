@@ -13,9 +13,11 @@ public final class RecipeCardModels {
             var payload = record.getAsJsonObject("payload");
             var status = payload.get("decodingStatus").getAsString();
             if (!List.of("VERIFIED", "PARTIAL", "OPAQUE").contains(status)) return Optional.empty();
-            var recipeId = text(payload, "canonicalRecipeId");
+            var canonical = payload.get("canonicalRecipeId");
+            var recipeId = canonical != null && canonical.isJsonPrimitive() ? canonical.getAsString() : null;
             var observed = record.get("source");
-            if (observed != null && observed.isJsonObject() && "jei".equals(text(observed.getAsJsonObject(), "providerId")))
+            var provider = observed != null && observed.isJsonObject() ? observed.getAsJsonObject().get("providerId") : null;
+            if (provider != null && provider.isJsonPrimitive() && provider.getAsString().equals("jei"))
                 return viewer(record, observed.getAsJsonObject(), payload, recipeId);
             var inputs = payload.getAsJsonArray("inputs");
             var outputs = payload.getAsJsonArray("outputs");
@@ -105,10 +107,12 @@ public final class RecipeCardModels {
 
     /** A viewer-drawn card: the slots only keep the recorded stacks, in record order, for the narrow fallback. */
     private static Optional<RecipeCardModel> viewer(JsonObject record, JsonObject observed, JsonObject payload, String recipeId) {
-        var handle = text(observed, "sourceHandle");
-        var reference = text(record, "reference");
-        if (handle != null && handle.startsWith("ref:") && reference != null && reference.startsWith("jei:")) handle = reference.substring(4);
-        if (handle == null || handle.isEmpty()) return Optional.empty();
+        var sourceHandle = observed.get("sourceHandle");
+        var reference = record.get("reference");
+        var handle = sourceHandle != null && sourceHandle.isJsonPrimitive() ? sourceHandle.getAsString() : "";
+        if (handle.startsWith("ref:") && reference != null && reference.isJsonPrimitive() && reference.getAsString().startsWith("jei:"))
+            handle = reference.getAsString().substring(4);
+        if (handle.isEmpty()) return Optional.empty();
         var slots = new ArrayList<RecipeCardModel.Slot>();
         for (var input : payload.getAsJsonArray("inputs")) {
             var object = input.getAsJsonObject();
@@ -119,19 +123,15 @@ public final class RecipeCardModels {
         var outputs = new LinkedHashMap<String, List<RecipeCardModel.Stack>>();
         for (var output : payload.getAsJsonArray("outputs")) {
             var object = output.getAsJsonObject();
-            var group = text(object, "groupId");
-            outputs.computeIfAbsent(group == null ? "output" : group, ignored -> new ArrayList<>()).add(stack(object));
+            var group = object.get("groupId");
+            outputs.computeIfAbsent(group != null && group.isJsonPrimitive() ? group.getAsString() : "output", ignored -> new ArrayList<>())
+                    .add(stack(object));
         }
         outputs.forEach((group, stacks) -> slots.add(new RecipeCardModel.Slot(group, 0, 0, true, List.copyOf(stacks))));
-        var caption = text(payload, "category");
-        if (caption == null) caption = text(record, "title");
-        return Optional.of(new RecipeCardModel(RecipeCardModel.Category.VIEWER, 0, 0, List.copyOf(slots), caption == null ? "" : caption,
-                List.of(), 0, recipeId, handle));
-    }
-
-    private static String text(JsonObject object, String name) {
-        var value = object.get(name);
-        return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
+        var caption = payload.get("category");
+        if (caption == null || !caption.isJsonPrimitive()) caption = record.get("title");
+        return Optional.of(new RecipeCardModel(RecipeCardModel.Category.VIEWER, 0, 0, List.copyOf(slots),
+                caption != null && caption.isJsonPrimitive() ? caption.getAsString() : "", List.of(), 0, recipeId, handle));
     }
 
     private static RecipeCardModel.Stack stack(JsonObject value) {

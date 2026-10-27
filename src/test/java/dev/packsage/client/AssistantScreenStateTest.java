@@ -1558,6 +1558,34 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void resultChipsNameMissingAndUnknownOutputsInsteadOfTheBarrier() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var card = new dev.packsage.client.recipe.RecipeCard() {
+            @Override public int width() { return 88; }
+            @Override public int height() { return 63; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
+        };
+        var missing = new dev.packsage.client.recipe.RecipeCardModel.Stack(
+                dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.ITEM, "missingmod:lost_item", "{}", 1, "");
+        var unknown = new dev.packsage.client.recipe.RecipeCardModel.Stack(
+                dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.UNKNOWN, "unknown:output:test:trim", "{}", 1, "");
+        for (var output : List.of(missing, unknown)) {
+            var model = new dev.packsage.client.recipe.RecipeCardModel(
+                    dev.packsage.client.recipe.RecipeCardModel.Category.SMITHING, 80, 50,
+                    List.of(new dev.packsage.client.recipe.RecipeCardModel.Slot("output", 0, 0, true, List.of(output))), "Smithing table", List.of());
+            var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Recipe", null, ModernUi.TEXT, false, false,
+                    SOURCE, null, model, null)));
+            var layout = screen.messageLayout(List.of(line), 300, java.util.Map.of(model, card),
+                    java.util.Map.of(model, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BARRIER)), java.util.Map.of());
+            assertEquals(output == missing ? "Missing: missingmod:lost_item" : "Unknown result", layout.runs().getFirst().span().text());
+        }
+    }
+
+    @Test
     void panelConsumesClicksBeforeControlsUnderneath() throws Exception {
         var actions = new FakeActions();
         var screen = new AssistantScreen(actions);

@@ -76,6 +76,16 @@ class PackSageToolsTest {
     }
 
     @Test
+    void recipeInputItemHasTheSameSchemaAsOutputItem() {
+        var definition = PackSageTools.definitions().stream().filter(value -> value.name().equals("search_recipe")).findFirst().orElseThrow();
+        var properties = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject().getAsJsonObject("properties")
+                .getAsJsonObject("filter").getAsJsonObject("properties");
+        assertNotNull(properties.get("inputItem"));
+        assertEquals(properties.get("outputItem"), properties.get("inputItem"));
+        assertTrue(definition.description().contains("Use inputItem to find what an item is used in."));
+    }
+
+    @Test
     void runCommandTargetsFirstPersonUsingContextIdentity() {
         var definition = PackSageTools.definitions().stream().filter(value -> value.name().equals("run_command")).findFirst().orElseThrow();
         assertTrue(definition.description().contains("For first-person targets, use playerName from the gameplay context or @s where valid; do not ask for the player's name."));

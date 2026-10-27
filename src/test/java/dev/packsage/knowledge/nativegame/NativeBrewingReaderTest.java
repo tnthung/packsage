@@ -43,6 +43,64 @@ class NativeBrewingReaderTest {
     }
 
     @Test
+    void inputSearchSkipsUnrelatedBrewingRecordsBeforeApplyingLimit() {
+        var brewing = new PotionBrewing.Builder(FeatureFlags.DEFAULT_FLAGS);
+        brewing.addRecipe(new BrewingRecipe(Ingredient.of(Items.POTION), Ingredient.of(Items.REDSTONE), new ItemStack(Items.GOLD_INGOT)));
+        brewing.addRecipe(new BrewingRecipe(Ingredient.of(Items.POTION), Ingredient.of(Items.EMERALD), new ItemStack(Items.DIAMOND)));
+
+        var page = NativeBrewingReader.searchCandidates(brewing.build(), registries, items, null,
+                null, "minecraft:emerald", null, 0, 1, SCOPE);
+
+        assertEquals(1, page.records().size());
+        assertEquals("minecraft:diamond", page.records().getFirst().recipePayload().outputs().getFirst().comparisonIdentity());
+        assertEquals(2, page.scanned());
+        assertEquals(2, page.nextOffset());
+        assertTrue(page.exhausted());
+    }
+
+    @Test
+    void inputSearchMatchesBrewingIngredientTags() {
+        var planks = net.minecraft.tags.TagKey.create(Registries.ITEM, net.minecraft.resources.ResourceLocation.parse("minecraft:planks"));
+        var itemRegistry = (net.minecraft.core.MappedRegistry<Item>) items;
+        itemRegistry.bindTags(java.util.Map.of(planks, List.<net.minecraft.core.Holder<Item>>of(Items.OAK_PLANKS.builtInRegistryHolder())));
+        try {
+            var brewing = new PotionBrewing.Builder(FeatureFlags.DEFAULT_FLAGS);
+            brewing.addRecipe(new BrewingRecipe(Ingredient.of(Items.POTION), Ingredient.of(planks), new ItemStack(Items.DIAMOND)));
+            var page = NativeBrewingReader.searchCandidates(brewing.build(), registries, items, null,
+                    null, "minecraft:oak_planks", null, 0, 1, SCOPE);
+            assertEquals(1, page.records().size());
+            var miss = NativeBrewingReader.searchCandidates(brewing.build(), registries, items, null,
+                    null, "minecraft:stick", null, 0, 1, SCOPE);
+            assertTrue(miss.records().isEmpty());
+        } finally {
+            itemRegistry.resetTags();
+        }
+    }
+
+    @Test
+    void inputSearchContinuesAt4096BrewingCandidates() {
+        var brewing = new PotionBrewing.Builder(FeatureFlags.DEFAULT_FLAGS);
+        for (int index = 0; index < 4096; index++) {
+            brewing.addRecipe(new BrewingRecipe(Ingredient.of(Items.POTION), Ingredient.of(Items.REDSTONE), new ItemStack(Items.GOLD_INGOT)));
+        }
+        brewing.addRecipe(new BrewingRecipe(Ingredient.of(Items.POTION), Ingredient.of(Items.EMERALD), new ItemStack(Items.DIAMOND)));
+        var built = brewing.build();
+
+        var first = NativeBrewingReader.searchCandidates(built, registries, items, null,
+                null, "minecraft:emerald", null, 0, 1, SCOPE);
+        assertTrue(first.records().isEmpty());
+        assertEquals(4096, first.scanned());
+        assertEquals(4096, first.nextOffset());
+        assertFalse(first.exhausted());
+        var second = NativeBrewingReader.searchCandidates(built, registries, items, null,
+                null, "minecraft:emerald", null, first.nextOffset(), 1, SCOPE);
+        assertEquals(1, second.records().size());
+        assertEquals("minecraft:diamond", second.records().getFirst().recipePayload().outputs().getFirst().comparisonIdentity());
+        assertEquals(1, second.scanned());
+        assertTrue(second.exhausted());
+    }
+
+    @Test
     void localizedPotionNameFindsTheBrewingRecord() {
         var brewing = new PotionBrewing.Builder(FeatureFlags.DEFAULT_FLAGS);
         PotionBrewing.addVanillaMixes(brewing);
@@ -52,7 +110,7 @@ class NativeBrewingReaderTest {
         var matches = new java.util.ArrayList<Evidence.Record>();
         int offset = 0;
         while (true) {
-            var page = NativeBrewingReader.searchCandidates(built, registries, items, null, null, name, offset, 64, SCOPE);
+            var page = NativeBrewingReader.searchCandidates(built, registries, items, null, null, null, name, offset, 64, SCOPE);
             matches.addAll(page.records());
             if (page.exhausted()) break;
             offset = page.nextOffset();
@@ -73,7 +131,7 @@ class NativeBrewingReaderTest {
         PotionBrewing.addVanillaMixes(brewing);
 
         var page = NativeBrewingReader.searchCandidates(brewing.build(), registries, items, null,
-                "minecraft:potion", "long_swiftness", 0, 16, SCOPE);
+                "minecraft:potion", null, "long_swiftness", 0, 16, SCOPE);
 
         assertTrue(page.records().stream().anyMatch(record -> record.recipePayload().outputs().stream()
                 .anyMatch(output -> output.comparisonIdentity().equals("minecraft:potion")
@@ -83,7 +141,7 @@ class NativeBrewingReaderTest {
         assertTrue(page.exhausted());
 
         var allVariants = NativeBrewingReader.searchCandidates(brewing.build(), registries, items, null,
-                "minecraft:potion", null, 0, 256, SCOPE);
+                "minecraft:potion", null, null, 0, 256, SCOPE);
         assertTrue(allVariants.records().stream().anyMatch(record -> Evidence.serialize(
                 record.recipePayload().outputs().getFirst().components()).contains("long_swiftness")));
         assertTrue(allVariants.records().stream().anyMatch(record -> Evidence.serialize(
@@ -98,7 +156,7 @@ class NativeBrewingReaderTest {
         brewing.addContainerRecipe(Items.POTION, Items.GUNPOWDER, Items.SPLASH_POTION);
 
         var page = NativeBrewingReader.searchCandidates(brewing.build(), registries, items, null,
-                "minecraft:splash_potion", "strong_healing", 0, 8, SCOPE);
+                "minecraft:splash_potion", null, "strong_healing", 0, 8, SCOPE);
 
         assertEquals(1, page.records().size());
         var record = page.records().getFirst();
@@ -117,7 +175,7 @@ class NativeBrewingReaderTest {
         brewing.addRecipe(new BrewingRecipe(Ingredient.of(Items.POTION), Ingredient.of(Items.EMERALD), output));
 
         var page = NativeBrewingReader.searchCandidates(brewing.build(), registries, items, null,
-                "minecraft:diamond", "brewed diamond", 0, 8, SCOPE);
+                "minecraft:diamond", null, "brewed diamond", 0, 8, SCOPE);
 
         assertEquals(1, page.records().size());
         var record = page.records().getFirst();
@@ -161,11 +219,11 @@ class NativeBrewingReaderTest {
 
         var built = brewing.build();
         var filtered = NativeBrewingReader.searchCandidates(built, registries, items, null,
-                "minecraft:diamond", null, 0, 8, SCOPE);
+                "minecraft:diamond", null, null, 0, 8, SCOPE);
 
         assertTrue(filtered.records().isEmpty());
         assertTrue(filtered.partial());
-        var page = NativeBrewingReader.searchCandidates(built, registries, items, null, null, null, 0, 8, SCOPE);
+        var page = NativeBrewingReader.searchCandidates(built, registries, items, null, null, null, null, 0, 8, SCOPE);
         assertEquals(1, page.records().size());
         assertEquals(Evidence.DecodingStatus.OPAQUE, page.records().getFirst().recipePayload().decodingStatus());
         assertEquals(Evidence.DecodingStatus.OPAQUE, NativeBrewingReader.readCandidate(built,
@@ -181,9 +239,9 @@ class NativeBrewingReaderTest {
         firstBrewing.addContainer(Items.POTION);
         var brewing = firstBrewing.build();
         var first = NativeBrewingReader.searchCandidates(brewing, registries, items, null,
-                "minecraft:potion", null, 0, 1, SCOPE);
+                "minecraft:potion", null, null, 0, 1, SCOPE);
         var second = NativeBrewingReader.searchCandidates(brewing, registries, items, null,
-                "minecraft:potion", null, first.nextOffset(), 1, SCOPE);
+                "minecraft:potion", null, null, first.nextOffset(), 1, SCOPE);
 
         assertEquals(1, first.records().size());
         assertFalse(first.exhausted());
@@ -202,7 +260,7 @@ class NativeBrewingReaderTest {
         initialBuilder.addContainer(Items.POTION);
         var initial = initialBuilder.build();
         var first = NativeBrewingReader.searchCandidates(initial, registries, items, null,
-                "minecraft:potion", "redstone", 0, 8, SCOPE).records().getFirst();
+                "minecraft:potion", null, "redstone", 0, 8, SCOPE).records().getFirst();
         var initialRead = NativeBrewingReader.readCandidate(initial, first.source().sourceHandle(), registries, items, SCOPE);
         assertEquals(first.recipePayload(), initialRead.recipePayload());
 
@@ -236,7 +294,7 @@ class NativeBrewingReaderTest {
         }
 
         var page = NativeBrewingReader.searchCandidates(brewing.build(), registries, items, null,
-                "minecraft:nether_star", null, 0, 8, SCOPE);
+                "minecraft:nether_star", null, null, 0, 8, SCOPE);
 
         assertTrue(page.records().isEmpty());
         assertTrue(page.scanned() > 0);
@@ -254,7 +312,7 @@ class NativeBrewingReaderTest {
         }
         var built = brewing.build();
         var page = NativeBrewingReader.searchCandidates(built, registries, items, null,
-                null, null, 4999, 1, SCOPE);
+                null, null, null, 4999, 1, SCOPE);
 
         assertEquals(1, page.records().size());
         assertTrue(page.records().getFirst().source().sourceHandle().startsWith("brewing:custom:4999:0:"));
@@ -290,7 +348,7 @@ class NativeBrewingReaderTest {
         field.set(built, counting);
 
         var page = NativeBrewingReader.searchCandidates(built, registries, items, null,
-                "minecraft:splash_potion", null, 0, 1, SCOPE);
+                "minecraft:splash_potion", null, null, 0, 1, SCOPE);
 
         assertEquals(1, page.records().size());
         assertEquals(1, reads.get());
@@ -305,7 +363,7 @@ class NativeBrewingReaderTest {
         brewing.addRecipe(new BrewingRecipe(Ingredient.of(Items.POTION), Ingredient.of(Items.EMERALD), output));
 
         var page = NativeBrewingReader.searchCandidates(brewing.build(), registries, items, null,
-                "minecraft:diamond", null, 0, 1, SCOPE);
+                "minecraft:diamond", null, null, 0, 1, SCOPE);
 
         assertEquals(1, page.records().size());
         var record = page.records().getFirst();

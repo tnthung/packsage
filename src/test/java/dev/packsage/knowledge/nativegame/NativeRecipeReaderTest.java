@@ -381,6 +381,89 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void nativeProviderRejectsNonCanonicalAndUnknownInputItems() throws Exception {
+        var unsafeClass = Class.forName("sun.misc.Unsafe");
+        var unsafeField = unsafeClass.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var allocate = unsafeClass.getMethod("allocateInstance", Class.class);
+        var client = (net.minecraft.client.Minecraft) allocate.invoke(unsafe, net.minecraft.client.Minecraft.class);
+        var level = (net.minecraft.client.multiplayer.ClientLevel) allocate.invoke(unsafe, net.minecraft.client.multiplayer.ClientLevel.class);
+        var thread = net.minecraft.client.Minecraft.class.getDeclaredField("gameThread");
+        thread.setAccessible(true);
+        thread.set(client, Thread.currentThread());
+        var registryAccess = net.minecraft.world.level.Level.class.getDeclaredField("registryAccess");
+        registryAccess.setAccessible(true);
+        registryAccess.set(level, registries);
+        client.level = level;
+        var provider = new NativeProvider(client, Runnable::run);
+
+        for (var entry : Map.of("stick", "inputItem must be a canonical item identity",
+                "minecraft:not_a_real_item", "recipe input item is unknown").entrySet()) {
+            var request = new dev.packsage.model.PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of("filter",
+                    new Evidence.JsonObject(Map.of("inputItem", new Evidence.JsonString(entry.getKey()))))), SCOPE);
+            var failure = org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.CompletionException.class,
+                    () -> provider.searchRecipe(request, null).toCompletableFuture().join());
+            var cause = org.junit.jupiter.api.Assertions.assertInstanceOf(dev.packsage.knowledge.Toolbox.Failure.class, failure.getCause());
+            assertEquals(dev.packsage.knowledge.Toolbox.Code.INVALID_ARGUMENTS, cause.code());
+            assertTrue(cause.getMessage().contains(entry.getValue()));
+        }
+    }
+
+    @Test
+    void inputSearchMatchesItemsAndTagsAndSkipsOtherRecipes() {
+        var planks = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM,
+                net.minecraft.resources.ResourceLocation.parse("minecraft:planks"));
+        var itemRegistry = (net.minecraft.core.MappedRegistry<Item>) ITEMS;
+        itemRegistry.bindTags(Map.of(planks, List.<net.minecraft.core.Holder<Item>>of(Items.OAK_PLANKS.builtInRegistryHolder())));
+        try {
+            var recipes = List.of(
+                    new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:stick_input"),
+                            new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                                    new ItemStack(Items.TORCH), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.STICK)))),
+                    new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:planks_input"),
+                            new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                                    new ItemStack(Items.CRAFTING_TABLE), NonNullList.of(Ingredient.EMPTY, Ingredient.of(planks)))),
+                    new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:other_input"),
+                            new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                                    new ItemStack(Items.STONE), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.DIAMOND)))));
+
+            var sticks = NativeRecipeReader.searchCandidates(recipes, registries, ITEMS, null,
+                    null, "minecraft:stick", null, 0, 10, SCOPE);
+            assertEquals(List.of("test:stick_input"), sticks.records().stream().map(Evidence.Record::title).toList());
+            var oak = NativeRecipeReader.searchCandidates(recipes, registries, ITEMS, null,
+                    null, "minecraft:oak_planks", null, 0, 10, SCOPE);
+            assertEquals(List.of("test:planks_input"), oak.records().stream().map(Evidence.Record::title).toList());
+            var combined = NativeRecipeReader.searchCandidates(recipes, registries, ITEMS, null,
+                    "minecraft:stone", "minecraft:stick", null, 0, 10, SCOPE);
+            assertTrue(combined.records().isEmpty());
+        } finally {
+            itemRegistry.resetTags();
+        }
+    }
+
+    @Test
+    void inputSearchContinuesAfter4096Candidates() {
+        var unrelated = recipe("test:unrelated", new AtomicReference<>(Items.STONE), new AtomicInteger(), false);
+        var recipes = new ArrayList<RecipeHolder<?>>();
+        for (int index = 0; index < 4096; index++) recipes.add(unrelated);
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:late_stick"),
+                new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                        new ItemStack(Items.TORCH), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.STICK)))));
+
+        var first = NativeRecipeReader.searchCandidates(recipes, registries, ITEMS, null,
+                null, "minecraft:stick", null, 0, 10, SCOPE);
+        assertTrue(first.records().isEmpty());
+        assertEquals(4096, first.scanned());
+        assertEquals(4096, first.nextOffset());
+        assertFalse(first.exhausted());
+        var second = NativeRecipeReader.searchCandidates(recipes, registries, ITEMS, null,
+                null, "minecraft:stick", null, first.nextOffset(), 10, SCOPE);
+        assertEquals(List.of("test:late_stick"), second.records().stream().map(Evidence.Record::title).toList());
+        assertTrue(second.exhausted());
+    }
+
+    @Test
     void exactOutputSearchReachesLateMatchWithoutProjectingNonmatchesAndKeepsTextAndFilter() {
         var lateResultReads = new AtomicInteger();
         var recipes = new ArrayList<RecipeHolder<?>>();
@@ -391,7 +474,7 @@ class NativeRecipeReaderTest {
         recipes.add(recipe("test:late_target", new AtomicReference<>(Items.DIAMOND), lateResultReads, false));
 
         var page = NativeRecipeReader.searchCandidates(recipes, registries, ITEMS, null,
-                "minecraft:diamond", "late_target", 0, 4, SCOPE);
+                "minecraft:diamond", null, "late_target", 0, 4, SCOPE);
 
         assertEquals(1, page.records().size());
         assertEquals("test:late_target", page.records().getFirst().title());
@@ -400,7 +483,7 @@ class NativeRecipeReaderTest {
         assertEquals(1, lateResultReads.get());
 
         var textMiss = NativeRecipeReader.searchCandidates(recipes, registries, ITEMS, null,
-                "minecraft:diamond", "not present", 0, 4, SCOPE);
+                "minecraft:diamond", null, "not present", 0, 4, SCOPE);
         assertTrue(textMiss.records().isEmpty());
         assertEquals(2, lateResultReads.get());
     }
@@ -417,7 +500,7 @@ class NativeRecipeReaderTest {
         recipes.add(recipe("test:live_target", currentOutput, resultReads, false));
 
         var first = NativeRecipeReader.searchCandidates(recipes, registries, ITEMS, null,
-                "minecraft:diamond", null, 0, 4, SCOPE);
+                "minecraft:diamond", null, null, 0, 4, SCOPE);
 
         assertTrue(first.records().isEmpty());
         assertEquals(4096, first.scanned());
@@ -427,7 +510,7 @@ class NativeRecipeReaderTest {
 
         currentOutput.set(Items.DIAMOND);
         var second = NativeRecipeReader.searchCandidates(recipes, registries, ITEMS, null,
-                "minecraft:diamond", null, first.nextOffset(), 4, SCOPE);
+                "minecraft:diamond", null, null, first.nextOffset(), 4, SCOPE);
 
         assertEquals(1, second.records().size());
         assertEquals("test:live_target", second.records().getFirst().title());
@@ -489,7 +572,7 @@ class NativeRecipeReaderTest {
         var page = NativeRecipeReader.searchCandidates(List.of(
                 new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:glass"), smelting),
                 new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:table"), shaped)),
-                registries, ITEMS, null, null, null, 0, 10, SCOPE);
+                registries, ITEMS, null, null, null, null, 0, 10, SCOPE);
 
         var cookingPayload = page.records().getFirst().payload().values();
         assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(200)), cookingPayload.get("cookingTime"));

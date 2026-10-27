@@ -232,7 +232,7 @@ public final class RecipePlanner {
                                          String bound, PlanState state) {
         if (!rules.extended) return planned(candidate, quantity, output == null ? null : output.quantity(), batches, bound,
                 candidate.recipePayload().outputs().size() > 1 ? Map.of("possibleExtras", possibleExtras(candidate, output)) : Map.of());
-        var needs = new LinkedHashMap<List<String>, Long>();
+        var needs = new LinkedHashMap<NeedKey, Long>();
         if (batches != null) {
             var processedAlternativeSets = new HashSet<List<Evidence.RecipeAlternative>>();
             for (Evidence.RecipeSlot slot : candidate.recipePayload().inputs()) {
@@ -245,9 +245,9 @@ public final class RecipePlanner {
                 for (int index = 0; index < slot.alternatives().size(); index++) {
                     var alternative = slot.alternatives().get(index);
                     if (!rules.unexpanded(alternative)) continue;
-                    // Required needs aggregate by identity; each choice keeps its own entry, even when it repeats an identity.
-                    var key = List.of(alternative.type().equals("fluid") ? "fluid" : "contents", alternative.comparisonIdentity(),
-                            single ? "" : slot.groupId(), single ? "" : Integer.toString(index));
+                    // Required needs aggregate by type, identity and components; each choice keeps its own entry, even when it repeats one.
+                    var key = new NeedKey(alternative.type().equals("fluid") ? "fluid" : "contents", alternative.comparisonIdentity(),
+                            alternative.components(), single ? "" : slot.groupId(), single ? "" : Integer.toString(index));
                     var amount = multiplier == null ? null : multiply(alternative.quantity(), multiplier);
                     var total = amount == null ? null : needs.containsKey(key) ? needs.get(key) == null ? null : add(needs.get(key), amount) : amount;
                     if (total == null) {
@@ -255,7 +255,7 @@ public final class RecipePlanner {
                         state.reasons.add("input-quantity-overflow:" + candidate.source().sourceHandle() + ":" + slot.groupId());
                     }
                     needs.put(key, total);
-                    if (key.getFirst().equals("contents")) state.equipment.add(rules.containers.get(alternative.comparisonIdentity()));
+                    if (key.type().equals("contents")) state.equipment.add(rules.containers.get(alternative.comparisonIdentity()));
                 }
             }
         }
@@ -263,10 +263,11 @@ public final class RecipePlanner {
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         values.put("unexpandedNeeds", new Evidence.JsonArray(needs.entrySet().stream().map(need -> {
             var fields = new LinkedHashMap<String, Evidence.JsonValue>();
-            fields.put("type", new Evidence.JsonString(need.getKey().get(0)));
-            fields.put("identity", new Evidence.JsonString(need.getKey().get(1)));
+            fields.put("type", new Evidence.JsonString(need.getKey().type()));
+            fields.put("identity", new Evidence.JsonString(need.getKey().identity()));
+            if (!need.getKey().components().values().isEmpty()) fields.put("components", need.getKey().components());
             fields.put("quantity", need.getValue() == null ? new Evidence.JsonNull() : new Evidence.JsonNumber(BigDecimal.valueOf(need.getValue())));
-            if (!need.getKey().get(2).isEmpty()) fields.put("oneOf", new Evidence.JsonString(need.getKey().get(2)));
+            if (!need.getKey().oneOf().isEmpty()) fields.put("oneOf", new Evidence.JsonString(need.getKey().oneOf()));
             return (Evidence.JsonValue) new Evidence.JsonObject(fields);
         }).toList()));
         values.put("possibleExtras", possibleExtras(candidate, output));
@@ -342,6 +343,9 @@ public final class RecipePlanner {
 
     private static Long add(long left, long right) {
         return right > Long.MAX_VALUE - left ? null : left + right;
+    }
+
+    private record NeedKey(String type, String identity, Evidence.JsonObject components, String oneOf, String choice) {
     }
 
     private record RequirementKey(String type, String identity, Evidence.JsonObject components) {

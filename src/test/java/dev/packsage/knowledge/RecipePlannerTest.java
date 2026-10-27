@@ -268,6 +268,47 @@ class RecipePlannerTest {
         assertTrue(result.records().stream().noneMatch(record -> List.of("minecraft:water", "mod:brine").contains(record.source().sourceHandle())));
     }
 
+    private static Evidence.JsonObject potion(String effect) {
+        return new Evidence.JsonObject(Map.of("minecraft:potion_contents", new Evidence.JsonObject(Map.of("potion", new Evidence.JsonString(effect)))));
+    }
+
+    private static Evidence.RecipeAlternative fluid(String identity, Evidence.JsonObject components, int quantity) {
+        return new Evidence.RecipeAlternative("fluid", identity, components, quantity, Evidence.Consumption.CONSUMED);
+    }
+
+    private static Evidence.JsonObject withComponents(Evidence.JsonObject need, Evidence.JsonObject components) {
+        var values = new java.util.LinkedHashMap<>(need.values());
+        values.put("components", components);
+        return new Evidence.JsonObject(values);
+    }
+
+    @Test
+    void componentFluidNeedsKeepTheirIdentity() {
+        var strength = potion("minecraft:strength");
+        var healing = potion("minecraft:healing");
+        var brew = machine("mod:blend", List.of(slot("slot-0", fluid("mod:potion", strength, 250)), slot("slot-1", fluid("mod:potion", healing, 500)),
+                        slot("slot-2", fluid("mod:potion", potion("minecraft:healing"), 100))),
+                List.of(output("mod:tonic", 1)), List.of("slot-3"), List.of(), List.of());
+
+        var result = new RecipePlanner(source(brew)).plan("mod:tonic", 3, SCOPE, 4);
+
+        assertEquals(new Evidence.JsonArray(List.of(withComponents(need("fluid", "mod:potion", 750), strength),
+                withComponents(need("fluid", "mod:potion", 1800), healing))), route(result, "mod:blend").payload().values().get("unexpandedNeeds"));
+    }
+
+    @Test
+    void componentFluidAlternativesStaySeparateChoicesWithTheirComponents() {
+        var strength = potion("minecraft:strength");
+        var healing = potion("minecraft:healing");
+        var brew = machine("mod:blend", List.of(slot("slot-0", fluid("mod:potion", strength, 250), fluid("mod:potion", healing, 250))),
+                List.of(output("mod:tonic", 1)), List.of("slot-1"), List.of(), List.of());
+
+        var result = new RecipePlanner(source(brew)).plan("mod:tonic", 2, SCOPE, 4);
+
+        assertEquals(new Evidence.JsonArray(List.of(withComponents(choice("fluid", "mod:potion", 500, "slot-0"), strength),
+                withComponents(choice("fluid", "mod:potion", 500, "slot-0"), healing))), route(result, "mod:blend").payload().values().get("unexpandedNeeds"));
+    }
+
     @Test
     void sameFluidAlternativesStaySeparateChoices() {
         var clay = machine("mod:wet_clay", List.of(slot("slot-0", new Evidence.RecipeAlternative("fluid", "minecraft:water",

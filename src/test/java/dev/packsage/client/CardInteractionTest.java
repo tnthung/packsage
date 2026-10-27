@@ -196,8 +196,14 @@ class CardInteractionTest {
             h.card();
             h.mouse(60, 110);
             h.focus(editor);
-            for (int key : new int[]{GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_U, GLFW.GLFW_KEY_A}) h.key(key);
+            for (int key : new int[]{GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_U, GLFW.GLFW_KEY_A}) {
+                h.key(key);
+                h.screen.charTyped((char) (key + 32), 0);
+            }
             assertEquals(List.of(), h.viewer.calls, editor);
+            var field = AssistantScreen.class.getDeclaredField(editor);
+            field.setAccessible(true);
+            assertEquals("rua", ((MultilineEditor) field.get(h.screen)).value(), editor);
         }
     }
 

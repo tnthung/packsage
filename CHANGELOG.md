@@ -5,8 +5,11 @@
 ### 2026-10-27
 
 - The assistant instructions now cover JEI recipes, mod machine plans and bookmarks, as an unvalidated candidate awaiting live acceptance.
+- JEI brewing recipes are planned as shared bottle batches like native brewing, so the planner no longer reports one reagent per bottle.
 - With JEI ready, chat recipe cards for JEI and vanilla recipes are drawn by JEI's own layouts, scaled down to three quarters to fit; narrower columns fall back to native cards or to the usual result or source chips, with the JEI category shown beside the chip. Cards are rebuilt when JEI becomes ready, reloads or goes away, and JEI drawing failures are logged once per category.
 - JEI recipe planning matches structurally equal component variants and keeps unmatched subtype requirements incomplete.
+- The assistant can add, remove and check JEI bookmarks for items and observed JEI recipes when JEI 19.53 or newer is ready; the A key and chat item bookmarking no longer act on older JEI.
+- Saved JEI recipe links resolve against the current runtime by category and recipe ID; anonymous links expire with their runtime, and hidden, removed or ambiguous recipes cannot open.
 - Ready JEI supplies the default recipe search and planning source, with native recipes used when JEI is unavailable.
 - Chat cards and item chips open JEI recipes and uses with clicks and JEI's configured keys when its runtime is ready.
 - Added JEI recipe search through its focus index.

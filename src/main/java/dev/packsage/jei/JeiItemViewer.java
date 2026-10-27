@@ -1,13 +1,25 @@
 package dev.packsage.jei;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.packsage.client.JeiSupport;
 import dev.packsage.client.recipe.ItemViewer;
+import dev.packsage.jei.bookmark.JeiBookmarks;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
 
 public final class JeiItemViewer implements ItemViewer {
+    private final boolean bookmarks;
+
+    public JeiItemViewer() {
+        this(new JeiSupport().installedVersion().filter(JeiSupport::bookmarksSupported).isPresent());
+    }
+
+    JeiItemViewer(boolean bookmarks) {
+        this.bookmarks = bookmarks;
+    }
+
     @Override
     public boolean showRecipes(ItemStack stack) {
         var runtime = JeiRuntimeHolder.current();
@@ -28,7 +40,8 @@ public final class JeiItemViewer implements ItemViewer {
 
     @Override
     public boolean toggleBookmark(ItemStack stack) {
-        return false;
+        var runtime = JeiRuntimeHolder.current();
+        return bookmarks && runtime.isPresent() && JeiBookmarks.toggle(runtime.get(), stack);
     }
 
     @Override
@@ -45,6 +58,6 @@ public final class JeiItemViewer implements ItemViewer {
 
     @Override
     public boolean matchesBookmark(int keyCode, int scanCode) {
-        return JeiRuntimeHolder.current().isPresent() && keyCode == GLFW.GLFW_KEY_A;
+        return bookmarks && JeiRuntimeHolder.current().isPresent() && keyCode == GLFW.GLFW_KEY_A;
     }
 }

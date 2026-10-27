@@ -235,6 +235,22 @@ class RecipeCardModelsTest {
         record.getAsJsonObject("source").addProperty("sourceHandle", "ref:12345678.1.1");
         assertEquals("create:mixing|create:mixing/brass", RecipeCardModels.fromRecord(record).orElseThrow().viewerHandle());
     }
+    @Test void jeiBrewingRecordStaysViewerModel() {
+        var record = JsonParser.parseString("""
+                {"reference":"jei:minecraft:brewing|#3@7","kind":"RECIPE","title":"Brewing",
+                 "source":{"providerId":"jei","sourceHandle":"minecraft:brewing|#3@7"},
+                 "payload":{"canonicalRecipeId":null,"category":"Brewing",
+                 "inputs":[{"groupId":"slot-0","alternatives":[{"type":"item","comparisonIdentity":"minecraft:potion",
+                 "components":{},"quantity":1,"consumption":"CONSUMED"}],"extraTooltip":[]}],
+                 "outputs":[{"type":"item","comparisonIdentity":"minecraft:potion","components":{},"quantity":1,
+                 "groupId":"slot-1","extraTooltip":[]}],"catalysts":[],
+                 "constraints":["recipeType=minecraft:brewing","brewing-batch=up-to-3-bottles; reagent=one-per-operation; fuel=unknown-per-operation; remainders=unknown"],"decodingStatus":"PARTIAL"}}
+                """).getAsJsonObject();
+        var card = RecipeCardModels.fromRecord(record).orElseThrow();
+        assertEquals(RecipeCardModel.Category.VIEWER, card.category());
+        assertEquals("minecraft:brewing|#3@7", card.viewerHandle());
+    }
+
 
     @Test void nativeModelsKeepNullViewerHandle() {
         var record = record("stonecutting", "", "[" + slot("slot-0", "item", "minecraft:stone") + "]", output("item", "minecraft:stone_slab", 2));

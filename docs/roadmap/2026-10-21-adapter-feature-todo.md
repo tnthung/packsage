@@ -207,6 +207,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 ### Recipe cards and navigation
 
+- [ ] JEI — replacement provider resolves saved category/recipe links in the current runtime and opens the exact recipe; anonymous links expire with their runtime. Conversation persistence and navigation have automated coverage; installed restart acceptance remains pending.
 - [ ] JEI — draw recipe cards with JEI; R, U and clicks on card slots open recipes or uses, and R, U and clicks on item or result chips open their JEI recipes or uses (chip clicks open recipes).
 
 ### Native crafting grid layout

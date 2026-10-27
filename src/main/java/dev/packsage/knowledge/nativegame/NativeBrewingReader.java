@@ -1,6 +1,7 @@
 package dev.packsage.knowledge.nativegame;
 
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.RecipePlanner;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
@@ -486,7 +487,7 @@ final class NativeBrewingReader {
             outputKnown = true;
         }
         var constraints = new ArrayList<String>();
-        constraints.add("brewing-batch=up-to-3-bottles; reagent=one-per-operation; fuel=unknown-per-operation; remainders=unknown");
+        constraints.add(RecipePlanner.BREWING_BATCH_CONSTRAINT);
         constraints.add("effective-server-rules=unknown");
         constraints.add("overlap-precedence=not-evaluated");
         if (outputComponents.bounded()) constraints.add("components=bounded");
@@ -516,7 +517,7 @@ final class NativeBrewingReader {
                 + System.identityHashCode(rule));
         var output = new Evidence.RecipeOutput("unknown", "unknown:brewing-output",
                 new Evidence.JsonObject(Map.of()), null);
-        var constraints = List.of("brewing-batch=up-to-3-bottles; reagent=one-per-operation; fuel=unknown-per-operation; remainders=unknown",
+        var constraints = List.of(RecipePlanner.BREWING_BATCH_CONSTRAINT,
                 "effective-server-rules=unknown", "overlap-precedence=not-evaluated", "unsupported-brewing-rule=opaque");
         var payload = NativeSnapshot.recipePayloadJson(null, List.of(), List.of(output), List.of(), List.of(), constraints,
                 Evidence.DecodingStatus.OPAQUE, new LinkedHashSet<>());

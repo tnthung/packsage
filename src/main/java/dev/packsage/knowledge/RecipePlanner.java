@@ -11,6 +11,8 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 public final class RecipePlanner {
+    public static final String BREWING_BATCH_CONSTRAINT = "brewing-batch=up-to-3-bottles; reagent=one-per-operation; fuel=unknown-per-operation; remainders=unknown";
+
     private static final int MAX_NODES = 256;
     private static final int MAX_BRANCHES = 64;
     private final Source index;

@@ -39,6 +39,15 @@ class JeiProjectionTest {
     }
 
     @Test
+    void brewingCategoryCarriesSharedBatchConstraint() {
+        var brewing = JeiProjection.record(new JeiLayout("minecraft:brewing", "Brewing", null, 3, 7, false, true, null, List.of(), List.of()), SCOPE, "19.27", NOW);
+        var other = JeiProjection.record(new JeiLayout("naturesaura:altar", "Altar", "mod:recipe", 3, 7, false, true, null, List.of(), List.of()), SCOPE, "19.27", NOW);
+        assertTrue(brewing.recipePayload().constraints().contains(dev.packsage.knowledge.RecipePlanner.BREWING_BATCH_CONSTRAINT));
+        assertTrue(JsonParser.parseString(Evidence.serialize(brewing.payload())).getAsJsonObject().getAsJsonArray("constraints").toString().contains("brewing-batch="));
+        assertTrue(other.recipePayload().constraints().stream().noneMatch(value -> value.startsWith("brewing-batch=")));
+    }
+
+    @Test
     void fluidAlternativeKeepsMillibuckets() {
         var record = JeiProjection.record(new JeiLayout("naturesaura:altar", "Title", "mod:recipe", 3, 7, false, true, null, List.of(new JeiLayout.Slot(0, JeiLayout.Role.INPUT,
                 List.of(new JeiLayout.Ingredient("fluid", "minecraft:water", "{}", 1000, null)), List.of())), List.of()), SCOPE, "19.27", NOW);

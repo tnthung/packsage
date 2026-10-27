@@ -1,6 +1,7 @@
 package dev.packsage.jei;
 
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.RecipePlanner;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -55,6 +56,7 @@ public final class JeiProjection {
             constraints.add("output=assumed-guaranteed");
             constraints.add("not-read=values drawn by the category");
         }
+        if (layout.categoryUid().equals("minecraft:brewing")) constraints.add(RecipePlanner.BREWING_BATCH_CONSTRAINT);
         if (layout.hidden()) constraints.add("hidden");
         for (var slot : layout.slots()) {
             if (slot.role() == JeiLayout.Role.RENDER_ONLY) continue;

@@ -12,6 +12,8 @@ import java.util.stream.Stream;
 
 public final class RecipePlanner {
     public static final String BREWING_BATCH_CONSTRAINT = "brewing-batch=up-to-3-bottles; reagent=one-per-operation; fuel=unknown-per-operation; remainders=unknown";
+    /** The catalyst group of machines a viewer registers for a whole category rather than draws in the recipe. */
+    public static final String CATEGORY_CATALYST_GROUP = "category";
 
     private static final int MAX_NODES = 256;
     private static final int MAX_BRANCHES = 64;
@@ -283,8 +285,9 @@ public final class RecipePlanner {
     }
 
     /**
-     * One equipment entry per catalyst slot: its machine, or "one of [...]" when the slot accepts alternatives. The slot comes from the
-     * payload JSON catalysts[i].groupId; without one, each catalyst is its own slot.
+     * One equipment entry per catalyst slot: its machine, or "one of [...]" when a drawn slot accepts alternatives. Machines registered for a
+     * whole category are listed together without claiming they are alternatives or all needed. The slot comes from the payload JSON
+     * catalysts[i].groupId; without one, each catalyst is its own slot.
      */
     private static List<String> catalystEquipment(Evidence.Record record) {
         var catalysts = record.recipePayload().catalysts();
@@ -295,7 +298,9 @@ public final class RecipePlanner {
                     ? id.value() : "#" + i;
             slots.computeIfAbsent(group, ignored -> new LinkedHashSet<>()).add(catalysts.get(i).comparisonIdentity());
         }
-        return slots.values().stream().map(machines -> machines.size() == 1 ? machines.getFirst() : "one of " + List.copyOf(machines)).toList();
+        return slots.entrySet().stream().map(slot -> slot.getValue().size() == 1 ? slot.getValue().getFirst()
+                : slot.getKey().equals(CATEGORY_CATALYST_GROUP) ? "machines shown by JEI: " + List.copyOf(slot.getValue()) + " (alternatives or used together; not determined)"
+                : "one of " + List.copyOf(slot.getValue())).toList();
     }
 
     /** The step's outputs other than the planned one; they never count toward the plan. */

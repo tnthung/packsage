@@ -91,7 +91,9 @@ public final class JeiProjection {
         if (layout.hidden()) constraints.add("hidden");
         for (var slot : layout.slots()) {
             if (slot.role() == JeiLayout.Role.RENDER_ONLY) continue;
-            var groupId = "slot-" + slot.index();
+            var groupId = slot.role() == JeiLayout.Role.CATEGORY_CATALYST ? RecipePlanner.CATEGORY_CATALYST_GROUP : "slot-" + slot.index();
+            if (slot.role() == JeiLayout.Role.CATEGORY_CATALYST && slot.alternatives().size() > 1) constraints.add("category-catalysts=machines JEI registers for the category; "
+                    + "whether they are alternatives or used together is not determined");
             var alternatives = new ArrayList<Evidence.RecipeAlternative>();
             var alternativesJson = new ArrayList<Evidence.JsonValue>();
             var tooltips = slot.extraTooltip().stream().map(Evidence.JsonString::new).map(value -> (Evidence.JsonValue) value).toList();

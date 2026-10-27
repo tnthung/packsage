@@ -339,8 +339,9 @@ public final class JeiRuntimeIndex implements JeiIndex {
     }
 
     /**
-     * Adds the machines JEI registers for the whole category as one CATALYST slot after the drawn slots. JEI lists each as able to
-     * craft the category, so they are alternatives; any a drawn CATALYST slot already shows is left out.
+     * Adds the machines JEI registers for the whole category as one CATEGORY_CATALYST slot after the drawn slots, leaving out any a drawn
+     * CATALYST slot already shows. Registration does not say whether they are alternatives or parts used together, so they stay apart
+     * from drawn slots, whose alternatives are choices.
      */
     static List<JeiLayout.Slot> withCategoryCatalysts(List<JeiLayout.Slot> slots, List<JeiLayout.Ingredient> catalysts) {
         var shown = new LinkedHashSet<List<String>>();
@@ -349,7 +350,7 @@ public final class JeiRuntimeIndex implements JeiIndex {
         var machines = catalysts.stream().filter(ingredient -> shown.add(List.of(ingredient.type(), ingredient.identity(), ingredient.componentsJson()))).toList();
         if (machines.isEmpty()) return slots;
         var result = new ArrayList<>(slots);
-        result.add(new JeiLayout.Slot(slots.size(), JeiLayout.Role.CATALYST, machines, List.of()));
+        result.add(new JeiLayout.Slot(slots.size(), JeiLayout.Role.CATEGORY_CATALYST, machines, List.of()));
         return List.copyOf(result);
     }
 

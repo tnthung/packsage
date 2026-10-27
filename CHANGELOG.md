@@ -11,7 +11,7 @@
 - Recipe plans no longer list every container of alternative inputs as needed equipment; a container that depends on the chosen alternative is named on that choice's need instead.
 - Plan needs that the planner does not expand keep fluid and container contents with different components, such as different potion fluids, apart and list their components.
 - Recipe routes from a JEI plan now draw as JEI cards and open, bookmark and reopen after a restart as the recipe they planned; temporary routes still expire with their runtime.
-- JEI mod machine records include the machines JEI registers for the whole category, such as the Nature's Aura altar, as catalysts, and plans list them once as equipment; a catalyst slot with several machines is listed as "one of [...]".
+- JEI mod machine records include the machines JEI registers for the whole category, such as the Nature's Aura altar, as catalysts kept apart from drawn catalyst slots, and plans list them once as equipment. Several category machines, such as Create's mixer and basin, are listed together as machines shown by JEI without claiming they are alternatives or all needed; a drawn catalyst slot with several machines is still "one of [...]".
 - JEI recipes that mods register as raw native recipe objects, such as Nature's Aura altar recipes, now carry their native recipe ID, so their saved links reopen after a restart; ambiguous, missing or over-large native data keeps them temporary.
 - Hidden JEI recipes returned by search can be reread, drawn as cards and bookmarked by their recipe ID; links still never open them.
 - JEI reads, recipe cards, links and bookmarks capture the JEI runtime and its generation together, so an index built while JEI reloads is never kept as current.

@@ -28,7 +28,7 @@ class JeiCategoryCatalystTest {
                 List.of(item("naturesaura:nature_altar"), item("naturesaura:crushing_catalyst")));
 
         assertEquals(4, slots.size());
-        assertEquals(new JeiLayout.Slot(3, JeiLayout.Role.CATALYST, List.of(item("naturesaura:nature_altar")), List.of()), slots.get(3));
+        assertEquals(new JeiLayout.Slot(3, JeiLayout.Role.CATEGORY_CATALYST, List.of(item("naturesaura:nature_altar")), List.of()), slots.get(3));
         assertEquals(goldPowderSlots(), JeiRuntimeIndex.withCategoryCatalysts(goldPowderSlots(), List.of(item("naturesaura:crushing_catalyst"))));
         assertEquals(goldPowderSlots(), JeiRuntimeIndex.withCategoryCatalysts(goldPowderSlots(), List.of()));
     }
@@ -53,21 +53,44 @@ class JeiCategoryCatalystTest {
         assertTrue(result.detail().contains("equipment=[naturesaura:crushing_catalyst, naturesaura:nature_altar]"), result.detail());
     }
 
-    @Test
-    void severalCategoryMachinesAreAlternativeEquipment() {
-        var layout = new JeiLayout("mod:press", "Press", "mod:press/plate", 0, 7, false, true, null, JeiRuntimeIndex.withCategoryCatalysts(
-                List.of(new JeiLayout.Slot(0, JeiLayout.Role.INPUT, List.of(item("minecraft:iron_ingot")), List.of()),
-                        new JeiLayout.Slot(1, JeiLayout.Role.OUTPUT, List.of(item("mod:plate")), List.of())),
-                List.of(item("mod:basic_press"), item("mod:advanced_press"))), List.of());
+    private static Evidence.Result plan(JeiLayout layout, String identity) {
         var record = JeiProjection.record(layout, SCOPE, "19.27", Instant.EPOCH);
-
-        var result = new RecipePlanner(new RecipePlanner.Source() {
+        return new RecipePlanner(new RecipePlanner.Source() {
             @Override public boolean available(Evidence.Scope scope) { return true; }
-            @Override public List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope scope) {
-                return identity.equals("mod:plate") ? List.of(record) : List.of();
+            @Override public List<Evidence.Record> recipeOutputs(String wanted, Evidence.JsonObject components, Evidence.Scope scope) {
+                return wanted.equals(identity) ? List.of(record) : List.of();
             }
-        }).plan("mod:plate", 2, SCOPE, 4);
+        }).plan(identity, 2, SCOPE, 4);
+    }
 
+    private static List<JeiLayout.Slot> ironToPlate() {
+        return List.of(new JeiLayout.Slot(0, JeiLayout.Role.INPUT, List.of(item("minecraft:iron_ingot")), List.of()),
+                new JeiLayout.Slot(1, JeiLayout.Role.OUTPUT, List.of(item("mod:plate")), List.of()));
+    }
+
+    @Test
+    void severalCategoryMachinesStayAnUnresolvedSet() {
+        // Create registers the mixer and the basin for mixing; they work together, which category registration does not say.
+        var layout = new JeiLayout("create:mixing", "Mixing", "create:mixing/brass", 0, 7, false, true, null,
+                JeiRuntimeIndex.withCategoryCatalysts(ironToPlate(), List.of(item("create:mechanical_mixer"), item("create:basin"))), List.of());
+        var record = JeiProjection.record(layout, SCOPE, "19.27", Instant.EPOCH);
+        var catalysts = record.payload().values().get("catalysts").toString();
+        assertTrue(catalysts.contains("category"), catalysts);
+
+        var result = plan(layout, "mod:plate");
+        assertTrue(result.detail().contains("equipment=[machines shown by JEI: [create:mechanical_mixer, create:basin] "
+                + "(alternatives or used together; not determined)]"), result.detail());
+        assertFalse(result.detail().contains("one of"), result.detail());
+    }
+
+    @Test
+    void drawnCatalystSlotAlternativesStayAChoice() {
+        var slots = new java.util.ArrayList<>(ironToPlate());
+        slots.add(new JeiLayout.Slot(2, JeiLayout.Role.CATALYST, List.of(item("mod:basic_press"), item("mod:advanced_press")), List.of()));
+        var layout = new JeiLayout("mod:press", "Press", "mod:press/plate", 0, 7, false, true, null,
+                JeiRuntimeIndex.withCategoryCatalysts(slots, List.of(item("mod:basic_press"))), List.of());
+
+        var result = plan(layout, "mod:plate");
         assertTrue(result.detail().contains("equipment=[one of [mod:basic_press, mod:advanced_press]]"), result.detail());
     }
 }

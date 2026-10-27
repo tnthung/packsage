@@ -6,27 +6,27 @@ import com.google.gson.JsonParser;
 import dev.packsage.chat.ChatActions;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.PackSageSettings;
-import dev.packsage.knowledge.Evidence;
 import dev.packsage.client.recipe.NativeRecipeCardSource;
 import dev.packsage.client.recipe.PinnedCardState;
 import dev.packsage.client.recipe.RecipeCard;
 import dev.packsage.client.recipe.RecipeCardModel;
 import dev.packsage.client.recipe.SlotStacks;
-import dev.packsage.model.ModelBackend;
+import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.GroundingInstructions;
+import dev.packsage.model.ModelBackend;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.PlayerFaceRenderer;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.locale.Language;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.locale.Language;
 
 import java.net.URI;
 import java.time.Instant;
@@ -34,12 +34,12 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.HashSet;
 import java.util.Set;
 
 public final class AssistantScreen extends Screen {
@@ -917,7 +917,7 @@ public final class AssistantScreen extends Screen {
         }
         PreparedTurn prepared = new PreparedTurn(turn, width, GroundingInstructions.historyTokenCounts(turn), Map.copyOf(answers),
                 turn.verbosity() == null ? turn.answer() : copy.toString());
-        preparedTurns.put(turn.requestId(), prepared);
+        if (turn.verbosity() == null || minecraft != null && minecraft.level != null) preparedTurns.put(turn.requestId(), prepared);
         return prepared;
     }
 
@@ -1031,10 +1031,8 @@ public final class AssistantScreen extends Screen {
                       RecipeCard card, ItemStack stack, int height) { }
     record MessageLayout(List<MessageRun> runs, int height) { }
 
-    static int lineHeight(ScreenText.InlineLine line) {
-        if (line.card() != null) return line.card().height() + 8 + 4 + 9 + 8;
-        return line.spans().stream().anyMatch(span -> span.itemId() != null || span.resultCard() != null)
-                ? 18 : ModernUi.MESSAGE_LINE_HEIGHT;
+    static int lineHeight(RecipeCard card, boolean item) {
+        return card != null ? card.height() + 8 : item ? 18 : ModernUi.MESSAGE_LINE_HEIGHT;
     }
 
     MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth) {
@@ -1051,8 +1049,8 @@ public final class AssistantScreen extends Screen {
             int indent = line.quote() ? 10 : 0;
             RecipeCard block = line.card() == null ? null : cards.get(line.card());
             if (block != null && block.width() <= width - indent) {
-                runs.add(new MessageRun(line.spans().getFirst(), indent, y, block.width(), line.quote(), block, null, block.height() + 8));
-                y += block.height() + 8;
+                runs.add(new MessageRun(line.spans().getFirst(), indent, y, block.width(), line.quote(), block, null, lineHeight(block, false)));
+                y += lineHeight(block, false);
                 continue;
             }
             int x = indent;
@@ -1085,8 +1083,8 @@ public final class AssistantScreen extends Screen {
                     String clipped = font.substrByWidth(label, Math.max(1, chipWidth - padding)).getString();
                     runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, item || line.card() != null ? null : span.target(),
                             navigation ? ModernUi.ACCENT : ModernUi.TEXT, bold, false, item ? null : span.source(),
-                            item || line.card() != null ? null : span.externalUrl()), x, y, chipWidth, line.quote(), item ? result : null, stack, item ? 18 : rowHeight));
-                    if (item) rowHeight = 18;
+                            item || line.card() != null ? null : span.externalUrl()), x, y, chipWidth, line.quote(), item ? result : null, stack, item ? lineHeight(null, true) : rowHeight));
+                    if (item) rowHeight = lineHeight(null, true);
                     x += chipWidth + 4;
                     continue;
                 }
@@ -1469,6 +1467,8 @@ public final class AssistantScreen extends Screen {
     }
 
     private void drawSourceTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (panelRect != null && mouseX >= panelRect.left() && mouseX < panelRect.right()
+                && mouseY >= panelRect.top() && mouseY < panelRect.bottom()) return;
         if (picker != null || mouseY < 40 || mouseY >= toggleY - 8 || mouseX < readableLeft
                 || mouseX >= readableLeft + readableWidth) return;
         SourceHit hovered = sourceHits.stream().filter(hit -> mouseX >= hit.left() && mouseX < hit.right()
@@ -1517,16 +1517,35 @@ public final class AssistantScreen extends Screen {
             panelRect = null;
             return;
         }
-        if (panelCard != null && cardHits.stream().noneMatch(hit -> hit.stack() != null && hit.card() == panelCard.card()
-                && hit.rect().equals(panelCard.rect()) && hit.rect().top() >= 40 && hit.rect().bottom() <= toggleY - 8)) {
-            // A chip leaving the viewport closes its pinned panel as well.
-            pinnedCard = new PinnedCardState();
-            panelCard = null;
-            panelRect = null;
+        if (panelCard != null) {
+            boolean visible = false;
+            for (var hit : cardHits) {
+                if (hit.stack() != null && hit.card() == panelCard.card() && hit.rect().equals(panelCard.rect())
+                        && hit.rect().bottom() > 40 && hit.rect().top() < toggleY - 8
+                        && hit.rect().right() > readableLeft && hit.rect().left() < readableLeft + readableWidth) {
+                    visible = true;
+                    break;
+                }
+            }
+            if (!visible) {
+                // A chip leaving the viewport closes its pinned panel as well.
+                pinnedCard = new PinnedCardState();
+                panelCard = null;
+                panelRect = null;
+            }
         }
-        CardHit hovered = mouseX >= readableLeft && mouseX < readableLeft + readableWidth && mouseY >= 40 && mouseY < toggleY - 8
-                ? cardHits.stream().filter(hit -> hit.stack() != null && mouseX >= hit.rect().left() && mouseX < hit.rect().right()
-                && mouseY >= hit.rect().top() && mouseY < hit.rect().bottom()).findFirst().orElse(null) : null;
+        CardHit hovered = null;
+        if ((panelRect == null || mouseX < panelRect.left() || mouseX >= panelRect.right()
+                || mouseY < panelRect.top() || mouseY >= panelRect.bottom())
+                && mouseX >= readableLeft && mouseX < readableLeft + readableWidth && mouseY >= 40 && mouseY < toggleY - 8) {
+            for (var hit : cardHits) {
+                if (hit.stack() != null && mouseX >= hit.rect().left() && mouseX < hit.rect().right()
+                        && mouseY >= hit.rect().top() && mouseY < hit.rect().bottom()) {
+                    hovered = hit;
+                    break;
+                }
+            }
+        }
         if (pinnedCard.anchor() == null && hovered != null && (panelCard == null || !panelCard.rect().equals(hovered.rect()))) {
             panelCard = hovered;
             panelRect = null;
@@ -1599,6 +1618,8 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (panelRect != null && mouseX >= panelRect.left() && mouseX < panelRect.right()
+                && mouseY >= panelRect.top() && mouseY < panelRect.bottom()) return true;
         if (picker != null) {
             pickerScroll -= (int) Math.signum(scrollY);
             pickerRows();
@@ -1642,6 +1663,8 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (panelRect != null && mouseX >= panelRect.left() && mouseX < panelRect.right()
+                && mouseY >= panelRect.top() && mouseY < panelRect.bottom()) return true;
         if (picker == null && commandConfirmation.mouseClicked(mouseX, mouseY, button)) return true;
         if (button == 2 && picker == null) {
             int controlY = Math.max(0, height - 32);
@@ -1800,6 +1823,8 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (panelRect != null && mouseX >= panelRect.left() && mouseX < panelRect.right()
+                && mouseY >= panelRect.top() && mouseY < panelRect.bottom()) return true;
         if (inputEditor != null && inputEditor.isFocused()) return inputEditor.mouseDragged(mouseX, mouseY, button, dragX, dragY);
         if (sessionSearchEditor != null && sessionSearchEditor.isFocused()) return sessionSearchEditor.mouseDragged(mouseX, mouseY, button, dragX, dragY);
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
@@ -1807,6 +1832,8 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (panelRect != null && mouseX >= panelRect.left() && mouseX < panelRect.right()
+                && mouseY >= panelRect.top() && mouseY < panelRect.bottom()) return true;
         if (inputEditor != null && inputEditor.isFocused()) return inputEditor.mouseReleased(mouseX, mouseY, button);
         if (sessionSearchEditor != null && sessionSearchEditor.isFocused()) return sessionSearchEditor.mouseReleased(mouseX, mouseY, button);
         return super.mouseReleased(mouseX, mouseY, button);

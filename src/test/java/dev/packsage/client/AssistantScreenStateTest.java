@@ -1554,7 +1554,7 @@ class AssistantScreenStateTest {
         assertEquals(List.of(0, 12, 30, 48, 119), layout.runs().stream().map(AssistantScreen.MessageRun::y).toList());
         assertEquals(List.of(12, 18, 18, 71, 12), layout.runs().stream().map(AssistantScreen.MessageRun::height).toList());
         assertEquals(131, layout.height());
-        assertEquals(71, AssistantScreen.lineHeight(block));
+        assertEquals(71, layout.runs().get(3).height());
     }
 
     @Test

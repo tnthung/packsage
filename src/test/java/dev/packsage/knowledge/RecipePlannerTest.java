@@ -185,6 +185,24 @@ class RecipePlannerTest {
     }
 
     @Test
+    void jeiBrewingRoutesWithholdBatchCounts() {
+        var components = new Evidence.JsonObject(Map.of("minecraft:potion_contents", new Evidence.JsonString("minecraft:strength")));
+        var layout = new dev.packsage.jei.JeiLayout("minecraft:brewing", "Brewing", null, 3, 7, false, true, Evidence.DecodingStatus.PARTIAL, List.of(
+                new dev.packsage.jei.JeiLayout.Slot(0, dev.packsage.jei.JeiLayout.Role.INPUT, List.of(new dev.packsage.jei.JeiLayout.Ingredient("item", "minecraft:potion", "{}", 1, null)), List.of()),
+                new dev.packsage.jei.JeiLayout.Slot(1, dev.packsage.jei.JeiLayout.Role.OUTPUT, List.of(new dev.packsage.jei.JeiLayout.Ingredient("item", "minecraft:potion", Evidence.serialize(components), 1, null)), List.of())), List.of());
+        var jei = dev.packsage.jei.JeiProjection.record(layout, SCOPE, "19.27", java.time.Instant.EPOCH);
+        var index = new KnowledgeIndex();
+        index.replace(new dev.packsage.knowledge.nativegame.NativeSnapshot(SCOPE, List.of(jei)));
+
+        var result = new RecipePlanner(index).plan("minecraft:potion", 3, SCOPE, 1);
+
+        var payload = result.records().getFirst().payload().values();
+        assertEquals(new Evidence.JsonNull(), payload.get("batches"));
+        assertTrue(payload.containsKey("operationSemantics"), payload.toString());
+        assertTrue(result.detail().contains("operation-count-unknown:"), result.detail());
+    }
+
+    @Test
     void oneBucketForEightCrafts() {
         var mud = machine("mod:mix_mud", List.of(slot("slot-0", item("minecraft:water_bucket", 1)), slot("slot-1", item("minecraft:dirt", 1))),
                 List.of(output("mod:mud", 1)), List.of("slot-2"), List.of(), List.of("container-returned=minecraft:water_bucket>minecraft:bucket"));

@@ -76,9 +76,15 @@ public final class ConversationStore {
     private static final int HISTORY_MAX_RECORD_BYTES = 2 * 1024 * 1024;
     private static final int HISTORY_MAX_HEADER_BYTES = 16 * 1024;
 
+    @FunctionalInterface
+    interface StateMove {
+        void move(Path source, Path target) throws IOException;
+    }
+
     private final Path root;
     private final Executor ioExecutor;
     private final Executor catalogExecutor;
+    private final StateMove stateMove;
     private final Object writeLock = new Object();
     private CompletableFuture<Void> writes = CompletableFuture.completedFuture(null);
     private final List<String> errors = new ArrayList<>();
@@ -88,9 +94,15 @@ public final class ConversationStore {
     }
 
     public ConversationStore(Path root, Executor ioExecutor, Executor catalogExecutor) {
+        this(root, ioExecutor, catalogExecutor, (source, target) -> Files.move(source, target,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING));
+    }
+
+    ConversationStore(Path root, Executor ioExecutor, Executor catalogExecutor, StateMove stateMove) {
         this.root = root;
         this.ioExecutor = ioExecutor;
         this.catalogExecutor = catalogExecutor;
+        this.stateMove = stateMove;
     }
 
     CompletionStage<HistoryPage> searchHistory(ChatContracts.WorldIdentity world, String text,
@@ -1525,8 +1537,7 @@ public final class ConversationStore {
         try {
             Files.writeString(temporary, value.toString(), StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-            Files.move(temporary, stateFile, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            stateMove.move(temporary, stateFile);
         } finally {
             Files.deleteIfExists(temporary);
         }

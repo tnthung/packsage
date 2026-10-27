@@ -6,6 +6,7 @@ import dev.packsage.client.recipe.RecipeCard;
 import dev.packsage.client.recipe.RecipeCardModel;
 import dev.packsage.client.recipe.RecipeCardSource;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -226,10 +227,15 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
             graphics.drawString(Minecraft.getInstance().font, caption, x, y + areaHeight + 4, ModernUi.MUTED, false);
         }
 
+        // IRecipeSlotDrawable.getTooltip() is the 19.27 way to read a slot's complete tooltip.
+        @SuppressWarnings({"deprecation", "removal"})
         @Override
         public Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) {
             var stack = itemAt(x, y, mouseX, mouseY);
-            return stack.isEmpty() ? Optional.empty() : Optional.of(new Hover.Item(stack));
+            if (stack.isEmpty()) return Optional.empty();
+            // The slot's whole JEI tooltip keeps lines the plain item tooltip lacks, such as an output's chance; the screen draws it above chat.
+            var lines = layout.drawable.getRecipeSlotUnderMouse(local(mouseX, x), local(mouseY, y)).map(slot -> slot.getTooltip()).orElse(List.of());
+            return Optional.of(lines.isEmpty() ? new Hover.Item(stack) : new Hover.Text(lines));
         }
 
         @Override

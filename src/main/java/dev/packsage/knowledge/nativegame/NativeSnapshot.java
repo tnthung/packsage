@@ -83,6 +83,13 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         return records.isEmpty() ? unavailable(scope, "client native evidence empty") : new NativeSnapshot(scope, records);
     }
 
+    public static Evidence.DecodingStatus decoding(RecipeHolder<?> holder, Minecraft client, Evidence.Scope scope) {
+        if (!client.isSameThread()) throw new IllegalStateException("native decoding must run on the client thread");
+        var registries = client.level.registryAccess();
+        return copyRecipe(holder, registries, registries.registryOrThrow(Registries.ITEM), client.getResourceManager(), scope, null)
+                .recipePayload().decodingStatus();
+    }
+
     static Evidence.Record copyRecipe(RecipeHolder<?> holder, net.minecraft.core.HolderLookup.Provider registries,
                                                Registry<Item> itemRegistry, ResourceManager resourceManager, Evidence.Scope scope,
                                                String exactOutputItem) {

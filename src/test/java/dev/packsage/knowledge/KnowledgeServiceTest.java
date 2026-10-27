@@ -89,6 +89,38 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void readyJeiIsTheDefaultSource() {
+        var ref = new dev.packsage.jei.JeiIndex.RecipeRef("mod:machine", 0);
+        var index = new dev.packsage.jei.JeiIndex() {
+            @Override public long generation() { return 7; }
+            @Override public List<RecipeRef> byFocus(dev.packsage.jei.JeiLayout.Role role, String item) { return List.of(ref); }
+            @Override public List<RecipeRef> byVariant(dev.packsage.jei.JeiLayout.Role role, ItemVariant item) { return List.of(); }
+            @Override public List<String> categoriesMatching(String text) { return List.of("mod:machine"); }
+            @Override public List<ItemVariant> itemsMatching(String text) { return List.of(); }
+            @Override public boolean itemsMatchingTruncated() { return false; }
+            @Override public List<RecipeRef> inCategory(String category) { return List.of(ref); }
+            @Override public java.util.Optional<RecipeRef> byRecipeId(String category, String id) { return java.util.Optional.of(ref); }
+            @Override public dev.packsage.jei.JeiLayout layout(RecipeRef recipe) {
+                return new dev.packsage.jei.JeiLayout("mod:machine", "Machine", "mod:recipe", 0, 7,
+                        false, true, null, List.of(), List.of());
+            }
+        };
+        var jei = new dev.packsage.jei.JeiProvider(() -> java.util.Optional.of(index), Runnable::run, () -> SCOPE);
+        var service = new KnowledgeService(List.of(jei, new RecipeProvider("native", () -> true)), () -> SCOPE);
+        var result = execute(service, "search_recipe", Map.of());
+        assertEquals(List.of("jei"), result.records().stream().map(record -> record.source().providerId()).toList());
+    }
+
+    @Test
+    void notReadyJeiFallsToNativeSilently() {
+        var jei = new dev.packsage.jei.JeiProvider(java.util.Optional::empty, Runnable::run, () -> SCOPE);
+        var service = new KnowledgeService(List.of(jei, new RecipeProvider("native", () -> true)), () -> SCOPE);
+        var result = execute(service, "search_recipe", Map.of());
+        assertEquals(List.of("native"), result.records().stream().map(record -> record.source().providerId()).toList());
+        assertTrue(result.detail() == null || !result.detail().contains("jei"));
+    }
+
+    @Test
     void originReachesTheToolContext() {
         var received = new AtomicReference<Toolbox.Context>();
         var provider = new PagedProvider("fixture", query -> page(List.of(), null)) {

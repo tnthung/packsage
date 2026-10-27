@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Ready JEI supplies the default recipe search and planning source, with native recipes used when JEI is unavailable.
 - Chat cards and item chips open JEI recipes and uses with clicks and JEI's configured keys when its runtime is ready.
 - Added JEI recipe search through its focus index.
 - Added the optional JEI integration foundation with version checks and runtime lifecycle tracking.

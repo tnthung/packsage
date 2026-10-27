@@ -188,6 +188,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 - [x] Minecraft — localized potion-name matching and empty-page progress; installed acceptance passed: the potion was searched by name, the empty page was continued and the localized transformation was found in 2 recipe searches ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — planner brewing batch presentation; installed acceptance passed: `plan_recipe` was called and the reply stated the batch semantics and derived totals under a stated grouping ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — plan_recipe routes reach every loaded recipe (beacon, enchanting table, oak planks) with concrete PARTIAL details, intermediate expansion and smithing inputs (A1r/A3 plan detail/W20/W21, native readiness rounds 3–8; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
+- [ ] JEI — [focus-index planning source](../specs/2026-10-27-jei-adapter.md), default/explicit routing, shared argument validation and rereadable plan handles are implemented with automated coverage; installed acceptance remains pending.
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
 
@@ -195,6 +196,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 - [x] JEI — default source of an unqualified recipe search whenever its runtime is available; installed acceptance passed for the torch question ([specification](../specs/2026-10-22-jei-default-recipe-source.md), [validation record](../validation/2026-10-22-jei-default-recipe-source.md)).
 - [x] Minecraft — default recipe source when JEI is not installed or not ready, with no JEI-unavailable note; installed acceptance passed for the torch and Potion of Strength questions.
+- [ ] JEI — [replacement provider](../specs/2026-10-27-jei-adapter.md) defaults to focus-index search while ready, falls back silently to native while unavailable, and binds continuation to scope/generation; automated coverage passes, installed acceptance remains pending.
 - [ ] PackSage — prompt: the assistant still selects `provider: native` for brewing while JEI is installed, and omits a returned modded route without saying so ([validation record](../validation/2026-10-22-jei-output-focus.md)).
 
 ### JEI output search

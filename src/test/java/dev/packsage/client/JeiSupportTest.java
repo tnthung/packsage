@@ -35,8 +35,9 @@ class JeiSupportTest {
     }
 
     @Test
-    void missingProviderClassesAreOptional() {
+    void availableRecipeProviderLoadsWhenBookmarkProviderIsMissing() {
         var support = new JeiSupport(id -> Optional.of("19.64.0.454"));
-        assertTrue(support.providers(null, Runnable::run, () -> null).isEmpty());
+        assertEquals(java.util.List.of("jei"), support.providers(null, Runnable::run, () -> null).stream()
+                .map(provider -> provider.id()).toList());
     }
 }

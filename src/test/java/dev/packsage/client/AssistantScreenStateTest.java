@@ -1530,17 +1530,64 @@ class AssistantScreenStateTest {
 
     @Test
     void recipeAndItemRowsUseTheirRequiredHeights() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
         var model = new dev.packsage.client.recipe.RecipeCardModel(
                 dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(), "Furnace", List.of());
+        var card = new dev.packsage.client.recipe.RecipeCard() {
+            @Override public int width() { return 88; }
+            @Override public int height() { return 63; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
+        };
         var plain = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("plain", null, ModernUi.TEXT, false, false)));
         var item = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false,
                 null, null, null, "minecraft:glass")));
         var result = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false,
                 SOURCE, null, model, null)));
-        assertEquals(12, AssistantScreen.lineHeight(plain));
-        assertEquals(18, AssistantScreen.lineHeight(item));
-        assertEquals(18, AssistantScreen.lineHeight(result));
-        assertEquals(79, AssistantScreen.lineHeight(new ScreenText.InlineLine(result.spans(), false, model)));
+        var block = new ScreenText.InlineLine(result.spans(), false, model);
+        var layout = screen.messageLayout(List.of(plain, item, result, block, plain), 200, java.util.Map.of(model, card),
+                java.util.Map.of(model, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)),
+                java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
+        assertEquals(List.of(0, 12, 30, 48, 119), layout.runs().stream().map(AssistantScreen.MessageRun::y).toList());
+        assertEquals(List.of(12, 18, 18, 71, 12), layout.runs().stream().map(AssistantScreen.MessageRun::height).toList());
+        assertEquals(131, layout.height());
+        assertEquals(71, AssistantScreen.lineHeight(block));
+    }
+
+    @Test
+    void panelConsumesClicksBeforeControlsUnderneath() throws Exception {
+        var actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var panel = AssistantScreen.class.getDeclaredField("panelRect");
+        panel.setAccessible(true);
+        panel.set(screen, new dev.packsage.client.recipe.PinnedCardState.Rect(0, 0, 160, 100));
+        assertTrue(screen.mouseClicked(20, 70, 0));
+        assertTrue(screen.mouseClicked(20, 70, 1));
+        assertFalse(actions.calls.contains("newChat"));
+    }
+
+    @Test
+    void turnPreparedWithoutLevelIsNotCached() throws Exception {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var prior = screen.view().conversation().turns().getFirst();
+        var turn = new ChatContracts.Turn(prior.requestId(), prior.question(), "[Glass](item:minecraft:glass)", List.of(),
+                prior.context(), prior.sources(), List.of(), prior.outcome(), 1, null, List.of(), List.of(), null, null,
+                PackSageSettings.Verbosity.CONCISE);
+        var prepare = AssistantScreen.class.getDeclaredMethod("prepareTurn", ChatContracts.Turn.class);
+        prepare.setAccessible(true);
+        prepare.invoke(screen, turn);
+        var cache = AssistantScreen.class.getDeclaredField("preparedTurns");
+        cache.setAccessible(true);
+        assertFalse(((java.util.Map<?, ?>) cache.get(screen)).containsKey(turn.requestId()));
     }
 
     @Test

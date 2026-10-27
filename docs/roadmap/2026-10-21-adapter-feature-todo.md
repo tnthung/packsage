@@ -6,7 +6,7 @@ Feature-grouped summary of the [tool roadmap](2026-10-13-todo.md). A mod can app
 
 Generic JEI displays or GuideME documentation do not establish dedicated mechanics or storage adapter coverage. Reliquified Artifacts shares the existing Artifacts logical integration.
 
-On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mods describe `feat/packsage-v1`; the [v2 note](2026-10-22-v2-minecraft-only.md) tracks v2 work.
+On this v2 branch, Minecraft and JEI have adapters. Other mod entries describe `feat/packsage-v1`; the [v2 note](2026-10-22-v2-minecraft-only.md) tracks v2 work.
 
 ## 1. Has adapter, not fully implemented
 
@@ -188,27 +188,27 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 - [x] Minecraft — localized potion-name matching and empty-page progress; installed acceptance passed: the potion was searched by name, the empty page was continued and the localized transformation was found in 2 recipe searches ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — planner brewing batch presentation; installed acceptance passed: `plan_recipe` was called and the reply stated the batch semantics and derived totals under a stated grouping ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — plan_recipe routes reach every loaded recipe (beacon, enchanting table, oak planks) with concrete PARTIAL details, intermediate expansion and smithing inputs (A1r/A3 plan detail/W20/W21, native readiness rounds 3–8; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
-- [ ] JEI — [focus-index planning source](../specs/2026-10-27-jei-adapter.md), default/explicit routing, shared argument validation and rereadable plan handles are implemented with automated coverage. Category catalysts are plan equipment, choice-dependent containers stay on their choice, and component-bearing fluid needs stay apart. Component keys compare structurally, and unmatched component variants of subtype-bearing items remain incomplete; installed acceptance remains pending.
+- [ ] JEI — the installed altar plan passed with assumed consumption and equipment once. Possible extras passed via follow-up; fluid/container needs and plan-level multi-machine ambiguity need live acceptance ([validation](../validation/2026-10-27-jei-adapter.md)).
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
 
 ### Default recipe source
 
-- [x] JEI — default source of an unqualified recipe search whenever its runtime is available; installed acceptance passed for the torch question ([specification](../specs/2026-10-22-jei-default-recipe-source.md), [validation record](../validation/2026-10-22-jei-default-recipe-source.md)).
+- [ ] JEI — the replacement provider passed default search, native fallback, stale-cursor checks and selected multi-mod reads; explicit source selection still needs live acceptance ([validation](../validation/2026-10-27-jei-adapter.md)).
 - [x] Minecraft — default recipe source when JEI is not installed or not ready, with no JEI-unavailable note; installed acceptance passed for the torch and Potion of Strength questions.
-- [ ] JEI — [replacement provider](../specs/2026-10-27-jei-adapter.md) defaults to focus-index search while ready, falls back silently to native while unavailable, and binds continuation to scope/generation; automated coverage passes, installed acceptance remains pending.
-- [ ] PackSage — prompt: the assistant still selects `provider: native` for brewing while JEI is installed, and omits a returned modded route without saying so ([validation record](../validation/2026-10-22-jei-output-focus.md)).
+- [x] PackSage — the installed default used JEI for the focused brewing question and supplied the altar route on a directed follow-up ([validation](../validation/2026-10-27-jei-adapter.md)).
 
 ### JEI output search
 
-- [x] JEI — output-item searches use JEI's recipe index for items without JEI-distinguished variants; installed acceptance passed: the torch was found on the first JEI page in about 22 seconds, down from about 40 ([specification](../specs/2026-10-22-jei-output-focus.md), [validation record](../validation/2026-10-22-jei-output-focus.md)).
-- [x] JEI — output-item searches match modded-category recipes with their captured slots and OPAQUE coverage; installed retrieval passed for Nature's Aura's Natural Altar Infusion recipe for Gold Powder. Using that route in the reply is tracked under the prompt item above.
-- [ ] JEI — items with JEI-distinguished variants, such as potions, still use the bounded scan; the installed potion path was not exercised because the assistant selected native.
+- [x] JEI — installed reads returned torch, Strength potion, Nature's Aura altar and selected Create, Mekanism and Immersive Engineering slots and fluids ([validation](../validation/2026-10-27-jei-adapter.md)).
 
 ### Recipe cards and navigation
 
-- [ ] JEI — replacement provider resolves saved category/recipe links in the current runtime and opens the exact recipe; anonymous links expire with their runtime and carry a per-process session so another process never resolves them; raw native recipe objects recover their native holder ID; plan routes open the recipe they wrap; hidden recipes never open. Conversation persistence and navigation have automated coverage; installed restart acceptance remains pending.
-- [ ] JEI — draw recipe cards with JEI; R, U and clicks on card slots open recipes or uses, and R, U and clicks on item or result chips open their JEI recipes or uses (chip clicks open recipes). Slot hover shows the whole JEI slot tooltip, and card actions stay inert in another world's read-only history.
+- [ ] JEI — a saved torch link reopened after restart, cards drew and card clicks, R/U and slot tooltips worked. Chip actions and scaled and narrow layouts also passed; custom/plan links and read-only cross-world behavior need live checks ([validation](../validation/2026-10-27-jei-adapter.md)).
+
+### JEI bookmarks
+
+- [x] JEI — item add, check, remove, offer-only behavior and card A-key toggling passed on 19.64; 19.27 did not expose the tool ([validation](../validation/2026-10-27-jei-adapter.md)).
 
 ### Native crafting grid layout
 

@@ -156,4 +156,4 @@ The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include 
 
 ## JEI adapter (v2)
 
-The [JEI adapter specification](../specs/2026-10-27-jei-adapter.md) is the next v2 work. JEI becomes the default recipe source while ready, mod machine recipes are read with assumed consumption, cards are drawn by JEI, and a `bookmark` tool adds, removes and checks JEI bookmarks on JEI 19.53+. A plan follows.
+The [JEI adapter](../specs/2026-10-27-jei-adapter.md) is implemented. The [live record](../validation/2026-10-27-jei-adapter.md) covers default and native fallback, assumed altar planning, saved-link reopening, bookmarks on JEI 19.64 and Create, Mekanism and Immersive Engineering spot checks. Full acceptance remains open for the navigation and planning cases listed there.

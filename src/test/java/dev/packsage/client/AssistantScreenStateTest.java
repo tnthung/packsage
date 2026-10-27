@@ -1653,7 +1653,7 @@ class AssistantScreenStateTest {
         font.setAccessible(true);
         font.set(screen, new ScreenPreparationFont());
         var prior = actions.view.conversation().turns().getFirst();
-        var answer = "[Glass](item:minecraft:glass) and [Recipe](native:source)";
+        var answer = "[Glass](item:minecraft:glass) [native:source] and [Recipe](native:source) [native:source].";
         var turn = new ChatContracts.Turn(prior.requestId(), prior.question(), answer, List.of(), prior.context(),
                 List.of(new Evidence.Source(SCOPE, "native", "1", "source", 1, Instant.EPOCH,
                         Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of())),
@@ -1665,7 +1665,7 @@ class AssistantScreenStateTest {
         var prepared = prepare.invoke(screen, turn);
         var copy = prepared.getClass().getDeclaredMethod("copy");
         copy.setAccessible(true);
-        assertEquals("Glass and Recipe", copy.invoke(prepared));
+        assertEquals("Glass and Recipe.", copy.invoke(prepared));
     }
 
     @Test

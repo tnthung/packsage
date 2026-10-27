@@ -216,6 +216,41 @@ class RecipePlannerTest {
     }
 
     @Test
+    void containerAlternativesAreChoicesNotRefillRoutes() {
+        var either = slot("slot-0", item("minecraft:water_bucket", 1), item("mod:brine_bucket", 1));
+        var mud = machine("mod:mix_mud", List.of(either, either, slot("slot-1", item("minecraft:dirt", 1))), List.of(output("mod:mud", 1)),
+                List.of("slot-2"), List.of(), List.of("container-returned=minecraft:water_bucket>minecraft:bucket",
+                        "container-returned=mod:brine_bucket>minecraft:bucket"));
+        var source = source(mud, rawRecipe("minecraft:dirt"), craft("minecraft:water_bucket", "minecraft:bucket"),
+                craft("mod:brine_bucket", "minecraft:bucket"), craft("minecraft:bucket", "minecraft:iron_ingot"), rawRecipe("minecraft:iron_ingot"));
+
+        var result = new RecipePlanner(source).plan("mod:mud", 8, SCOPE, 4);
+
+        assertEquals(new Evidence.JsonArray(List.of(choice("contents", "minecraft:water_bucket", 16, "slot-0"),
+                choice("contents", "mod:brine_bucket", 16, "slot-0"))), route(result, "mod:mix_mud").payload().values().get("unexpandedNeeds"));
+        assertTrue(result.detail().contains("equipment=[minecraft:bucket]"), result.detail());
+        assertFalse(result.detail().contains("unknown-consumption-or-requirement"), result.detail());
+        assertEquals(number(8), route(result, "minecraft:dirt").payload().values().get("requestedQuantity"));
+        assertTrue(result.records().stream().noneMatch(record -> List.of("minecraft:water_bucket", "mod:brine_bucket", "minecraft:bucket",
+                "minecraft:iron_ingot").contains(record.source().sourceHandle())), result.records().toString());
+    }
+
+    @Test
+    void fluidAlternativesAreListedAsChoices() {
+        var clay = machine("mod:wet_clay", List.of(slot("slot-0", new Evidence.RecipeAlternative("fluid", "minecraft:water",
+                        new Evidence.JsonObject(Map.of()), 250, Evidence.Consumption.CONSUMED), new Evidence.RecipeAlternative("fluid", "mod:brine",
+                        new Evidence.JsonObject(Map.of()), 500, Evidence.Consumption.CONSUMED)), slot("slot-1", item("minecraft:dirt", 1))),
+                List.of(output("mod:clay", 1)), List.of("slot-2"), List.of(), List.of());
+
+        var result = new RecipePlanner(source(clay, rawRecipe("minecraft:dirt"))).plan("mod:clay", 3, SCOPE, 4);
+
+        assertEquals(new Evidence.JsonArray(List.of(choice("fluid", "minecraft:water", 750, "slot-0"), choice("fluid", "mod:brine", 1500, "slot-0"))),
+                route(result, "mod:wet_clay").payload().values().get("unexpandedNeeds"));
+        assertFalse(result.detail().contains("unknown-consumption-or-requirement"), result.detail());
+        assertTrue(result.records().stream().noneMatch(record -> List.of("minecraft:water", "mod:brine").contains(record.source().sourceHandle())));
+    }
+
+    @Test
     void reusedCatalystCountedOnce() {
         var altar = machine("mod:infuse", List.of(slot("slot-0", item("minecraft:iron_ingot", 1))), List.of(output("mod:infused", 1)),
                 List.of("slot-1"), List.of(new Evidence.RecipeAlternative("item", "naturesaura:altar", new Evidence.JsonObject(Map.of()), 1,
@@ -390,6 +425,12 @@ class RecipePlannerTest {
         values.put("type", new Evidence.JsonString(type));
         values.put("identity", new Evidence.JsonString(identity));
         values.put("quantity", number(quantity));
+        return new Evidence.JsonObject(values);
+    }
+
+    private static Evidence.JsonObject choice(String type, String identity, long quantity, String oneOf) {
+        var values = new java.util.LinkedHashMap<>(need(type, identity, quantity).values());
+        values.put("oneOf", new Evidence.JsonString(oneOf));
         return new Evidence.JsonObject(values);
     }
 

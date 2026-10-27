@@ -180,7 +180,10 @@ public final class RecipePlanner {
                             break;
                         }
                         state.branches++;
-                        if (alternative.consumption() != Evidence.Consumption.CONSUMED || alternative.quantity() == null
+                        if (groupedBatches != null && rules.unexpanded(alternative)) {
+                            // Listed by route() as an unexpanded choice; it satisfies the slot without a refill route.
+                            alternativeComplete = true;
+                        } else if (alternative.consumption() != Evidence.Consumption.CONSUMED || alternative.quantity() == null
                                 || groupedBatches == null || !alternative.type().equals("item")) {
                             alternativeIncomplete = true;
                             state.partial = true;
@@ -225,18 +228,26 @@ public final class RecipePlanner {
         if (!rules.extended) return planned(candidate, quantity, output == null ? null : output.quantity(), batches, bound, Map.of());
         var needs = new LinkedHashMap<List<String>, Long>();
         if (batches != null) {
+            var processedAlternativeSets = new HashSet<List<Evidence.RecipeAlternative>>();
             for (Evidence.RecipeSlot slot : candidate.recipePayload().inputs()) {
-                if (slot.alternatives().size() != 1 || !rules.unexpanded(slot.alternatives().getFirst())) continue;
-                var alternative = slot.alternatives().getFirst();
-                var key = List.of(alternative.type().equals("fluid") ? "fluid" : "contents", alternative.comparisonIdentity());
-                var amount = multiply(alternative.quantity(), batches);
-                var total = amount == null ? null : needs.containsKey(key) ? needs.get(key) == null ? null : add(needs.get(key), amount) : amount;
-                if (total == null) {
-                    state.partial = true;
-                    state.reasons.add("input-quantity-overflow:" + candidate.source().sourceHandle() + ":" + slot.groupId());
+                boolean single = slot.alternatives().size() == 1;
+                // Alternatives are choices: one entry per alternative, tied by oneOf to the first slot of that alternative set,
+                // at the quantity for every slot sharing the set, as the alternative branch in visit() groups them.
+                if (!single && !processedAlternativeSets.add(slot.alternatives())) continue;
+                var multiplier = single ? Long.valueOf(batches) : multiply(batches, candidate.recipePayload().inputs().stream()
+                        .filter(other -> other.alternatives().equals(slot.alternatives())).count());
+                for (Evidence.RecipeAlternative alternative : slot.alternatives()) {
+                    if (!rules.unexpanded(alternative)) continue;
+                    var key = List.of(alternative.type().equals("fluid") ? "fluid" : "contents", alternative.comparisonIdentity(), single ? "" : slot.groupId());
+                    var amount = multiplier == null ? null : multiply(alternative.quantity(), multiplier);
+                    var total = amount == null ? null : needs.containsKey(key) ? needs.get(key) == null ? null : add(needs.get(key), amount) : amount;
+                    if (total == null) {
+                        state.partial = true;
+                        state.reasons.add("input-quantity-overflow:" + candidate.source().sourceHandle() + ":" + slot.groupId());
+                    }
+                    needs.put(key, total);
+                    if (key.getFirst().equals("contents")) state.equipment.add(rules.containers.get(alternative.comparisonIdentity()));
                 }
-                needs.put(key, total);
-                if (key.getFirst().equals("contents")) state.equipment.add(rules.containers.get(alternative.comparisonIdentity()));
             }
         }
         if (batches != null && rules.reusedCatalysts(candidate)) candidate.recipePayload().catalysts().forEach(catalyst -> state.equipment.add(catalyst.comparisonIdentity()));
@@ -246,6 +257,7 @@ public final class RecipePlanner {
             fields.put("type", new Evidence.JsonString(need.getKey().get(0)));
             fields.put("identity", new Evidence.JsonString(need.getKey().get(1)));
             fields.put("quantity", need.getValue() == null ? new Evidence.JsonNull() : new Evidence.JsonNumber(BigDecimal.valueOf(need.getValue())));
+            if (!need.getKey().get(2).isEmpty()) fields.put("oneOf", new Evidence.JsonString(need.getKey().get(2)));
             return (Evidence.JsonValue) new Evidence.JsonObject(fields);
         }).toList()));
         var counted = batches == null ? null : output;

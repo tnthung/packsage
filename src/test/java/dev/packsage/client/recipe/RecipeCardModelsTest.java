@@ -235,6 +235,26 @@ class RecipeCardModelsTest {
         record.getAsJsonObject("source").addProperty("sourceHandle", "ref:12345678.1.1");
         assertEquals("create:mixing|create:mixing/brass", RecipeCardModels.fromRecord(record).orElseThrow().viewerHandle());
     }
+    @Test void jeiCardUsesTypedRecipeWhenDisplayPayloadWasTrimmed() {
+        var record = JsonParser.parseString("""
+                {"reference":"jei:create:mechanical_crafting|create:mechanical_crafting/crushing_wheel",
+                 "kind":"RECIPE","title":"Mechanical Crafting",
+                 "source":{"providerId":"jei","sourceHandle":"create:mechanical_crafting|create:mechanical_crafting/crushing_wheel"},
+                 "payload":{},"recipe":{"canonicalRecipeId":"create:mechanical_crafting/crushing_wheel",
+                 "inputs":[{"groupId":"slot-1","alternatives":[{"type":"item","comparisonIdentity":"create:andesite_alloy",
+                 "components":{},"quantity":1,"consumption":"CONSUMED"}]}],
+                 "outputs":[{"type":"item","comparisonIdentity":"create:crushing_wheel","components":{},"quantity":2}],
+                 "constraints":["recipeType=create:mechanical_crafting"],"decodingStatus":"PARTIAL"}}
+                """).getAsJsonObject();
+        var card = RecipeCardModels.fromRecord(record).orElseThrow();
+        assertEquals(RecipeCardModel.Category.VIEWER, card.category());
+        assertEquals("Mechanical Crafting", card.caption());
+        assertEquals("create:mechanical_crafting|create:mechanical_crafting/crushing_wheel", card.viewerHandle());
+        assertEquals("create:crushing_wheel", card.slots().getLast().stacks().getFirst().identity());
+        record.addProperty("kind", "OTHER");
+        assertTrue(RecipeCardModels.fromRecord(record).isEmpty());
+    }
+
     @Test void jeiBrewingRecordStaysViewerModel() {
         var record = JsonParser.parseString("""
                 {"reference":"jei:minecraft:brewing|#3@7","kind":"RECIPE","title":"Brewing",

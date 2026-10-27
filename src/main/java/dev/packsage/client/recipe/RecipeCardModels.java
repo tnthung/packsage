@@ -11,12 +11,15 @@ public final class RecipeCardModels {
     public static Optional<RecipeCardModel> fromRecord(JsonObject record) {
         try {
             var payload = record.getAsJsonObject("payload");
+            var observed = record.get("source");
+            var provider = observed != null && observed.isJsonObject() ? observed.getAsJsonObject().get("providerId") : null;
+            if (provider != null && provider.isJsonPrimitive() && provider.getAsString().equals("jei")
+                    && payload != null && !payload.has("decodingStatus") && record.has("kind") && record.get("kind").getAsString().equals("RECIPE")
+                    && record.has("recipe") && record.get("recipe").isJsonObject()) payload = record.getAsJsonObject("recipe");
             var status = payload.get("decodingStatus").getAsString();
             if (!List.of("VERIFIED", "PARTIAL", "OPAQUE").contains(status)) return Optional.empty();
             var canonical = payload.get("canonicalRecipeId");
             var recipeId = canonical != null && canonical.isJsonPrimitive() ? canonical.getAsString() : null;
-            var observed = record.get("source");
-            var provider = observed != null && observed.isJsonObject() ? observed.getAsJsonObject().get("providerId") : null;
             if (provider != null && provider.isJsonPrimitive() && provider.getAsString().equals("jei"))
                 return viewer(record, observed.getAsJsonObject(), payload, recipeId);
             var inputs = payload.getAsJsonArray("inputs");

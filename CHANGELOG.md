@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- JEI recipe cards can draw from a bounded record's retained typed recipe when its display payload was trimmed.
 - Hovering an item slot on a JEI-drawn chat card shows JEI's whole slot tooltip, including lines such as output chances.
 - A plan explicitly asked of JEI while JEI is not ready, and a saved bookmark call on JEI older than 19.53, now report that JEI is unavailable and why instead of a generic unhandled-request error.
 - The adapter list shows JEI with its availability.

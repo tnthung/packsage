@@ -76,6 +76,22 @@ class PackSageToolsTest {
     }
 
     @Test
+    void planRecipeOffersTheSearchRecipeProviders() {
+        var metadata = List.of(new Toolbox.Metadata("jei", List.of(), true, List.of()), new Toolbox.Metadata("native", List.of(), true, List.of("item")),
+                new Toolbox.Metadata("guides", List.of("guide"), false, List.of()));
+        var definitions = PackSageTools.definitions(metadata);
+        java.util.function.Function<String, com.google.gson.JsonObject> properties = name -> JsonParser.parseString(definitions.stream()
+                .filter(value -> value.name().equals(name)).findFirst().orElseThrow().serializedSchema()).getAsJsonObject().getAsJsonObject("properties");
+
+        var provider = properties.apply("plan_recipe").getAsJsonObject("provider");
+
+        assertEquals(properties.apply("search_recipe").getAsJsonObject("filter").getAsJsonObject("properties").get("provider"), provider);
+        assertEquals("[\"jei\",\"native\",null]", provider.getAsJsonArray("enum").toString());
+        assertFalse(JsonParser.parseString(definitions.stream().filter(value -> value.name().equals("plan_recipe")).findFirst().orElseThrow()
+                .serializedSchema()).getAsJsonObject().getAsJsonArray("required").toString().contains("provider"));
+    }
+
+    @Test
     void runCommandTargetsFirstPersonUsingContextIdentity() {
         var definition = PackSageTools.definitions().stream().filter(value -> value.name().equals("run_command")).findFirst().orElseThrow();
         assertTrue(definition.description().contains("For first-person targets, use playerName from the gameplay context or @s where valid; do not ask for the player's name."));

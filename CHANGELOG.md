@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### 2026-10-28
+
+- Recorded component-bearing container, hidden JEI category and temporary-link live checks, including the vanilla water-potion fixture limitation.
+
 ### 2026-10-27
 
 - Recorded the JEI planner-fix recheck, stable mod-machine plan navigation, explicit native selection and remaining acceptance limits.

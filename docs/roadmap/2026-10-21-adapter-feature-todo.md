@@ -188,7 +188,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 - [x] Minecraft — localized potion-name matching and empty-page progress; installed acceptance passed: the potion was searched by name, the empty page was continued and the localized transformation was found in 2 recipe searches ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — planner brewing batch presentation; installed acceptance passed: `plan_recipe` was called and the reply stated the batch semantics and derived totals under a stated grouping ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — plan_recipe routes reach every loaded recipe (beacon, enchanting table, oak planks) with concrete PARTIAL details, intermediate expansion and smithing inputs (A1r/A3 plan detail/W20/W21, native readiness rounds 3–8; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
-- [ ] JEI — altar, mixing, fluid and returned-container plans passed, including the machine relationship and blank crafting positions. Possible extras and fluid details passed via follow-up; component-bearing unexpanded fluid/container needs remain unverified ([validation](../validation/2026-10-27-jei-adapter.md)).
+- [x] JEI — altar, mixing, fluid and returned-container plans passed, including the machine relationship and blank crafting positions. Possible extras, fluid details and a component-bearing water-bucket contents and equipment fixture passed via follow-up ([validation](../validation/2026-10-27-jei-adapter.md)).
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
 
@@ -204,7 +204,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 ### Recipe cards and navigation
 
-- [ ] JEI — saved torch and Natural Altar plan links reopened after restart; Create plan navigation and foreign-world read-only refusal passed. Cards, clicks, R/U, tooltips, chips and narrow layouts also passed; temporary and hidden recipe behavior remains open ([validation](../validation/2026-10-27-jei-adapter.md)).
+- [x] JEI — saved torch and Natural Altar plan links reopened after restart; Create plan navigation, foreign-world read-only refusal, temporary-link restart refusal and hidden-category refusal passed. Cards, clicks, R/U, tooltips, chips and narrow layouts also passed ([validation](../validation/2026-10-27-jei-adapter.md)).
 
 ### JEI bookmarks
 

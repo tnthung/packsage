@@ -28,9 +28,11 @@ neoForge {
 
 repositories {
     mavenCentral()
+    maven { url = 'https://maven.blamejared.com' }
 }
 
 dependencies {
+    compileOnly "mezz.jei:jei-1.21.1-neoforge:${jei_version}"
     jarJar(implementation('com.knuddels:jtokkit')) {
         version {
             strictly '[1.1.0,1.2.0)'
@@ -46,10 +48,11 @@ dependencies {
     testImplementation('com.google.code.gson:gson:2.10.1')
     testImplementation('org.junit.jupiter:junit-jupiter:5.11.3')
     testRuntimeOnly('org.junit.platform:junit-platform-launcher:1.11.3')
+    testRuntimeOnly "mezz.jei:jei-1.21.1-common-api:${jei_version}"
+    testRuntimeOnly "mezz.jei:jei-1.21.1-neoforge-api:${jei_version}"
 }
 
 configurations.testCompileOnly.extendsFrom(configurations.compileOnly)
-configurations.testRuntimeClasspath.extendsFrom(configurations.compileOnly)
 
 sourceSets {
     bootstrap {

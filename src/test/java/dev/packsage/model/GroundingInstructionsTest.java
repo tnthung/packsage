@@ -71,9 +71,20 @@ class GroundingInstructionsTest {
 
     @Test
     void policyNamesNoRemovedSource() {
-        var removedSources = java.util.regex.Pattern.compile("\\b(JEI|search_document|read_progress|Ponder|Curios|[Qq]uests?|[Gg]uides?)\\b")
+        var removedSources = java.util.regex.Pattern.compile("\\b(search_document|read_progress|Ponder|Curios|[Qq]uests?|[Gg]uides?)\\b")
                 .matcher(GroundingInstructions.defaultInstructions());
         assertFalse(removedSources.find(), () -> removedSources.group());
+    }
+
+    @Test
+    void policyNamesTheDefaultRecipeSourceAndBookmarkPolicy() {
+        var text = GroundingInstructions.defaultInstructions();
+        assertTrue(text.contains("search_recipe and plan_recipe read the default recipe source: JEI while it is ready, otherwise the game's own recipes; name native as the source only for a recipe type JEI does not list."));
+        assertTrue(text.contains("add a bookmark directly when the player asks for one; when a bookmark is your own idea, offer it without adding it; remove one only when the player asks."));
+        assertFalse(text.contains("search_recipe reads Minecraft's loaded recipes"));
+        assertFalse(text.contains("provider"));
+        var joined = java.util.regex.Pattern.compile("[a-z]\\.[A-Z]").matcher(text);
+        assertFalse(joined.find(), () -> joined.group());
     }
 
     @Test

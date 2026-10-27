@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- The assistant instructions now cover JEI recipes, mod machine plans and bookmarks, as an unvalidated candidate awaiting live acceptance.
 - With JEI ready, chat recipe cards for JEI and vanilla recipes are drawn by JEI's own layouts, scaled down to three quarters to fit; narrower columns fall back to native cards or to the usual result or source chips, with the JEI category shown beside the chip. Cards are rebuilt when JEI becomes ready, reloads or goes away, and JEI drawing failures are logged once per category.
 - JEI recipe planning matches structurally equal component variants and keeps unmatched subtype requirements incomplete.
 - Ready JEI supplies the default recipe search and planning source, with native recipes used when JEI is unavailable.

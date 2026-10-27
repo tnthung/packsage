@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- JEI recipes that mods register as raw native recipe objects, such as Nature's Aura altar recipes, now carry their native recipe ID, so their saved links reopen after a restart; ambiguous, missing or over-large native data keeps them temporary.
 - Hidden JEI recipes returned by search can be reread, drawn as cards and bookmarked by their recipe ID; links still never open them.
 - JEI reads, recipe cards, links and bookmarks capture the JEI runtime and its generation together, so an index built while JEI reloads is never kept as current.
 - Temporary JEI recipe links saved before a Minecraft restart no longer open or draw a different recipe; JEI runtime generations now never repeat across processes.

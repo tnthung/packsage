@@ -122,8 +122,13 @@ public final class FakeJeiRuntime {
         });
     }
 
-    /** An index current for the holder's present generation. */
+    /** An index current for the holder's present generation, with no native recipe data. */
     public JeiRuntimeIndex index() {
-        return new JeiRuntimeIndex(runtime(), JeiRuntimeHolder.generation(), () -> true);
+        return index(() -> null);
+    }
+
+    /** An index current for the holder's present generation over these native recipe holders. */
+    public JeiRuntimeIndex index(java.util.function.Supplier<Collection<RecipeHolder<?>>> nativeRecipes) {
+        return new JeiRuntimeIndex(runtime(), JeiRuntimeHolder.generation(), () -> true, nativeRecipes);
     }
 }

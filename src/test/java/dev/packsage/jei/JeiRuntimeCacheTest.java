@@ -28,7 +28,7 @@ class JeiRuntimeCacheTest {
         assertSame(a, snapshot.runtime());
         JeiRuntimeHolder.available(runtime("B"));
 
-        var index = new JeiRuntimeIndex(snapshot.runtime(), snapshot.generation(), () -> true);
+        var index = new JeiRuntimeIndex(snapshot.runtime(), snapshot.generation(), () -> true, () -> null);
         assertSame(a, index.runtime());
         assertEquals(Toolbox.Code.STALE_SCOPE, assertThrows(Toolbox.Failure.class, index::generation).code());
     }

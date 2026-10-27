@@ -6,6 +6,8 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.knowledge.nativegame.NativeSnapshot;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -14,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.ingredients.ITypedIngredient;
@@ -30,6 +33,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
 public final class JeiRuntimeIndex implements JeiIndex {
@@ -37,19 +41,22 @@ public final class JeiRuntimeIndex implements JeiIndex {
     private final Map<String, CategoryRecipes> categories = new LinkedHashMap<>(16, 0.75f, true);
     private final long createdGeneration;
     private final BooleanSupplier clientThread;
+    private final Supplier<Collection<RecipeHolder<?>>> nativeRecipes;
+    private IdentityHashMap<Object, ResourceLocation> nativeIds;
     private long generation;
     private record CategoryRecipes(List<?> recipes, IdentityHashMap<Object, Integer> ordinals) { }
     private boolean truncated;
 
     public JeiRuntimeIndex(JeiRuntimeHolder.Snapshot snapshot) {
-        this(snapshot.runtime(), snapshot.generation(), () -> Minecraft.getInstance().isSameThread());
+        this(snapshot.runtime(), snapshot.generation(), () -> Minecraft.getInstance().isSameThread(), JeiRuntimeIndex::nativeRecipes);
     }
 
-    JeiRuntimeIndex(IJeiRuntime runtime, long generation, BooleanSupplier clientThread) {
+    JeiRuntimeIndex(IJeiRuntime runtime, long generation, BooleanSupplier clientThread, Supplier<Collection<RecipeHolder<?>>> nativeRecipes) {
         this.runtime = runtime;
         this.createdGeneration = generation;
         this.generation = generation;
         this.clientThread = clientThread;
+        this.nativeRecipes = nativeRecipes;
     }
 
     /** The runtime this index was built from; only current while {@link #generation()} accepts it. */
@@ -62,6 +69,7 @@ public final class JeiRuntimeIndex implements JeiIndex {
         if (current != generation) {
             generation = current;
             categories.clear();
+            nativeIds = null;
         }
         if (current != createdGeneration) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "JEI runtime generation changed");
         if (!clientThread.getAsBoolean()) throw new IllegalStateException("JEI index must run on the client thread");
@@ -185,8 +193,7 @@ public final class JeiRuntimeIndex implements JeiIndex {
     private <T> Optional<RecipeRef> byRecipeId(IRecipeCategory<T> category, String recipeId) {
         T match = null;
         for (var recipe : runtime.getRecipeManager().createRecipeLookup(category.getRecipeType()).includeHidden().get().toList()) {
-            var id = category.getRegistryName(recipe);
-            if (id == null && recipe instanceof RecipeHolder<?> holder) id = holder.id();
+            var id = recipeId(category, recipe);
             if (id != null && recipeId.equals(id.toString())) {
                 if (match != null) return Optional.empty();
                 match = recipe;
@@ -216,6 +223,58 @@ public final class JeiRuntimeIndex implements JeiIndex {
         if (runtime.getRecipeManager().createRecipeLookup(category.getRecipeType()).get().noneMatch(value -> value == recipe))
             return Optional.empty();
         return Optional.of(resolve(category, ref));
+    }
+
+    /** Native holders scanned for raw recipe identities; a pack with more supplies no native fallback at all. */
+    static final int NATIVE_RECIPE_LIMIT = 65_536;
+
+    private static Collection<RecipeHolder<?>> nativeRecipes() {
+        var level = Minecraft.getInstance().level;
+        return level == null ? null : level.getRecipeManager().getRecipes();
+    }
+
+    /** The persistent ID behind a reference, as its record and links carry it, or empty when it has none. */
+    Optional<String> recipeId(RecipeRef ref) {
+        return resolve(ref).flatMap(this::recipeId);
+    }
+
+    private <T> Optional<String> recipeId(Resolved<T> resolved) {
+        return Optional.ofNullable(recipeId(resolved.category(), resolved.recipe())).map(ResourceLocation::toString);
+    }
+
+    /**
+     * JEI's registry name, else the holder's ID for a holder, else for a raw native recipe the one current native holder whose
+     * value is this exact object. Ambiguous, missing or incompletely enumerated native data gives no ID.
+     */
+    private <T> ResourceLocation recipeId(IRecipeCategory<T> category, T recipe) {
+        var id = category.getRegistryName(recipe);
+        if (id == null && recipe instanceof RecipeHolder<?> holder) id = holder.id();
+        if (id == null && recipe instanceof Recipe<?>) id = nativeIds().get(recipe);
+        return id;
+    }
+
+    /** Raw native recipe objects to their one holder ID, built once per index from at most {@link #NATIVE_RECIPE_LIMIT} holders. */
+    private IdentityHashMap<Object, ResourceLocation> nativeIds() {
+        if (nativeIds != null) return nativeIds;
+        var ids = new IdentityHashMap<Object, ResourceLocation>();
+        var ambiguous = Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>());
+        try {
+            var holders = nativeRecipes.get();
+            int count = 0;
+            if (holders != null) for (var holder : holders) {
+                if (++count > NATIVE_RECIPE_LIMIT) {
+                    ids.clear();
+                    break;
+                }
+                var previous = ids.putIfAbsent(holder.value(), holder.id());
+                if (previous != null && !previous.equals(holder.id())) ambiguous.add(holder.value());
+            }
+            ambiguous.forEach(ids::remove);
+        } catch (RuntimeException failure) {
+            ids.clear();
+        }
+        nativeIds = ids;
+        return ids;
     }
 
     public record Resolved<T>(IRecipeCategory<T> category, T recipe) { }
@@ -251,8 +310,7 @@ public final class JeiRuntimeIndex implements JeiIndex {
         var cached = categoryRecipes(category);
         if (ref.ordinal() < 0 || ref.ordinal() >= cached.recipes().size()) throw new IllegalArgumentException("invalid recipe reference");
         var recipe = category.getRecipeType().getRecipeClass().cast(cached.recipes().get(ref.ordinal()));
-        var id = category.getRegistryName(recipe);
-        if (id == null && recipe instanceof RecipeHolder<?> holder) id = holder.id();
+        var id = recipeId(category, recipe);
         var drawable = runtime.getRecipeManager().createRecipeLayoutDrawable(category, recipe,
                 runtime.getJeiHelpers().getFocusFactory().getEmptyFocusGroup()).orElseThrow();
         var slots = new ArrayList<JeiLayout.Slot>();

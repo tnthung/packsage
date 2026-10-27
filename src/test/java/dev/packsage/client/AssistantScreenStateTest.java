@@ -1713,8 +1713,9 @@ class AssistantScreenStateTest {
     }
 
     @Test
-    void viewerFallbackFollowsNativeVerbosityRulesAndAlwaysShowsItsCaption() {
-        var screen = new AssistantScreen(new FakeActions());
+    void viewerFallbackFollowsNativeVerbosityRulesAndOpensItsJeiTarget() throws Exception {
+        var actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
         screen.width = 640;
         screen.height = 480;
         ScreenTestHost.initialize(screen);
@@ -1754,22 +1755,71 @@ class AssistantScreenStateTest {
         for (var cards : List.<java.util.Map<dev.packsage.client.recipe.RecipeCardModel, dev.packsage.client.recipe.RecipeCard>>of(
                 java.util.Map.of(model, oversized), java.util.Map.of())) {
             for (var verbosity : PackSageSettings.Verbosity.values()) {
-                var lines = ScreenText.inlineLines("[jei:create:mixing|create:mixing/glass]", List.of(), List.of(), turn.sources(),
-                        java.util.Map.of(), verbosity, models);
-                // Detailed answers resolve no result outputs, as for native cards.
-                var layout = screen.messageLayout(lines, 149, cards,
-                        verbosity == PackSageSettings.Verbosity.DETAILED ? java.util.Map.of() : outputs, java.util.Map.of());
-                var texts = layout.runs().stream().map(run -> run.span().text()).toList();
-                assertEquals("Mixing", texts.getLast(), verbosity + " " + texts);
-                var chip = layout.runs().getFirst();
-                if (verbosity == PackSageSettings.Verbosity.DETAILED) {
-                    assertNull(chip.stack());
-                    assertTrue(chip.span().text().startsWith("Source: "), texts.toString());
-                } else {
-                    assertTrue(chip.stack().is(net.minecraft.world.item.Items.GLASS), verbosity + " " + texts);
-                    assertSame(cards.isEmpty() ? null : oversized, chip.card());
+                for (String targetId : List.of("recipe", "temporary", "category", "")) {
+                    for (boolean available : List.of(true, false)) {
+                        actions.availableAdapters = java.util.Map.of("jei", available);
+                        var targets = targetId.isEmpty() ? List.<Evidence.NavigationTarget>of()
+                                : List.of(new Evidence.NavigationTarget(SCOPE, "jei", source.sourceHandle(), targetId));
+                        var lines = ScreenText.inlineLines("[jei:create:mixing|create:mixing/glass]", targets, List.of(), turn.sources(),
+                                java.util.Map.of(), verbosity, models);
+                        // Detailed answers resolve no result outputs, as for native cards.
+                        var layout = screen.messageLayout(lines, 149, cards,
+                                verbosity == PackSageSettings.Verbosity.DETAILED ? java.util.Map.of() : outputs, java.util.Map.of());
+                        var texts = layout.runs().stream().map(run -> run.span().text()).toList();
+                        assertEquals("Mixing", texts.get(1), verbosity + " " + texts);
+                        var chip = layout.runs().getFirst();
+                        if (verbosity == PackSageSettings.Verbosity.DETAILED) {
+                            assertNull(chip.stack());
+                            assertTrue(chip.span().text().startsWith("Source: "), texts.toString());
+                        } else {
+                            assertTrue(chip.stack().is(net.minecraft.world.item.Items.GLASS), verbosity + " " + texts);
+                            assertSame(cards.isEmpty() ? null : oversized, chip.card());
+                        }
+                        if (available && (targetId.equals("recipe") || targetId.equals("temporary"))) {
+                            assertEquals(List.of("Mixing", "Open in JEI"), texts.subList(1, texts.size()), verbosity + " " + texts);
+                            var link = layout.runs().getLast();
+                            assertEquals(targets.getFirst(), link.span().target());
+                            assertEquals(ModernUi.ACCENT, link.span().color());
+                            assertTrue(link.span().bold());
+                            assertNull(link.span().source());
+                            assertTrue(link.x() + link.width() <= 149);
+                            actions.view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT, true,
+                                    actions.view.conversation(), actions.view.context(), List.of(source), targets, List.of());
+                            screen.refresh(actions.view);
+                            var field = AssistantScreen.class.getDeclaredField("chipHits");
+                            field.setAccessible(true);
+                            @SuppressWarnings("unchecked")
+                            var hits = (List<Object>) field.get(screen);
+                            hits.clear();
+                            var constructor = java.util.Arrays.stream(AssistantScreen.class.getDeclaredClasses())
+                                    .filter(type -> type.getSimpleName().equals("ChipHit")).findFirst().orElseThrow().getDeclaredConstructors()[0];
+                            constructor.setAccessible(true);
+                            // Use the layout's target and bounds, as drawInlineLines does when registering a link chip.
+                            for (var entry : java.util.Map.of("readableLeft", 200, "readableWidth", 400, "toggleY", 400).entrySet()) {
+                                var bounds = AssistantScreen.class.getDeclaredField(entry.getKey());
+                                bounds.setAccessible(true);
+                                bounds.setInt(screen, entry.getValue());
+                            }
+                            hits.add(constructor.newInstance(link.span().target(), 200 + link.x(), 60 + link.y(),
+                                    200 + link.x() + link.width(), 60 + link.y() + link.height()));
+                            actions.navigatedTarget = null;
+                            assertTrue(screen.mouseClicked(201 + link.x(), 61 + link.y(), 0));
+                            assertEquals(targets.getFirst(), actions.navigatedTarget);
+                        } else assertEquals(2, texts.size(), verbosity + " " + texts);
+                    }
                 }
             }
+        }
+        actions.availableAdapters = java.util.Map.of("jei", true);
+        var target = new Evidence.NavigationTarget(SCOPE, "native", "smelting:glass", "recipe");
+        var nativeSource = new Evidence.Source(SCOPE, "native", "1", target.sourceHandle(), 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var nativeModel = new dev.packsage.client.recipe.RecipeCardModel(
+                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, model.slots(), "Furnace", List.of());
+        for (var verbosity : PackSageSettings.Verbosity.values()) {
+            var lines = ScreenText.inlineLines("[native:smelting:glass]", List.of(target), List.of(), List.of(nativeSource),
+                    java.util.Map.of(), verbosity, java.util.Map.of(nativeSource, nativeModel));
+            assertTrue(screen.messageLayout(lines, 149).runs().stream().noneMatch(run -> run.span().text().equals("Open in JEI")));
         }
     }
 
@@ -2133,6 +2183,7 @@ class AssistantScreenStateTest {
         private List<dev.packsage.world.CommandRunner.Confirmation> confirmations = List.of();
         private final List<String> readCalls = new ArrayList<>();
         private String sentQuestion;
+        private Evidence.NavigationTarget navigatedTarget;
         private boolean steeringAccepted = true;
         private CompletionStage<List<ChatContracts.SessionSummary>> sessions = CompletableFuture.completedFuture(List.of());
         private ChatContracts.View view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT,
@@ -2187,6 +2238,6 @@ class AssistantScreenStateTest {
             view = new ChatContracts.View(view.active(), view.signIn(), paused, view.conversation(), view.context(), view.sources(),
                     view.navigationTargets(), view.errors(), view.streamingAnswer(), view.activity(), view.activeWorld(), view.readOnly(), view.activeQuestion());
         }
-        @Override public void navigate(Evidence.NavigationTarget target) { calls.add("navigate"); }
+        @Override public void navigate(Evidence.NavigationTarget target) { calls.add("navigate"); navigatedTarget = target; }
     }
 }

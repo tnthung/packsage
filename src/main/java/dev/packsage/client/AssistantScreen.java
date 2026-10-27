@@ -1104,6 +1104,19 @@ public final class AssistantScreen extends Screen {
                                 ModernUi.MUTED, false, false), x, y, captionWidth, line.quote(), null, null, rowHeight));
                         x += captionWidth + 4;
                     }
+                    if (viewer != null && viewer.category() == RecipeCardModel.Category.VIEWER
+                            && span.target() != null && span.target().providerId().equals("jei")
+                            && (span.target().targetId().equals("recipe") || span.target().targetId().equals("temporary"))
+                            && actions.adapterAvailability().getOrDefault("jei", false)) {
+                        Component link = Component.literal("Open in JEI").withStyle(style -> style.withFont(ModernUi.BOLD_FONT));
+                        int linkWidth = Math.min(Math.max(1, width - indent), font.width(link) + 12);
+                        if (x > indent && x + linkWidth > width) {
+                            x = indent; y += rowHeight;
+                        }
+                        runs.add(new MessageRun(new ScreenText.InlineSpan(font.substrByWidth(link, Math.max(1, linkWidth - 12)).getString(),
+                                span.target(), ModernUi.ACCENT, true, false), x, y, linkWidth, line.quote(), null, null, rowHeight));
+                        x += linkWidth + 4;
+                    }
                     continue;
                 }
                 for (String token : span.text().split("(?<=\\s)(?=\\S)|(?<=\\S)(?=\\s)")) {

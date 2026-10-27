@@ -91,16 +91,16 @@ class SlotStacksTest {
     }
 
     @Test
-    void itemCountsAreClampedToStackLimits() {
+    void itemCountsPreserveRecordedPositiveValues() {
         var zero = SlotStacks.resolve(new RecipeCardModel.Stack(RecipeCardModel.Stack.Kind.ITEM,
                 "minecraft:stone", "{}", 0, ""), registries).stacks().getFirst();
         var negative = SlotStacks.resolve(new RecipeCardModel.Stack(RecipeCardModel.Stack.Kind.ITEM,
                 "minecraft:stone", "{}", -3, ""), registries).stacks().getFirst();
         var oversized = SlotStacks.resolve(new RecipeCardModel.Stack(RecipeCardModel.Stack.Kind.ITEM,
-                "minecraft:ender_pearl", "{}", 100, ""), registries).stacks().getFirst();
+                "minecraft:ender_pearl", "{}", 32, ""), registries).stacks().getFirst();
         assertEquals(1, zero.getCount());
         assertEquals(1, negative.getCount());
-        assertEquals(16, oversized.getCount());
+        assertEquals(32, oversized.getCount());
     }
 
     @Test

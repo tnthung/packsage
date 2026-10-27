@@ -16,7 +16,7 @@
 - Hidden JEI recipes returned by search can be reread, drawn as cards and bookmarked by their recipe ID; links still never open them.
 - JEI reads, recipe cards, links and bookmarks capture the JEI runtime and its generation together, so an index built while JEI reloads is never kept as current.
 - Temporary JEI recipe links saved before a Minecraft restart no longer open, draw, reread or bookmark a different recipe: temporary handles carry a random per-process session, and handles from another session, including those saved before this change, never resolve. Stable recipe links are unaffected.
-- The assistant instructions now cover JEI recipes, mod machine plans and bookmarks, as an unvalidated candidate awaiting live acceptance.
+- The assistant instructions cover JEI recipes, mod machine plans and bookmarks, including returned equipment and unexpanded needs, and search named brewing variants directly.
 - Recipe plans list `possibleExtras` as a step's outputs other than the planned item for every multi-output step, and JEI recipe search records no longer carry the field.
 - JEI brewing recipes are planned as shared bottle batches like native brewing, so the planner no longer reports one reagent per bottle.
 - Narrow JEI recipe-card fallbacks include an "Open in JEI" link beside the category caption when the recipe has a navigation target and JEI is available.

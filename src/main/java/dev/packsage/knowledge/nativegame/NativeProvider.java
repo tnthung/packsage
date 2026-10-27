@@ -199,18 +199,27 @@ public final class NativeProvider implements KnowledgeProvider {
         if (!providerSelected(filter)) return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "different recipe source"));
         if (client == null) return unavailable(request.scope(), "live native recipe source unavailable");
         var outputValue = filter.values().get("outputItem");
+        var inputValue = filter.values().get("inputItem");
         var textValue = filter.values().get("text");
         if (outputValue != null && !(outputValue instanceof Evidence.JsonNull) && !(outputValue instanceof Evidence.JsonString)) {
             return invalid("outputItem must be a string");
+        }
+        if (inputValue != null && !(inputValue instanceof Evidence.JsonNull) && !(inputValue instanceof Evidence.JsonString)) {
+            return invalid("inputItem must be a string");
         }
         if (textValue != null && !(textValue instanceof Evidence.JsonNull) && !(textValue instanceof Evidence.JsonString)) {
             return invalid("text must be a string");
         }
         var output = outputValue instanceof Evidence.JsonString value ? value.value() : null;
+        var input = inputValue instanceof Evidence.JsonString value ? value.value() : null;
         var text = textValue instanceof Evidence.JsonString value ? value.value() : null;
         if (output != null) {
             var key = ResourceLocation.tryParse(output);
             if (key == null || !key.toString().equals(output)) return invalid("outputItem must be a canonical item identity");
+        }
+        if (input != null) {
+            var key = ResourceLocation.tryParse(input);
+            if (key == null || !key.toString().equals(input)) return invalid("inputItem must be a canonical item identity");
         }
         try {
             var limitValue = request.arguments().values().get("limit");
@@ -226,7 +235,10 @@ public final class NativeProvider implements KnowledgeProvider {
                 if (output != null && !client.level.registryAccess().registryOrThrow(Registries.ITEM)
                         .containsKey(ResourceLocation.parse(output))) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS,
                         "recipe output item is unknown");
-                return NativeRecipeReader.search(client, output, text, offset, limit, request.scope());
+                if (input != null && !client.level.registryAccess().registryOrThrow(Registries.ITEM)
+                        .containsKey(ResourceLocation.parse(input))) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS,
+                        "recipe input item is unknown");
+                return NativeRecipeReader.search(client, output, input, text, offset, limit, request.scope());
             }).thenApply(page -> {
                 String next = page.exhausted() || page.nextOffset() <= offset ? null : storeCursor(page.nextOffset(), signature, request.scope());
                 boolean partial = page.partial() || !page.exhausted()

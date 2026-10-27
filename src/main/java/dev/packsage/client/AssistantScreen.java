@@ -1005,8 +1005,8 @@ public final class AssistantScreen extends Screen {
                         run.card() != null ? ModernUi.ACCENT_DARK : 0xd03a4552,
                         run.card() != null ? ModernUi.ACCENT : ModernUi.BORDER);
                 graphics.pose().pushPose();
-                graphics.pose().translate(x + 1, chipTop, 0);
-                graphics.pose().scale(0.75f, 0.75f, 1);
+                graphics.pose().translate(x + 2, chipTop + 1, 0);
+                graphics.pose().scale(0.625f, 0.625f, 1);
                 graphics.renderItem(run.stack(), 0, 0);
                 graphics.renderItemDecorations(font, run.stack(), 0, 0);
                 graphics.pose().popPose();
@@ -1024,7 +1024,7 @@ public final class AssistantScreen extends Screen {
             }
             graphics.drawString(font, Component.literal(span.text()).withStyle(style -> style
                             .withFont(span.bold() || span.target() != null || span.externalUrl() != null ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
-                    x + (item ? 16 : reference ? 6 : 0), top + (run.height() - font.lineHeight) / 2 + 1, span.color(), false);
+                    x + (item ? 14 : reference ? 6 : 0), top + (run.height() - font.lineHeight) / 2 + 1, span.color(), false);
         }
         return y + layout.height();
     }
@@ -1073,7 +1073,7 @@ public final class AssistantScreen extends Screen {
                     else if (!item && !navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;
                     boolean bold = navigation;
                     Component label = Component.literal(labelText).withStyle(style -> style.withFont(bold ? ModernUi.BOLD_FONT : ModernUi.FONT));
-                    int padding = item ? 20 : 12;
+                    int padding = item ? 18 : 12;
                     int chipWidth = Math.min(Math.max(1, width - indent), font.width(label) + padding);
                     if (x > indent && x + chipWidth > width) {
                         x = indent; y += rowHeight;

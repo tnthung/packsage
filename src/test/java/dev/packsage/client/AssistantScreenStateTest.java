@@ -1558,8 +1558,8 @@ class AssistantScreenStateTest {
         assertEquals(List.of(0, 12, 24, 36, 107), layout.runs().stream().map(AssistantScreen.MessageRun::y).toList());
         assertEquals(List.of(12, 12, 12, 71, 12), layout.runs().stream().map(AssistantScreen.MessageRun::height).toList());
         assertEquals(119, layout.height());
-        assertEquals(45, layout.runs().get(1).width());
-        assertEquals(layout.runs().get(2).span().text().length() * 5 + 20, layout.runs().get(2).width());
+        assertEquals(43, layout.runs().get(1).width());
+        assertEquals(layout.runs().get(2).span().text().length() * 5 + 18, layout.runs().get(2).width());
         assertEquals(71, layout.runs().get(3).height());
     }
 
@@ -1734,7 +1734,7 @@ class AssistantScreenStateTest {
         var chip = layout.runs().stream().filter(run -> run.stack() != null).findFirst().orElseThrow();
         assertEquals(12, chip.y());
         assertEquals(12, chip.height());
-        assertEquals(45, chip.width());
+        assertEquals(43, chip.width());
         assertEquals(24, layout.runs().stream().filter(run -> run.span().text().equals("world")).findFirst().orElseThrow().y());
     }
 

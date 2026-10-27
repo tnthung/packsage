@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- With JEI ready, chat recipe cards for JEI and vanilla recipes are drawn by JEI's own layouts, scaled down to three quarters to fit; narrower columns fall back to native cards or to the usual result or source chips, with the JEI category shown beside the chip. Cards are rebuilt when JEI becomes ready, reloads or goes away, and JEI drawing failures are logged once per category.
 - Chat cards and item chips open JEI recipes and uses with clicks and JEI's configured keys when its runtime is ready.
 - Added JEI recipe search through its focus index.
 - Added the optional JEI integration foundation with version checks and runtime lifecycle tracking.

@@ -998,6 +998,19 @@ class ScreenTextTest {
     }
 
     @Test
+    void jeiSourcesBecomeCards() {
+        var source = new Evidence.Source(SCOPE, "jei", "19.27", "create:mixing|create:mixing/brass", 1, java.time.Instant.ofEpochSecond(0),
+                Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.VIEWER, List.of("jei"));
+        var record = recipeRecord(source, "stone");
+        record.getAsJsonObject("payload").add("constraints", com.google.gson.JsonParser.parseString("[\"recipeType=create:mixing\"]"));
+        record.getAsJsonObject("payload").addProperty("category", "Mixing");
+        var card = ScreenText.recipeCards(recipeTurn(List.of(source), record)).get(source);
+        assertEquals(dev.packsage.client.recipe.RecipeCardModel.Category.VIEWER, card.category());
+        assertEquals("create:mixing|create:mixing/brass", card.viewerHandle());
+        assertEquals("Mixing", card.caption());
+    }
+
+    @Test
     void duplicateRecordsMatchTheCitedObservation() {
         var first = recipeSource("minecraft:stone", 0);
         var second = recipeSource("minecraft:stone", 1);

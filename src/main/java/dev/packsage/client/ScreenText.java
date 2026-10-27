@@ -392,8 +392,9 @@ final class ScreenText {
     }
 
     static Map<Evidence.Source, RecipeCardModel> recipeCards(ChatContracts.Turn turn) {
-        // Only native recipe and plan records can become cards; skip parsing tool results otherwise.
-        Map<String, List<Evidence.Source>> candidates = turn.sources().stream().filter(source -> source.providerId().equals("native"))
+        // Only native recipe and plan records and JEI recipe records can become cards; skip parsing tool results otherwise.
+        Map<String, List<Evidence.Source>> candidates = turn.sources().stream()
+                .filter(source -> source.providerId().equals("native") || source.providerId().equals("jei"))
                 .collect(Collectors.groupingBy(source -> source.providerId() + ":" + source.sourceHandle()));
         if (candidates.isEmpty()) return Map.of();
         Gson gson = new Gson();

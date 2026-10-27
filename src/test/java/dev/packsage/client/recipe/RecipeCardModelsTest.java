@@ -211,4 +211,38 @@ class RecipeCardModelsTest {
         assertEquals("custom:example:matcher:0", RecipeCardModels.fromRecord(record).orElseThrow().slots().getFirst().stacks().getFirst().description());
     }
 
+    @Test void jeiRecordBecomesViewerModel() {
+        var record = JsonParser.parseString("""
+                {"reference":"jei:create:mixing|create:mixing/brass","kind":"RECIPE","title":"Mixing",
+                 "source":{"providerId":"jei","sourceHandle":"create:mixing|create:mixing/brass"},
+                 "payload":{"canonicalRecipeId":"create:mixing/brass","category":"Mixing",
+                 "inputs":[{"groupId":"slot-0","alternatives":[{"type":"item","comparisonIdentity":"minecraft:copper_ingot",
+                 "components":{},"quantity":1,"consumption":"CONSUMED"}],"extraTooltip":[]},
+                 {"groupId":"slot-1","alternatives":[{"type":"fluid","comparisonIdentity":"minecraft:water",
+                 "components":{},"quantity":250,"consumption":"CONSUMED"}],"extraTooltip":[]}],
+                 "outputs":[{"type":"item","comparisonIdentity":"create:brass_ingot","components":{},"quantity":2,
+                 "groupId":"slot-2","extraTooltip":[]}],"catalysts":[],
+                 "constraints":["recipeType=create:mixing","consumption=assumed"],"decodingStatus":"PARTIAL"}}
+                """).getAsJsonObject();
+        var card = RecipeCardModels.fromRecord(record).orElseThrow();
+        assertEquals(RecipeCardModel.Category.VIEWER, card.category());
+        assertEquals("create:mixing|create:mixing/brass", card.viewerHandle());
+        assertEquals("Mixing", card.caption());
+        assertEquals("minecraft:copper_ingot", card.slots().getFirst().stacks().getFirst().identity());
+        var output = card.slots().stream().filter(RecipeCardModel.Slot::output).findFirst().orElseThrow();
+        assertEquals("create:brass_ingot", output.stacks().getFirst().identity());
+        assertEquals(2, output.stacks().getFirst().count());
+        record.getAsJsonObject("source").addProperty("sourceHandle", "ref:12345678.1.1");
+        assertEquals("create:mixing|create:mixing/brass", RecipeCardModels.fromRecord(record).orElseThrow().viewerHandle());
+    }
+
+    @Test void nativeModelsKeepNullViewerHandle() {
+        var record = record("stonecutting", "", "[" + slot("slot-0", "item", "minecraft:stone") + "]", output("item", "minecraft:stone_slab", 2));
+        record.getAsJsonObject("payload").addProperty("canonicalRecipeId", "minecraft:stone_slab_from_stonecutting");
+        var card = RecipeCardModels.fromRecord(record).orElseThrow();
+        assertEquals(RecipeCardModel.Category.STONECUTTING, card.category());
+        assertNull(card.viewerHandle());
+        assertEquals("minecraft:stone_slab_from_stonecutting", card.recipeId());
+    }
+
 }

@@ -10,7 +10,7 @@ Answers currently describe crafting layouts as text, for example a beacon grid w
 - **Concise answers stay short.** A Concise answer shows item names as inline item chips, each with a small icon and the normal item tooltip on hover. It adds one result chip for the recipe output. Hovering the result chip shows the same recipe card the Normal answer would show, as a floating tooltip.
 - **Shift pins the card.** While the result chip's card is showing, holding Shift keeps it open, so the mouse can move into it and hover each slot for that item's tooltip. Releasing Shift with the mouse off the chip and card closes it.
 - **One look with or without JEI.** PackSage draws native cards in JEI's layout and proportions for the vanilla categories, so a card looks the same whether PackSage or JEI drew it.
-- **Ready for JEI.** The card renderer sits behind a seam that a later JEI implementation can fill with JEI's own `IRecipeLayoutDrawable`. Mod recipes registered with JEI can then appear exactly as JEI draws them, and R and U over an item, plus left and right click, can open JEI's recipes and uses.
+- **Ready for JEI.** The card renderer sits behind a seam that a later JEI implementation can fill with JEI's own `IRecipeLayoutDrawable`. Mod recipes registered with JEI can then appear exactly as JEI draws them, and R and U over an item, plus left and right click, can open JEI's recipes and uses. Clicking an item chip or result chip opens that item's recipes in JEI (like R).
 
 ## Non-goals
 
@@ -56,11 +56,11 @@ Detailed answers show source chips and their hover details as before. Normal and
 
 ### Reference mockup
 
-The mockup below is the reference for how chips and cards look. It is drawn at GUI scale 2, so 1 GUI pixel equals 2 image pixels. The slot, output slot, arrow and panel art are JEI 19's own sprites; the chat colors are the `ModernUi` constants.
+The mockup below is the reference for the overall chip and card appearance; chip dimensions and fills follow the updated rules below. It is drawn at GUI scale 2, so 1 GUI pixel equals 2 image pixels. The slot, output slot, arrow and panel art are JEI 19's own sprites; the chat colors are the `ModernUi` constants.
 
 - **Fixed by the mockup:** the shape of each element and what tells them apart.
-  - **Item chip:** neutral fill, a 16 px item render on the left, then the label.
-  - **Result chip:** the output item's icon and label, with an accent fill and accent outline.
+  - **Item chip:** rounded, with a lighter neutral fill, a 12 px item render on the left, then the label.
+  - **Result chip:** rounded, with the output item's 12 px icon and label, an accent fill and accent outline.
   - **Card:** JEI's light gray panel, JEI's slots, arrow and output slot, and a muted caption below the panel.
   - **Floating panel:** a dark `ModernUi` surface around the card and caption.
 - **Not fixed by the mockup:**
@@ -143,7 +143,7 @@ JEI shows the station in its category header, not in the recipe layout. Every ca
 - **Block elements.** Message layout gains block elements. A card occupies its own row, with height equal to the card's height plus padding, and is aligned to the bubble's text left edge.
 - **Culling and caching.** Cards follow the same culling and scroll clipping as text, and they are cached with the prepared turn.
 - **Width.** Cards are drawn at GUI scale and never scaled down. A card wider than the bubble falls back to a result chip in Normal answers and a source chip in Detailed answers.
-- **Item chips and result chips.** These are inline like source chips: a full-size 16 px item render, then the label. Items are never scaled down. A line that holds one of these chips grows from the usual 12 GUI px to 18 GUI px. Other lines keep 12.
+- **Item chips and result chips.** These are rounded and 12 GUI px tall, with a standard item render scaled to 12 px followed by the label. Item chips have a lighter neutral fill than the bubble; result chips have an accent fill and outline. Lines containing chips use the usual 12 GUI px height. Card slots keep full-size 16 px item renders.
 - **Result chip hover.** The card draws as a floating panel near the mouse.
   - Holding Shift freezes it in place, and hovering its slots shows their item tooltips above the panel.
   - The panel closes when Shift is released and the mouse is outside both the chip and the panel.

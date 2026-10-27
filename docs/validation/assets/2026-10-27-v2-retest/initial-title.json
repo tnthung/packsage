@@ -1,0 +1,7 @@
+{
+  "world": null,
+  "save": null,
+  "paused": false,
+  "running": false,
+  "screen": "net.minecraft.client.gui.screens.TitleScreen"
+}

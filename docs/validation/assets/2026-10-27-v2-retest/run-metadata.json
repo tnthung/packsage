@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-27",
+  "branch": "feat/packsage-v2",
+  "testedHead": "cb8d068ac8eaa114710783991c72ebb7a0df636c",
+  "installedJarSha256": "EF7A93C49913B32491435525FC4F35B80C0CCFFB00A340740A6BF093893A8B8A",
+  "bridge": {
+    "port": 25599,
+    "pid": 48992
+  },
+  "promptUnchanged": true,
+  "developerOverride": null,
+  "effectivePromptSha256": "b95d1b65db6438bfafd0d5306b667b32e54fcf79fb2c3f5f1f2720b9fbb04bc7",
+  "fixtureDataPackRemoved": true,
+  "fixtureResourcePackRemoved": true
+}

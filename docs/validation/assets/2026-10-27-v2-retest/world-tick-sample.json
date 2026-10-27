@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "result": 20,
+  "feedback": [
+    "The game is running normally",
+    "Target tick rate: 20.0 per second.\nAverage time per tick: 5.1ms (Target: 50.0ms)",
+    "Percentiles: P50: 4.9ms P95: 7.6ms P99: 8.3ms, sample: 100"
+  ]
+}

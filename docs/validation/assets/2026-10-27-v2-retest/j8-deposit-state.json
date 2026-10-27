@@ -1,0 +1,30 @@
+{
+  "world": "PackSage Adapter Filter Live Test",
+  "save": "PackSage Adapter Filter Live Test",
+  "paused": false,
+  "running": true,
+  "screen": "net.minecraft.client.gui.screens.inventory.HorseInventoryScreen",
+  "dimension": "minecraft:overworld",
+  "position": [
+    1604.5,
+    250,
+    1603.5
+  ],
+  "yaw": -93.45947,
+  "pitch": 90,
+  "health": 20,
+  "gamemode": "creative",
+  "gameTime": 2826668,
+  "dayTime": 1240469,
+  "selectedHotbarSlot": 0,
+  "crosshairTarget": {
+    "place": {
+      "dimension": "minecraft:overworld",
+      "x": 1604,
+      "y": 249,
+      "z": 1603
+    }
+  },
+  "riddenEntity": null,
+  "menuId": 1
+}

@@ -1,0 +1,5460 @@
+{
+  "requestId": "01386bf4-afab-4d04-bfb9-bc763be52546",
+  "conversationId": "5f31c87c-532c-48da-870e-a88b09c2e933",
+  "saved": true,
+  "status": "completed",
+  "reply": "- **Record count:** 16.\n- **Search coverage:** `PARTIAL`.\n- **Coverage detail:** `native: scanned=0-63 of 1948 (ordinary recipes 1667, brewing candidates 281); phase=ordinary; matches=16`\n- **Individual record coverage:** All 16 returned records report `COMPLETE`.\n\n**Exact `nextCall`:**\n```json\n{\n  \"name\": \"search_recipe\",\n  \"arguments\": {\n    \"filter\": {\n      \"text\": null,\n      \"outputItem\": \"minecraft:barrier\",\n      \"provider\": null\n    },\n    \"limit\": null,\n    \"cursor\": \"2dfcf961-7410-4047-9137-aef952ebb6cc\"\n  }\n}\n```\n\nStopped after the first call. No continuation consumed and no commands run.",
+  "detail": null,
+  "errors": [],
+  "activities": [
+    {
+      "id": "tool:call_VjeH9HNZR7Ue8LIfx1XauCfl",
+      "title": "Using tool: search_recipe (step 1)",
+      "detail": "Completed",
+      "status": "COMPLETED",
+      "serializedArguments": "{\"filter\":{\"text\":null,\"outputItem\":\"minecraft:barrier\",\"provider\":null},\"limit\":null,\"cursor\":null}",
+      "toolName": "search_recipe",
+      "resultSummary": "Coverage: PARTIAL; records: 16\nnative: scanned=0-63 of 1948 (ordinary recipes 1667, brewing candidates 281); phase=ordinary; matches=16",
+      "durationMillis": 22,
+      "resultDetail": "coverage: PARTIAL | outcome: PARTIAL\nnative: scanned=0-63 of 1948 (ordinary recipes 1667, brewing candidates 281); phase=ordinary; matches=16\npacksage_retest:route_000\n  inputs: groupId: slot-0; alternatives: ..., groupId: slot-1; alternative\n  outputs: components: ...; comparisonIdentity: minecraft:barrier; type: it\n  components: \npacksage_retest:route_003\n  inputs: groupId: slot-0; alternatives: ..., groupId: slot-1; alternative\n  outputs: components: ...; comparisonIdentity: minecraft:barrier; type: it\n  components: \npacksage_retest:route_004\n  inputs: groupId: slot-0; alternatives: ..., groupId: slot-1; alternative\n  outputs: components: ...; comparisonIdentity: minecraft:barrier; type: it\n  components: \npacksage_retest:route_001\n  inputs: groupId: slot-0; alternatives: ..., groupId: slot-1; alternative\n  outputs: components: ...; comparisonIdentity: minecraft:barrier; type: it\n  components: \npacksage_retest:route_002\n  inputs: groupId: slot-0; alternatives: ..., groupId: slot-1; alternative\n  outputs: components: ...; comparisonIdentity: minecraft:barrier; type: it\n  components: \npacksage_retest:route_007\n  inputs: groupId: slot-0; alternatives: ..., groupId: slot-1; alternative\n  outputs: components: ...; comparisonIdentity: minecraft:barrier; type: it\n  components: \npacksage_retest:route_008\n  inputs: groupId: slot-0; alternatives: ..., groupId: slot-1; alternative\n  outputs: components: ...; comparisonIdentity: minecraft:barrier; type: it\n  components: \npacksage_retest:route_005\n  inputs: groupId: slot-0; alternatives: ..., groupId: slot-1; alternative\n  outputs: components: ...; comparisonIdentity: minecraft:barrier; type: it\n  components: \nand 8 more",
+      "durationNanos": 22574700
+    }
+  ],
+  "navigationTargets": [],
+  "toolCalls": [
+    {
+      "callId": "call_VjeH9HNZR7Ue8LIfx1XauCfl",
+      "name": "search_recipe",
+      "arguments": {
+        "filter": {
+          "text": null,
+          "outputItem": "minecraft:barrier",
+          "provider": null
+        },
+        "limit": null,
+        "cursor": null
+      },
+      "error": false,
+      "result": {
+        "coverage": "PARTIAL",
+        "outcome": "PARTIAL",
+        "detail": "native: scanned=0-63 of 1948 (ordinary recipes 1667, brewing candidates 281); phase=ordinary; matches=16",
+        "nextCursor": "2dfcf961-7410-4047-9137-aef952ebb6cc",
+        "records": [
+          {
+            "reference": "native:packsage_retest:route_000",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_000",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.341779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_000",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_000",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_000",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_003",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_003",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.341779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_003",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_003",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_003",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_004",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_004",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.341779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_004",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_004",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_004",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_001",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_001",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.341779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_001",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_001",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_001",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_002",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_002",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.342779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_002",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_002",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_002",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_007",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_007",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.342779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_007",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_007",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_007",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_008",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_008",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.342779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_008",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_008",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_008",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_005",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_005",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.342779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_005",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_005",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_005",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_006",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_006",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.342779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_006",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_006",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_006",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_009",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_009",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.342779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_009",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_009",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_009",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_010",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_010",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.342779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_010",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_010",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_010",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_011",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_011",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.342779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_011",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_011",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_011",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_014",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_014",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.342779500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_014",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_014",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_014",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_015",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_015",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.343285400Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_015",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_015",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_015",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_012",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_012",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.343285400Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_012",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_012",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_012",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          },
+          {
+            "reference": "native:packsage_retest:route_013",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 22
+              },
+              "providerId": "native",
+              "providerVersion": "1.21.1",
+              "sourceHandle": "packsage_retest:route_013",
+              "observedGeneration": 22,
+              "observedAt": "2026-10-27T03:19:52.343285400Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "LOADED",
+              "provenance": [
+                "client-recipe-manager",
+                "resource-provenance=unknown"
+              ]
+            },
+            "kind": "RECIPE",
+            "navigable": false,
+            "title": "packsage_retest:route_013",
+            "payload": {
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "consumption": "CONSUMED",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "type": "item",
+                      "components": {},
+                      "quantity": 1
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "components": {},
+                  "comparisonIdentity": "minecraft:barrier",
+                  "type": "item",
+                  "quantity": 1
+                }
+              ],
+              "components": [
+                {}
+              ],
+              "shape": "shapeless",
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "canonicalRecipeId": "packsage_retest:route_013",
+              "decodingStatus": "VERIFIED",
+              "remainders": [],
+              "tags": []
+            },
+            "recipe": {
+              "canonicalRecipeId": "packsage_retest:route_013",
+              "inputs": [
+                {
+                  "groupId": "slot-0",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-1",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-2",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-3",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-4",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-5",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-6",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-7",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                },
+                {
+                  "groupId": "slot-8",
+                  "alternatives": [
+                    {
+                      "type": "item",
+                      "comparisonIdentity": "minecraft:bedrock",
+                      "components": {},
+                      "quantity": 1,
+                      "consumption": "CONSUMED"
+                    }
+                  ]
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:barrier",
+                  "components": {},
+                  "quantity": 1
+                }
+              ],
+              "remainders": [],
+              "catalysts": [],
+              "constraints": [
+                "recipeType=crafting",
+                "serializer=net.minecraft.world.item.crafting.ShapelessRecipe$Serializer@113cdd2e",
+                "shape=shapeless"
+              ],
+              "decodingStatus": "VERIFIED",
+              "requiredInputTotals": [
+                {
+                  "type": "item",
+                  "comparisonIdentity": "minecraft:bedrock",
+                  "components": {},
+                  "quantity": 9
+                }
+              ]
+            }
+          }
+        ],
+        "nextCall": {
+          "name": "search_recipe",
+          "arguments": {
+            "filter": {
+              "text": null,
+              "outputItem": "minecraft:barrier",
+              "provider": null
+            },
+            "limit": null,
+            "cursor": "2dfcf961-7410-4047-9137-aef952ebb6cc"
+          }
+        }
+      },
+      "coverage": "PARTIAL",
+      "detail": "native: scanned=0-63 of 1948 (ordinary recipes 1667, brewing candidates 281); phase=ordinary; matches=16",
+      "recordCount": 16
+    }
+  ],
+  "citations": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_000",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.341779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_003",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.341779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_004",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.341779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_001",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.341779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_002",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.342779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_007",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.342779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_008",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.342779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_005",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.342779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_006",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.342779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_009",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.342779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_010",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.342779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_011",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.342779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_014",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.342779500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_015",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.343285400Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_012",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.343285400Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 22
+      },
+      "providerId": "native",
+      "providerVersion": "1.21.1",
+      "sourceHandle": "packsage_retest:route_013",
+      "observedGeneration": 22,
+      "observedAt": "2026-10-27T03:19:52.343285400Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "LOADED",
+      "provenance": [
+        "client-recipe-manager",
+        "resource-provenance=unknown"
+      ]
+    }
+  ],
+  "timing": [
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "runtime_dispatch",
+      "start_ns": "296273904357400",
+      "event_ns": "296273904406800",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "accepted",
+      "start_ns": "296273904532100",
+      "event_ns": "296273904532100",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "context_capture_start",
+      "start_ns": "296273904586100",
+      "screenshot": "true"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "history_ready",
+      "event_ns": "296273904590600",
+      "elapsed_ms": "0",
+      "conversationTurns": "0"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "observation_ready",
+      "event_ns": "296273904737500",
+      "queueMs": "0",
+      "observationMs": "0"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "frame_image",
+      "event_ns": "296273947848000",
+      "frameMs": "38",
+      "frameBytes": "123142"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "frame_ready",
+      "event_ns": "296273947991500",
+      "waitMs": "43",
+      "frameBytes": "123142"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "capture_ready",
+      "event_ns": "296273948130600",
+      "elapsed_ms": "43",
+      "screenshotBytes": "123142"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "history_selected",
+      "event_ns": "296273948151500",
+      "preparationMs": "0",
+      "historyTurns": "0",
+      "historyTokens": "0",
+      "historyErrors": "0"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "request_built",
+      "event_ns": "296273949357300",
+      "buildMs": "1",
+      "inputItems": "2",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "backend_start",
+      "event_ns": "296273949503300",
+      "elapsed_ms": "44",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "backend_entry",
+      "event_ns": "296273949536900",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "296273949589100",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "296273950392500",
+      "serializationMs": "0",
+      "bodyBytes": "218686",
+      "bodyChars": "218686",
+      "inputItems": "2",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "296273950501100",
+      "requestToDispatchMs": "0"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "296277384727200",
+      "dispatchToHeadersMs": "3434",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "296277658590200",
+      "headersToFirstBytesMs": "273",
+      "dispatchToFirstBytesMs": "3708",
+      "bytes": "4096"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "296281479491700",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "7528"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "tool_received",
+      "call": "call_VjeH9HNZR7Ue8LIfx1XauCfl",
+      "tool": "search_recipe",
+      "step": "1",
+      "event_ns": "296281479761700",
+      "elapsed_ms": "7575"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "tool_result_sent",
+      "call": "call_VjeH9HNZR7Ue8LIfx1XauCfl",
+      "tool": "search_recipe",
+      "event_ns": "296281503146000",
+      "toolMs": "23",
+      "resultBytes": "68661",
+      "error": "false"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "auth_ready",
+      "event_ns": "296281504206500",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "body_ready",
+      "event_ns": "296281505348700",
+      "serializationMs": "1",
+      "bodyBytes": "296773",
+      "bodyChars": "296773",
+      "inputItems": "4",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_dispatch",
+      "event_ns": "296281505454300",
+      "requestToDispatchMs": "1"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_headers",
+      "event_ns": "296283769056900",
+      "dispatchToHeadersMs": "2263",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_stream_bytes",
+      "event_ns": "296283918088000",
+      "headersToFirstBytesMs": "149",
+      "dispatchToFirstBytesMs": "2412",
+      "bytes": "4096"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_text",
+      "event_ns": "296285139935000",
+      "roundToFirstTextMs": "3635",
+      "dispatchToFirstTextMs": "3634",
+      "deltaChars": "1"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "first_text",
+      "event_ns": "296285140041700",
+      "elapsed_ms": "11235",
+      "backendMs": "11190",
+      "deltaChars": "1"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "provider_terminal",
+      "event_ns": "296290676671900",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "9171"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "tool_summary",
+      "toolCalls": "1",
+      "toolWallMs": "23",
+      "event_ns": "296290676882600"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "model_terminal",
+      "event_ns": "296290676882600",
+      "elapsed_ms": "16772",
+      "backendMs": "16727",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "persist_start",
+      "event_ns": "296290677303300",
+      "elapsed_ms": "16772",
+      "screenshotBytes": "123142"
+    },
+    {
+      "request": "01386bf4-afab-4d04-bfb9-bc763be52546",
+      "phase": "persist_done",
+      "event_ns": "296290709414500",
+      "elapsed_ms": "16804",
+      "persistMs": "32"
+    }
+  ]
+}

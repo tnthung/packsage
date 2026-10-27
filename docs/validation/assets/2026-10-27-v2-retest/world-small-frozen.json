@@ -1,0 +1,351 @@
+{
+  "requestId": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+  "conversationId": "a3a9770e-c35c-4882-8c2f-580460ae5b1a",
+  "saved": true,
+  "status": "completed",
+  "reply": "- **Result:** Empty—no matching `minecraft:dragon_egg` items returned.\n- **Coverage:** `COMPLETE`; outcome: `COMPLETE`.\n- **Continuation:** None (`nextCursor: null`).\n- **Informational tick span:** `2840829..2840829`. The tool reported that the read spanned multiple server ticks, although both reported game-time endpoints were identical.\n- **Scope:** Overworld `(4808, 250, 4808)`, radius `1`, `includeNested: false`.\n\nNo commands were run.",
+  "detail": null,
+  "errors": [],
+  "activities": [
+    {
+      "id": "tool:call_avL7Mr964DpBtJxfEmnDw1Zq",
+      "title": "Using tool: find_items (step 1)",
+      "detail": "Completed",
+      "status": "COMPLETED",
+      "serializedArguments": "{\"filter\":{\"ids\":[\"minecraft:dragon_egg\"],\"tags\":null,\"text\":null,\"tooltip\":null},\"center\":{\"type\":\"block\",\"id\":null,\"place\":\"minecraft:overworld|4808,250,4808\"},\"radius\":1,\"includeNested\":false,\"cursor\":null}",
+      "toolName": "find_items",
+      "resultSummary": "Coverage: COMPLETE; records: 0\nThe read spanned multiple server ticks; game-time span: 2840829..2840829",
+      "durationMillis": 79,
+      "resultDetail": "coverage: COMPLETE | outcome: COMPLETE\nThe read spanned multiple server ticks; game-time span: 2840829..2840829",
+      "durationNanos": 79810200
+    }
+  ],
+  "navigationTargets": [],
+  "toolCalls": [
+    {
+      "callId": "call_avL7Mr964DpBtJxfEmnDw1Zq",
+      "name": "find_items",
+      "arguments": {
+        "filter": {
+          "ids": [
+            "minecraft:dragon_egg"
+          ],
+          "tags": null,
+          "text": null,
+          "tooltip": null
+        },
+        "center": {
+          "type": "block",
+          "id": null,
+          "place": "minecraft:overworld|4808,250,4808"
+        },
+        "radius": 1,
+        "includeNested": false,
+        "cursor": null
+      },
+      "error": false,
+      "result": {
+        "coverage": "COMPLETE",
+        "outcome": "COMPLETE",
+        "detail": "The read spanned multiple server ticks; game-time span: 2840829..2840829",
+        "nextCursor": null,
+        "records": []
+      },
+      "coverage": "COMPLETE",
+      "detail": "The read spanned multiple server ticks; game-time span: 2840829..2840829",
+      "recordCount": 0
+    }
+  ],
+  "citations": [],
+  "timing": [
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "runtime_dispatch",
+      "start_ns": "295641646095800",
+      "event_ns": "295641646132800",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "accepted",
+      "start_ns": "295641646264300",
+      "event_ns": "295641646264300",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "context_capture_start",
+      "start_ns": "295641646318000",
+      "screenshot": "true"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "history_ready",
+      "event_ns": "295641646321900",
+      "elapsed_ms": "0",
+      "conversationTurns": "0"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "observation_ready",
+      "event_ns": "295641646448500",
+      "queueMs": "0",
+      "observationMs": "0"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "frame_image",
+      "event_ns": "295641687674400",
+      "frameMs": "36",
+      "frameBytes": "158100"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "frame_ready",
+      "event_ns": "295641687862500",
+      "waitMs": "41",
+      "frameBytes": "158100"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "capture_ready",
+      "event_ns": "295641688001800",
+      "elapsed_ms": "41",
+      "screenshotBytes": "158100"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "history_selected",
+      "event_ns": "295641688021200",
+      "preparationMs": "0",
+      "historyTurns": "0",
+      "historyTokens": "0",
+      "historyErrors": "0"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "request_built",
+      "event_ns": "295641689264500",
+      "buildMs": "1",
+      "inputItems": "2",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "backend_start",
+      "event_ns": "295641689402900",
+      "elapsed_ms": "43",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "backend_entry",
+      "event_ns": "295641689482800",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "295641689658800",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "295641690501100",
+      "serializationMs": "0",
+      "bodyBytes": "265304",
+      "bodyChars": "265304",
+      "inputItems": "2",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "295641690620500",
+      "requestToDispatchMs": "0"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "295644719172500",
+      "dispatchToHeadersMs": "3028",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "295644866960800",
+      "headersToFirstBytesMs": "147",
+      "dispatchToFirstBytesMs": "3176",
+      "bytes": "26"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "295648566999200",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "6876"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "tool_received",
+      "call": "call_avL7Mr964DpBtJxfEmnDw1Zq",
+      "tool": "find_items",
+      "step": "1",
+      "event_ns": "295648567234200",
+      "elapsed_ms": "6920"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "tool_result_sent",
+      "call": "call_avL7Mr964DpBtJxfEmnDw1Zq",
+      "tool": "find_items",
+      "event_ns": "295648647112900",
+      "toolMs": "79",
+      "resultBytes": "159",
+      "error": "false"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "auth_ready",
+      "event_ns": "295648647392200",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "body_ready",
+      "event_ns": "295648648366800",
+      "serializationMs": "0",
+      "bodyBytes": "265929",
+      "bodyChars": "265929",
+      "inputItems": "4",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_dispatch",
+      "event_ns": "295648648589400",
+      "requestToDispatchMs": "1"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_headers",
+      "event_ns": "295653434343600",
+      "dispatchToHeadersMs": "4785",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_stream_bytes",
+      "event_ns": "295653450972300",
+      "headersToFirstBytesMs": "16",
+      "dispatchToFirstBytesMs": "4802",
+      "bytes": "24"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_text",
+      "event_ns": "295655465241300",
+      "roundToFirstTextMs": "6817",
+      "dispatchToFirstTextMs": "6816",
+      "deltaChars": "1"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "first_text",
+      "event_ns": "295655465464000",
+      "elapsed_ms": "13819",
+      "backendMs": "13776",
+      "deltaChars": "1"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "provider_terminal",
+      "event_ns": "295658994188200",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "10345"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "tool_summary",
+      "toolCalls": "1",
+      "toolWallMs": "79",
+      "event_ns": "295658994618800"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "model_terminal",
+      "event_ns": "295658994618800",
+      "elapsed_ms": "17348",
+      "backendMs": "17305",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "persist_start",
+      "event_ns": "295658994971600",
+      "elapsed_ms": "17348",
+      "screenshotBytes": "158100"
+    },
+    {
+      "request": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+      "phase": "persist_done",
+      "event_ns": "295659024254900",
+      "elapsed_ms": "17377",
+      "persistMs": "29"
+    }
+  ]
+}

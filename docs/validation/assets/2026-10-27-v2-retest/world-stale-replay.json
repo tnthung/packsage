@@ -1,0 +1,398 @@
+{
+  "requestId": "6263854f-f218-4f5b-9f03-123396dc8b00",
+  "conversationId": "cb728931-d289-4ad4-b3b0-077bccee0ff9",
+  "saved": true,
+  "status": "completed",
+  "reply": "Invoked each saved nextCall exactly once. Both returned `INVALID_CURSOR`:\n\n- **list_progress:** `INVALID_CURSOR: cursor does not match this query or was consumed or evicted; restart without a cursor`\n- **search_recipe:** `INVALID_CURSOR: output cursor does not match this query; restart without a cursor`\n\nNo retries, fresh listings, or commands were run.",
+  "detail": null,
+  "errors": [],
+  "activities": [
+    {
+      "id": "tool:call_SgrpqV5rx2GNX8CRkzyrEbss",
+      "title": "Using tool: list_progress (step 1)",
+      "detail": "INVALID_CURSOR: cursor does not match this query or was consumed or evicted; restart without a cursor (INVALID_CURSOR)",
+      "status": "FAILED",
+      "serializedArguments": "{\"tree\":null,\"status\":null,\"text\":\"Advance\",\"cursor\":\"progress:f8dff9e8-5ecb-4b23-9509-161d4af6ee07\"}",
+      "toolName": "list_progress",
+      "resultSummary": "Coverage: ERROR; records: 0\nINVALID_CURSOR: cursor does not match this query or was consumed or evicted; restart without a cursor",
+      "durationMillis": 0,
+      "resultDetail": "INVALID_CURSOR: cursor does not match this query or was consumed or evicted; restart without a cursor (INVALID_CURSOR)",
+      "durationNanos": 836400
+    },
+    {
+      "id": "tool:call_HmCctLdvA9OyqS69jNlIBHqp",
+      "title": "Using tool: search_recipe (step 2)",
+      "detail": "INVALID_CURSOR: output cursor does not match this query; restart without a cursor (INVALID_CURSOR)",
+      "status": "FAILED",
+      "serializedArguments": "{\"filter\":null,\"limit\":64,\"cursor\":\"output:20f99808-8434-4329-a1d0-ff86fafcbef7\"}",
+      "toolName": "search_recipe",
+      "resultSummary": "Coverage: ERROR\nINVALID_CURSOR: output cursor does not match this query; restart without a cursor",
+      "durationMillis": 0,
+      "resultDetail": "INVALID_CURSOR: output cursor does not match this query; restart without a cursor (INVALID_CURSOR)",
+      "durationNanos": 705900
+    }
+  ],
+  "navigationTargets": [],
+  "toolCalls": [
+    {
+      "callId": "call_SgrpqV5rx2GNX8CRkzyrEbss",
+      "name": "list_progress",
+      "arguments": {
+        "tree": null,
+        "status": null,
+        "text": "Advance",
+        "cursor": "progress:f8dff9e8-5ecb-4b23-9509-161d4af6ee07"
+      },
+      "error": true,
+      "result": {
+        "coverage": "ERROR",
+        "outcome": "ERROR",
+        "detail": "INVALID_CURSOR: cursor does not match this query or was consumed or evicted; restart without a cursor",
+        "code": "INVALID_CURSOR",
+        "restartCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": null
+          }
+        },
+        "records": []
+      },
+      "coverage": "ERROR",
+      "detail": "INVALID_CURSOR: cursor does not match this query or was consumed or evicted; restart without a cursor",
+      "recordCount": 0
+    },
+    {
+      "callId": "call_HmCctLdvA9OyqS69jNlIBHqp",
+      "name": "search_recipe",
+      "arguments": {
+        "filter": null,
+        "limit": 64,
+        "cursor": "output:20f99808-8434-4329-a1d0-ff86fafcbef7"
+      },
+      "error": true,
+      "result": {
+        "coverage": "ERROR",
+        "outcome": "ERROR",
+        "detail": "INVALID_CURSOR: output cursor does not match this query; restart without a cursor",
+        "code": "INVALID_CURSOR"
+      },
+      "coverage": "ERROR",
+      "detail": "INVALID_CURSOR: output cursor does not match this query; restart without a cursor",
+      "recordCount": 0
+    }
+  ],
+  "citations": [],
+  "timing": [
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "runtime_dispatch",
+      "start_ns": "296426797291400",
+      "event_ns": "296426797388100",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "accepted",
+      "start_ns": "296426797626900",
+      "event_ns": "296426797626900",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "context_capture_start",
+      "start_ns": "296426797746800",
+      "screenshot": "true"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "history_ready",
+      "event_ns": "296426797750600",
+      "elapsed_ms": "0",
+      "conversationTurns": "0"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "observation_ready",
+      "event_ns": "296426798125500",
+      "queueMs": "0",
+      "observationMs": "0"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "frame_image",
+      "event_ns": "296426856729300",
+      "frameMs": "45",
+      "frameBytes": "129513"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "frame_ready",
+      "event_ns": "296426856971100",
+      "waitMs": "58",
+      "frameBytes": "129513"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "capture_ready",
+      "event_ns": "296426857187400",
+      "elapsed_ms": "59",
+      "screenshotBytes": "129513"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "history_selected",
+      "event_ns": "296426857234200",
+      "preparationMs": "0",
+      "historyTurns": "0",
+      "historyTokens": "0",
+      "historyErrors": "0"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "request_built",
+      "event_ns": "296426859527100",
+      "buildMs": "2",
+      "inputItems": "2",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "backend_start",
+      "event_ns": "296426859941000",
+      "elapsed_ms": "62",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "backend_entry",
+      "event_ns": "296426860033700",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "296426860155300",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "296426861294500",
+      "serializationMs": "1",
+      "bodyBytes": "227445",
+      "bodyChars": "227445",
+      "inputItems": "2",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "296426861540500",
+      "requestToDispatchMs": "1"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "296430002799400",
+      "dispatchToHeadersMs": "3141",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "296430003736800",
+      "headersToFirstBytesMs": "0",
+      "dispatchToFirstBytesMs": "3142",
+      "bytes": "4096"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "296435469813700",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "8608"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "tool_received",
+      "call": "call_SgrpqV5rx2GNX8CRkzyrEbss",
+      "tool": "list_progress",
+      "step": "1",
+      "event_ns": "296435470041800",
+      "elapsed_ms": "8672"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "tool_received",
+      "call": "call_HmCctLdvA9OyqS69jNlIBHqp",
+      "tool": "search_recipe",
+      "step": "2",
+      "event_ns": "296435470844000",
+      "elapsed_ms": "8673"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "tool_result_sent",
+      "call": "call_SgrpqV5rx2GNX8CRkzyrEbss",
+      "tool": "list_progress",
+      "event_ns": "296435470972600",
+      "toolMs": "0",
+      "resultBytes": "298",
+      "error": "true"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "tool_result_sent",
+      "call": "call_HmCctLdvA9OyqS69jNlIBHqp",
+      "tool": "search_recipe",
+      "event_ns": "296435471585600",
+      "toolMs": "0",
+      "resultBytes": "155",
+      "error": "true"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "auth_ready",
+      "event_ns": "296435471687300",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "body_ready",
+      "event_ns": "296435472419200",
+      "serializationMs": "0",
+      "bodyBytes": "228580",
+      "bodyChars": "228580",
+      "inputItems": "6",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_dispatch",
+      "event_ns": "296435472509500",
+      "requestToDispatchMs": "0"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_headers",
+      "event_ns": "296438508014800",
+      "dispatchToHeadersMs": "3035",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_stream_bytes",
+      "event_ns": "296438508506600",
+      "headersToFirstBytesMs": "0",
+      "dispatchToFirstBytesMs": "3035",
+      "bytes": "24"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_text",
+      "event_ns": "296440298813000",
+      "roundToFirstTextMs": "4827",
+      "dispatchToFirstTextMs": "4826",
+      "deltaChars": "3"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "first_text",
+      "event_ns": "296440299057500",
+      "elapsed_ms": "13501",
+      "backendMs": "13439",
+      "deltaChars": "3"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "provider_terminal",
+      "event_ns": "296442898333400",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "7425"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "tool_summary",
+      "toolCalls": "2",
+      "toolWallMs": "1",
+      "event_ns": "296442898690300"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "model_terminal",
+      "event_ns": "296442898690300",
+      "elapsed_ms": "16101",
+      "backendMs": "16038",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "persist_start",
+      "event_ns": "296442899172900",
+      "elapsed_ms": "16101",
+      "screenshotBytes": "129513"
+    },
+    {
+      "request": "6263854f-f218-4f5b-9f03-123396dc8b00",
+      "phase": "persist_done",
+      "event_ns": "296442925471800",
+      "elapsed_ms": "16127",
+      "persistMs": "26"
+    }
+  ]
+}

@@ -49,7 +49,7 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
   - N4: an early stop can make no progress. Fixed: a stop waits for at least one new container or chunk.
   - N5: `inspect_area` can drop the entity page's note. Fixed: the note is kept alongside the `list_entities` pointer.
 
-World final-review follow-up: [automated validation](../validation/2026-10-26-world-review-fixes.md) covers no-load POI reads, dense entity/holder and statistics traversal, entity truncation/output bounds and asynchronous highlight resolution. Installed acceptance of these new cases remains pending in the tool roadmap and adapter checklist.
+World final-review follow-up: [automated validation](../validation/2026-10-26-world-review-fixes.md) covers no-load POI reads, dense entity/holder and statistics traversal, entity truncation/output bounds and asynchronous highlight resolution. The [2026-10-27 installed retest](../validation/2026-10-26-world-review-fixes.md#2026-10-27-installed-acceptance) passes the documented public reads, verified >4,096 tails, frozen-time coverage and output paging. Broad acceptance remains pending: W-R1 is a delivered-count metadata bug, and the listed deterministic internal branches retain automated-only coverage.
 
 ### Journal and notes
 
@@ -70,7 +70,7 @@ Stage 4's [plan](../plans/2026-10-22-v2-journal.md) is implemented. The [single 
 - [x] Raids start, finish and outcome (round 1 J11).
 - [x] Player placement, kills, deaths, profession changes, curing, zombie conversion, trades and first structure entry (round 1 J10; profession round 6/7 J10r).
 - [x] Withdrawal journaling and mount (donkey) menu ownership (round 4 J8r, round 6 J8r3 journal pass) and the disconnected-menu session (round 3 J9).
-- [ ] J8 withdrawal reply compliance: the reply omits the donkey amounts and coordinates although the journal is correct. Recorded failure.
+- [x] J8 withdrawal reply compliance: the original withdrawal answer and same-chat follow-up both give 17 gold and (1605,250,1602) from journal event 329 ([2026-10-27 retest](../validation/2026-10-25-v2-acceptance.md#2026-10-27-retest)).
 - [x] Note anchors, other-dimension links, forget/delete with links unavailable, and questions not saved (round 1 J12 partially, round 2 J12r/N1 with candidate 9 promoted, round 4 N2, round 5 N3).
 - [x] First tool-using chat origin on notes (round 1 J14 controller ruling).
 - [x] Flush on immediate exit and rapid Save-and-Quit/rejoin (round 3 J13).
@@ -111,9 +111,11 @@ Stages 1–5 are implemented. Checked entries below describe the accepted scope,
   - [x] Nether ground-view marker visibility/lifetime after depth-test fix at render distance 12, Overworld fixed-build visibility at 12 and earlier distance-8 visibility/expiry (L1/L2).
   - [x] Cheats-off /fill usage, argument types and permission restriction without execution (C8).
   - [x] Wandering trader (round 3 D1 ruling: full offers payload with shared item facts); pending-container loot table/seed and undefined/empty tables (round 4 W12r3 ruling); biome sampling/continuation and tag locate (round 1 W13, round 3 W19r); command discovery/continuation (W14).
-- [ ] 4. Journal and notes ([plan](../plans/2026-10-22-v2-journal.md)): every journal clause above is now accepted, including M1 and M5; only the J8 withdrawal reply-compliance failure (the reply omits donkey amounts and coordinates; the journal is correct) stays open.
+- [x] 4. Journal and notes ([plan](../plans/2026-10-22-v2-journal.md)): every journal clause above is accepted, including M1 and M5; the J8 withdrawal reply and same-chat amount/location follow-up pass the [2026-10-27 retest](../validation/2026-10-25-v2-acceptance.md#2026-10-27-retest).
 - [x] 5. Whole-policy prompt rewrite and promotion ([plan](../plans/2026-10-22-v2-prompt-acceptance.md)): six live rounds, C6 effectively 14/14 under the controller note-action ruling, compiled equality, installed default/override-clear verification and Task 7 results recorded.
-- [ ] Full acceptance: E6, M1, M5, P9, J7 and P11 now pass. Remaining: A3 and J8 reply compliance, and the automated-only branches. Astra final review READY at 6b2e903 (rereview 13).
+- [x] F4 identity/command routing: exact op me uses TNThung and the approved command confirmation; a separate name question confirms context identity. The game rejects op in this singleplayer fixture; no permission grant is claimed ([retest](../validation/2026-10-25-v2-acceptance.md#2026-10-27-retest)).
+- [x] Sidebar selection stability and recipe-card/chip popup layering pass the [2026-10-27 UI retest](../validation/2026-10-27-recipe-cards.md#2026-10-27-sidebar-and-popup-retest).
+- [ ] Full acceptance: E6, M1, M5, P9, J7 and P11 now pass. Remaining: A3 reply compliance and the automated-only branches. J8 passes the 2026-10-27 retest. Astra final review READY at 6b2e903 (rereview 13).
 - [x] Tool timing receipt/submission/summary logs and backend/tool-wall separation (E7), with independent active-effect/attribute overlap (E4).
 - [x] includeNested for list_items decided against by the controller: list one holder, then step into returned nested paths; find_items owns nested discovery.
 - [x] Removed-source prompt guidance tested: Q7/E2 brewing/piston answers use supported Minecraft recipes/plans without JEI, quest or guide wording; plan_recipe is acceptable for E2.
@@ -123,7 +125,7 @@ Stages 1–5 are implemented. Checked entries below describe the accepted scope,
 - Journal final-review fixes preserve recording-loss intervals across restarts with an additive schema-v1 table and keep byte-bounded pages resumable after their last delivered record. The [validation record](../validation/2026-10-26-v2-journal-final-review-fixes.md) records the follow-up shared encoder, marker retry/checkpoint and bounded-detail fixes with 1,079 passing tests, five skips and unverified live acceptance; these fixes do not close the broader journal checklist.
 Final review: Astra returned **READY** at 0e894ac after four re-review rounds (no Critical or Important findings); four installed recheck rounds are recorded in the [acceptance record](../validation/2026-10-25-v2-acceptance.md). The vanished-anchor note found in the fourth round is fixed in 744a96d. Later native-readiness rereviews 5–11 are in `.superpowers/sdd/2026-10-25-v2-prompt-acceptance/astra-final-rereview-*.md`; rereview 12 is in progress, so the final review is still open and readiness is not claimed.
 
-Native readiness: Astra final review **READY** at 6b2e903 (rereview 13, no findings). The [native readiness checklist](../testing/2026-10-26-native-readiness.md) was run in eight live rounds ([acceptance record](../validation/2026-10-25-v2-acceptance.md), sections Native readiness round 1–8 and their controller rulings; [plan](../plans/2026-10-26-v2-native-readiness.md)). Everything except the items below passed live or by controller ruling; the remaining recorded failures are A3 and J8 reply compliance, and two branches are automated-only.
+Native readiness: Astra final review **READY** at 6b2e903 (rereview 13, no findings). The [native readiness checklist](../testing/2026-10-26-native-readiness.md) was run in eight live rounds ([acceptance record](../validation/2026-10-25-v2-acceptance.md), sections Native readiness round 1–8 and their controller rulings; [plan](../plans/2026-10-26-v2-native-readiness.md)). Everything except the items below passed live or by controller ruling; A3 reply compliance remains recorded, J8 passes the [2026-10-27 retest](../validation/2026-10-25-v2-acceptance.md#2026-10-27-retest), and two branches are automated-only.
 
 Final client-review fixes have automated coverage for historical v1 citation chips and unavailable destinations, worker-side debug prompt saves with concurrent screen updates, and fresh holder/progress-tree evidence rereads. Their installed acceptance remains pending; the promoted prompt text is unchanged.
 
@@ -146,6 +148,6 @@ The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include 
 - [x] plan_recipe routes: the output-keyed lookup reaches every loaded recipe, fixing the zero routes for beacon, enchanting table and oak planks; installed A1r/A3 plan detail/W20/W21 passed with concrete PARTIAL details, intermediate expansion and smithing inputs (rounds 3–8).
 - [x] Holder and progress-tree evidence rereads (W16), saved v1 citations rendered with unavailable destinations (round 3 W17) and the wandering trader (round 3 D1 ruling) passed live.
 - [ ] Uncached-POI section branch of inspect_block and the progress acquisition-budget continuation branch cannot be set up live; they have automated coverage only.
-- [ ] Recorded reply-compliance failures: A3 (accepted by the player on 2026-10-27; the from-scratch beacon reply does not say obsidian is obtained, though the plan detail is correct) and J8 (the withdrawal reply omits the donkey amounts and coordinates, though the journal is correct). Accepted limitation: the statistics one-step owned key copy (Astra accepted).
+- [ ] Recorded reply-compliance failures: A3 (accepted by the player on 2026-10-27; the from-scratch beacon reply does not say obsidian is obtained, though the plan detail is correct). J8 passes the 2026-10-27 retest, including the same-chat follow-up. Accepted limitation: the statistics one-step owned key copy (Astra accepted).
 - Modded-menu PARTIAL sections are deferred until the storage mod adapters (player decision, 2026-10-27); the rest of the item/menu, world-knowledge, journal and progress clauses are accepted above.
 - The paused JEI recipe-planning tasks J3–J7 belong to feat/packsage-v1 and do not apply until a JEI adapter returns.

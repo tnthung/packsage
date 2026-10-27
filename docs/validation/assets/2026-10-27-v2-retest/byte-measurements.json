@@ -1,0 +1,298 @@
+{
+  "world-long": {
+    "requestId": "007a926d-0692-4975-a477-6e081cac3a92",
+    "pages": [
+      {
+        "name": "list_entities",
+        "rows": 12,
+        "coverage": "PARTIAL",
+        "recordBytes": 65125,
+        "resultBytes": 65717
+      },
+      {
+        "name": "list_entities",
+        "rows": 12,
+        "coverage": "PARTIAL",
+        "recordBytes": 65125,
+        "resultBytes": 65647
+      },
+      {
+        "name": "inspect_entity",
+        "rows": 1,
+        "coverage": "PARTIAL",
+        "recordBytes": 9837,
+        "resultBytes": 9908
+      },
+      {
+        "name": "list_entities",
+        "rows": 12,
+        "coverage": "PARTIAL",
+        "recordBytes": 65125,
+        "resultBytes": 65647
+      },
+      {
+        "name": "list_entities",
+        "rows": 12,
+        "coverage": "PARTIAL",
+        "recordBytes": 65110,
+        "resultBytes": 65632
+      },
+      {
+        "name": "list_entities",
+        "rows": 12,
+        "coverage": "PARTIAL",
+        "recordBytes": 65125,
+        "resultBytes": 65647
+      },
+      {
+        "name": "list_entities",
+        "rows": 5,
+        "coverage": "PARTIAL",
+        "recordBytes": 27136,
+        "resultBytes": 27317
+      }
+    ]
+  },
+  "world-item-byte-pages": {
+    "requestId": "25bebb4b-2dc2-4060-8ffe-d787dfecfe34",
+    "pages": [
+      {
+        "name": "list_items",
+        "rows": 12,
+        "coverage": "PARTIAL",
+        "recordBytes": 64356,
+        "resultBytes": 64859
+      },
+      {
+        "name": "find_items",
+        "rows": 12,
+        "coverage": "PARTIAL",
+        "recordBytes": 64385,
+        "resultBytes": 65611
+      },
+      {
+        "name": "list_items",
+        "rows": 12,
+        "coverage": "PARTIAL",
+        "recordBytes": 64338,
+        "resultBytes": 64841
+      },
+      {
+        "name": "find_items",
+        "rows": 12,
+        "coverage": "PARTIAL",
+        "recordBytes": 64314,
+        "resultBytes": 65638
+      },
+      {
+        "name": "list_items",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 29669,
+        "resultBytes": 29848
+      },
+      {
+        "name": "find_items",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 29669,
+        "resultBytes": 30118
+      }
+    ]
+  },
+  "world-progress-stat-pages-replacement": {
+    "requestId": "26b4896b-3943-4369-a78d-9a753745f012",
+    "pages": [
+      {
+        "name": "list_progress",
+        "rows": 9,
+        "coverage": "PARTIAL",
+        "recordBytes": 93061,
+        "resultBytes": 93446
+      },
+      {
+        "name": "list_statistics",
+        "rows": 48,
+        "coverage": "PARTIAL",
+        "recordBytes": 97744,
+        "resultBytes": 98122
+      },
+      {
+        "name": "list_progress",
+        "rows": 9,
+        "coverage": "PARTIAL",
+        "recordBytes": 93013,
+        "resultBytes": 93398
+      },
+      {
+        "name": "list_statistics",
+        "rows": 1,
+        "coverage": "COMPLETE",
+        "recordBytes": 905,
+        "resultBytes": 978
+      },
+      {
+        "name": "list_progress",
+        "rows": 9,
+        "coverage": "PARTIAL",
+        "recordBytes": 93034,
+        "resultBytes": 93419
+      },
+      {
+        "name": "list_progress",
+        "rows": 9,
+        "coverage": "PARTIAL",
+        "recordBytes": 93034,
+        "resultBytes": 93419
+      },
+      {
+        "name": "list_progress",
+        "rows": 9,
+        "coverage": "PARTIAL",
+        "recordBytes": 93034,
+        "resultBytes": 93419
+      },
+      {
+        "name": "list_progress",
+        "rows": 9,
+        "coverage": "PARTIAL",
+        "recordBytes": 93034,
+        "resultBytes": 93419
+      },
+      {
+        "name": "list_progress",
+        "rows": 9,
+        "coverage": "PARTIAL",
+        "recordBytes": 93007,
+        "resultBytes": 93392
+      },
+      {
+        "name": "list_progress",
+        "rows": 7,
+        "coverage": "PARTIAL",
+        "recordBytes": 91636,
+        "resultBytes": 92021
+      },
+      {
+        "name": "list_progress",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 90937,
+        "resultBytes": 91322
+      },
+      {
+        "name": "list_progress",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 90907,
+        "resultBytes": 91292
+      },
+      {
+        "name": "list_progress",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 90907,
+        "resultBytes": 91292
+      },
+      {
+        "name": "list_progress",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 90907,
+        "resultBytes": 91292
+      },
+      {
+        "name": "list_progress",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 90907,
+        "resultBytes": 91292
+      },
+      {
+        "name": "list_progress",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 90907,
+        "resultBytes": 91292
+      },
+      {
+        "name": "list_progress",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 90907,
+        "resultBytes": 91292
+      },
+      {
+        "name": "list_progress",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 90907,
+        "resultBytes": 91292
+      },
+      {
+        "name": "list_progress",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 90907,
+        "resultBytes": 91292
+      },
+      {
+        "name": "list_progress",
+        "rows": 6,
+        "coverage": "PARTIAL",
+        "recordBytes": 90907,
+        "resultBytes": 91292
+      },
+      {
+        "name": "list_progress",
+        "rows": 2,
+        "coverage": "PARTIAL",
+        "recordBytes": 30303,
+        "resultBytes": 30495
+      }
+    ]
+  },
+  "world-block-byte-pages": {
+    "requestId": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+    "pages": [
+      {
+        "name": "list_blocks",
+        "rows": 33,
+        "coverage": "COMPLETE",
+        "recordBytes": 27919,
+        "resultBytes": 27992
+      },
+      {
+        "name": "inspect_area",
+        "rows": 1,
+        "coverage": "COMPLETE",
+        "recordBytes": 1553,
+        "resultBytes": 1626
+      }
+    ]
+  },
+  "world-routes": {
+    "requestId": "09c811ad-bcc2-4505-99de-286f6a756e2f",
+    "pages": [
+      {
+        "name": "plan_recipe",
+        "rows": 27,
+        "coverage": "PARTIAL",
+        "recordBytes": 118015,
+        "resultBytes": 118359
+      }
+    ]
+  },
+  "entity-tail-corrected": {
+    "requestId": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+    "pages": [
+      {
+        "name": "list_entities",
+        "rows": 1,
+        "coverage": "COMPLETE",
+        "recordBytes": 981,
+        "resultBytes": 1138
+      }
+    ]
+  }
+}

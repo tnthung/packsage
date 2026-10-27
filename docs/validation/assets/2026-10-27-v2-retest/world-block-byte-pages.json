@@ -1,0 +1,2597 @@
+{
+  "requestId": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+  "conversationId": "71b4d848-1ec6-4cec-bd2a-df1936323515",
+  "saved": true,
+  "status": "completed",
+  "reply": "**Found 33 unique barrel positions** in the Overworld, centered on **(4808, 238, 4808)** with radius **2**. Both requested reads completed; neither returned a `nextCall`, and both returned `nextCursor: null`, so there were no continuation calls to follow. No commands were run.\n\n### Coverage and omissions\n\n| Check | Result |\n|---|---|\n| `list_blocks` | `COMPLETE`; 33 records, all with complete record coverage |\n| `inspect_area` | `COMPLETE`; 33 barrels and 33 notable positions |\n| Unique positions | 33 in each result; the two position sets match exactly |\n| Duplicate positions | 0 |\n| Positions missing from either result relative to the other | 0 |\n| Unloaded chunks | 0 |\n| Entities returned by the area inspection | 0 |\n\nThe area summary supplies the barrel count, notable positions, unloaded-chunk count and empty entity list. [world:area|block:minecraft:overworld|4808,238,4808|2]\n\n### String and byte limits\n\n- **Output string limits:** Neither response exposed a string-length cap, string-truncation flag or omitted-character count. These limits are **not reported**, rather than established as unlimited.\n- **Output byte limits:** Neither response exposed a byte budget, serialized byte count, byte-truncation flag or omitted-byte count. An exact byte limit or omitted-byte count therefore **cannot be determined from these results**.\n- **Concrete position omissions:** **0 relative to the complete returned sets**: all 33 area-summary positions have corresponding block records. No continuation remains unread. [world:area|block:minecraft:overworld|4808,238,4808|2]\n- For distinction, the declared `list_blocks` interface allows **64 records per page**; its input limits include **300 characters for a center place**, **256 per filter ID/text**, **64 IDs or tags**, and **1,024 characters for a cursor**. Those are interface/input limits, not evidence of output-string or byte caps.\n\nNo long localized names are reproduced below.\n\n### All 33 unique positions\n\nAll coordinates are in the **Overworld**; each link uses that barrel’s own record.\n\n| Y | Barrel positions |\n|---|---|\n| 236 | [(4808, 236, 4808)](world:block|minecraft:overworld|4808,236,4808) |\n| 237 | [(4807, 237, 4807)](world:block|minecraft:overworld|4807,237,4807), [(4808, 237, 4807)](world:block|minecraft:overworld|4808,237,4807), [(4809, 237, 4807)](world:block|minecraft:overworld|4809,237,4807) |\n| 237 | [(4807, 237, 4808)](world:block|minecraft:overworld|4807,237,4808), [(4808, 237, 4808)](world:block|minecraft:overworld|4808,237,4808), [(4809, 237, 4808)](world:block|minecraft:overworld|4809,237,4808) |\n| 237 | [(4807, 237, 4809)](world:block|minecraft:overworld|4807,237,4809), [(4808, 237, 4809)](world:block|minecraft:overworld|4808,237,4809), [(4809, 237, 4809)](world:block|minecraft:overworld|4809,237,4809) |\n| 238 | [(4808, 238, 4806)](world:block|minecraft:overworld|4808,238,4806) |\n| 238 | [(4807, 238, 4807)](world:block|minecraft:overworld|4807,238,4807), [(4808, 238, 4807)](world:block|minecraft:overworld|4808,238,4807), [(4809, 238, 4807)](world:block|minecraft:overworld|4809,238,4807) |\n| 238 | [(4806, 238, 4808)](world:block|minecraft:overworld|4806,238,4808), [(4807, 238, 4808)](world:block|minecraft:overworld|4807,238,4808), [(4808, 238, 4808)](world:block|minecraft:overworld|4808,238,4808), [(4809, 238, 4808)](world:block|minecraft:overworld|4809,238,4808), [(4810, 238, 4808)](world:block|minecraft:overworld|4810,238,4808) |\n| 238 | [(4807, 238, 4809)](world:block|minecraft:overworld|4807,238,4809), [(4808, 238, 4809)](world:block|minecraft:overworld|4808,238,4809), [(4809, 238, 4809)](world:block|minecraft:overworld|4809,238,4809) |\n| 238 | [(4808, 238, 4810)](world:block|minecraft:overworld|4808,238,4810) |\n| 239 | [(4807, 239, 4807)](world:block|minecraft:overworld|4807,239,4807), [(4808, 239, 4807)](world:block|minecraft:overworld|4808,239,4807), [(4809, 239, 4807)](world:block|minecraft:overworld|4809,239,4807) |\n| 239 | [(4807, 239, 4808)](world:block|minecraft:overworld|4807,239,4808), [(4808, 239, 4808)](world:block|minecraft:overworld|4808,239,4808), [(4809, 239, 4808)](world:block|minecraft:overworld|4809,239,4808) |\n| 239 | [(4807, 239, 4809)](world:block|minecraft:overworld|4807,239,4809), [(4808, 239, 4809)](world:block|minecraft:overworld|4808,239,4809), [(4809, 239, 4809)](world:block|minecraft:overworld|4809,239,4809) |\n| 240 | [(4808, 240, 4808)](world:block|minecraft:overworld|4808,240,4808) |",
+  "detail": null,
+  "errors": [],
+  "activities": [
+    {
+      "id": "tool:call_7gS2utxMK3WiAQAMzk6DuZsb",
+      "title": "Using tool: list_blocks (step 1)",
+      "detail": "Completed",
+      "status": "COMPLETED",
+      "serializedArguments": "{\"center\":{\"type\":\"block\",\"id\":null,\"place\":\"minecraft:overworld|4808,238,4808\"},\"radius\":2,\"filter\":{\"ids\":[\"minecraft:barrel\"],\"tags\":null,\"text\":null},\"cursor\":null}",
+      "toolName": "list_blocks",
+      "resultSummary": "Coverage: COMPLETE; records: 33",
+      "durationMillis": 35,
+      "resultDetail": "coverage: COMPLETE | outcome: COMPLETE\nminecraft:barrel at minecraft:overworld|4808,236,4808\n  readSpan: toGameTime: 2846491; fromGameTime: 2846491\n  block: minecraft:barrel\n  place: minecraft:overworld|4808,236,4808\nminecraft:barrel at minecraft:overworld|4807,237,4807\n  readSpan: toGameTime: 2846491; fromGameTime: 2846491\n  block: minecraft:barrel\n  place: minecraft:overworld|4807,237,4807\nminecraft:barrel at minecraft:overworld|4808,237,4807\n  readSpan: toGameTime: 2846491; fromGameTime: 2846491\n  block: minecraft:barrel\n  place: minecraft:overworld|4808,237,4807\nminecraft:barrel at minecraft:overworld|4809,237,4807\n  readSpan: toGameTime: 2846491; fromGameTime: 2846491\n  block: minecraft:barrel\n  place: minecraft:overworld|4809,237,4807\nminecraft:barrel at minecraft:overworld|4807,237,4808\n  readSpan: toGameTime: 2846491; fromGameTime: 2846491\n  block: minecraft:barrel\n  place: minecraft:overworld|4807,237,4808\nminecraft:barrel at minecraft:overworld|4808,237,4808\n  readSpan: toGameTime: 2846491; fromGameTime: 2846491\n  block: minecraft:barrel\n  place: minecraft:overworld|4808,237,4808\nminecraft:barrel at minecraft:overworld|4809,237,4808\n  readSpan: toGameTime: 2846491; fromGameTime: 2846491\n  block: minecraft:barrel\n  place: minecraft:overworld|4809,237,4808\nminecraft:barrel at minecraft:overworld|4807,237,4809\n  readSpan: toGameTime: 2846491; fromGameTime: 2846491\n  block: minecraft:barrel\n  place: minecraft:overworld|4807,237,4809\nand 25 more",
+      "durationNanos": 35281400
+    },
+    {
+      "id": "tool:call_xUHLIo4FbM52fynOAASJHANR",
+      "title": "Using tool: inspect_area (step 2)",
+      "detail": "Completed",
+      "status": "COMPLETED",
+      "serializedArguments": "{\"center\":{\"type\":\"block\",\"id\":null,\"place\":\"minecraft:overworld|4808,238,4808\"},\"radius\":2}",
+      "toolName": "inspect_area",
+      "resultSummary": "Coverage: COMPLETE; records: 1",
+      "durationMillis": 32,
+      "resultDetail": "coverage: COMPLETE | outcome: COMPLETE\nArea within 2 blocks of block:minecraft:overworld|4808,238,4808\n  notable: container: minecraft:barrel: ...\n  readSpan: toGameTime: 2846491; fromGameTime: 2846491\n  blockCounts: minecraft:barrel: 33",
+      "durationNanos": 32659400
+    },
+    {
+      "id": "reasoning:rs_0544e83bcaa16b87016ae01794eae887d086562e79c7c129f5",
+      "title": "Thinking…",
+      "detail": "**Assessing output structure**\n\nI need to create a compact table with 33 links organized into manageable rows, likely grouped into five rows. There are some limits on reporting, and I can only assert certain parameters based on inferred positions. While I can report input schema, I can't expose metadata or byte metrics. I’m guessing the user expects a clear structure, possibly aiming for about 650 words, around 450 being ideal. Let's clarify how best to format this.",
+      "status": "COMPLETED",
+      "serializedArguments": null,
+      "toolName": null,
+      "resultSummary": null,
+      "durationMillis": null,
+      "resultDetail": null,
+      "durationNanos": null
+    }
+  ],
+  "navigationTargets": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,236,4808",
+      "targetId": "world-block|minecraft:overworld|4808,236,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4807,237,4807",
+      "targetId": "world-block|minecraft:overworld|4807,237,4807"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,237,4807",
+      "targetId": "world-block|minecraft:overworld|4808,237,4807"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4809,237,4807",
+      "targetId": "world-block|minecraft:overworld|4809,237,4807"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4807,237,4808",
+      "targetId": "world-block|minecraft:overworld|4807,237,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,237,4808",
+      "targetId": "world-block|minecraft:overworld|4808,237,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4809,237,4808",
+      "targetId": "world-block|minecraft:overworld|4809,237,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4807,237,4809",
+      "targetId": "world-block|minecraft:overworld|4807,237,4809"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,237,4809",
+      "targetId": "world-block|minecraft:overworld|4808,237,4809"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4809,237,4809",
+      "targetId": "world-block|minecraft:overworld|4809,237,4809"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4806",
+      "targetId": "world-block|minecraft:overworld|4808,238,4806"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4807,238,4807",
+      "targetId": "world-block|minecraft:overworld|4807,238,4807"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4807",
+      "targetId": "world-block|minecraft:overworld|4808,238,4807"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4809,238,4807",
+      "targetId": "world-block|minecraft:overworld|4809,238,4807"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4806,238,4808",
+      "targetId": "world-block|minecraft:overworld|4806,238,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4807,238,4808",
+      "targetId": "world-block|minecraft:overworld|4807,238,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4808",
+      "targetId": "world-block|minecraft:overworld|4808,238,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4809,238,4808",
+      "targetId": "world-block|minecraft:overworld|4809,238,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4810,238,4808",
+      "targetId": "world-block|minecraft:overworld|4810,238,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4807,238,4809",
+      "targetId": "world-block|minecraft:overworld|4807,238,4809"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4809",
+      "targetId": "world-block|minecraft:overworld|4808,238,4809"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4809,238,4809",
+      "targetId": "world-block|minecraft:overworld|4809,238,4809"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4810",
+      "targetId": "world-block|minecraft:overworld|4808,238,4810"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4807,239,4807",
+      "targetId": "world-block|minecraft:overworld|4807,239,4807"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,239,4807",
+      "targetId": "world-block|minecraft:overworld|4808,239,4807"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4809,239,4807",
+      "targetId": "world-block|minecraft:overworld|4809,239,4807"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4807,239,4808",
+      "targetId": "world-block|minecraft:overworld|4807,239,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,239,4808",
+      "targetId": "world-block|minecraft:overworld|4808,239,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4809,239,4808",
+      "targetId": "world-block|minecraft:overworld|4809,239,4808"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4807,239,4809",
+      "targetId": "world-block|minecraft:overworld|4807,239,4809"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,239,4809",
+      "targetId": "world-block|minecraft:overworld|4808,239,4809"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4809,239,4809",
+      "targetId": "world-block|minecraft:overworld|4809,239,4809"
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,240,4808",
+      "targetId": "world-block|minecraft:overworld|4808,240,4808"
+    }
+  ],
+  "toolCalls": [
+    {
+      "callId": "call_7gS2utxMK3WiAQAMzk6DuZsb",
+      "name": "list_blocks",
+      "arguments": {
+        "center": {
+          "type": "block",
+          "id": null,
+          "place": "minecraft:overworld|4808,238,4808"
+        },
+        "radius": 2,
+        "filter": {
+          "ids": [
+            "minecraft:barrel"
+          ],
+          "tags": null,
+          "text": null
+        },
+        "cursor": null
+      },
+      "error": false,
+      "result": {
+        "coverage": "COMPLETE",
+        "outcome": "COMPLETE",
+        "nextCursor": null,
+        "records": [
+          {
+            "reference": "world:block|minecraft:overworld|4808,236,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,236,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.102846300Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,236,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,236,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4807,237,4807",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4807,237,4807",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.102846300Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4807,237,4807",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4807,237,4807"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,237,4807",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,237,4807",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.102846300Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,237,4807",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,237,4807"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4809,237,4807",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4809,237,4807",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.102846300Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4809,237,4807",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4809,237,4807"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4807,237,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4807,237,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4807,237,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4807,237,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,237,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,237,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,237,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,237,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4809,237,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4809,237,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4809,237,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4809,237,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4807,237,4809",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4807,237,4809",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4807,237,4809",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4807,237,4809"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,237,4809",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,237,4809",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,237,4809",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,237,4809"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4809,237,4809",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4809,237,4809",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4809,237,4809",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4809,237,4809"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,238,4806",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,238,4806",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,238,4806",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,238,4806"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4807,238,4807",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4807,238,4807",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4807,238,4807",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4807,238,4807"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,238,4807",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,238,4807",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,238,4807",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,238,4807"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4809,238,4807",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4809,238,4807",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4809,238,4807",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4809,238,4807"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4806,238,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4806,238,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4806,238,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4806,238,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4807,238,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4807,238,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4807,238,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4807,238,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,238,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,238,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,238,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,238,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4809,238,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4809,238,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4809,238,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4809,238,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4810,238,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4810,238,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4810,238,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4810,238,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4807,238,4809",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4807,238,4809",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4807,238,4809",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4807,238,4809"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,238,4809",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,238,4809",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,238,4809",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,238,4809"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4809,238,4809",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4809,238,4809",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4809,238,4809",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4809,238,4809"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,238,4810",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,238,4810",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,238,4810",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,238,4810"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4807,239,4807",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4807,239,4807",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4807,239,4807",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4807,239,4807"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,239,4807",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,239,4807",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,239,4807",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,239,4807"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4809,239,4807",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4809,239,4807",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4809,239,4807",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4809,239,4807"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4807,239,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4807,239,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4807,239,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4807,239,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,239,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,239,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,239,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,239,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4809,239,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4809,239,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4809,239,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4809,239,4808"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4807,239,4809",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4807,239,4809",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4807,239,4809",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4807,239,4809"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,239,4809",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,239,4809",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,239,4809",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,239,4809"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4809,239,4809",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4809,239,4809",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4809,239,4809",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4809,239,4809"
+            },
+            "recipe": null
+          },
+          {
+            "reference": "world:block|minecraft:overworld|4808,240,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,240,4808",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.103358900Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,240,4808",
+            "payload": {
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "block": "minecraft:barrel",
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "recipe": null
+          }
+        ]
+      },
+      "coverage": "COMPLETE",
+      "detail": null,
+      "recordCount": 33
+    },
+    {
+      "callId": "call_xUHLIo4FbM52fynOAASJHANR",
+      "name": "inspect_area",
+      "arguments": {
+        "center": {
+          "type": "block",
+          "id": null,
+          "place": "minecraft:overworld|4808,238,4808"
+        },
+        "radius": 2
+      },
+      "error": false,
+      "result": {
+        "coverage": "COMPLETE",
+        "outcome": "COMPLETE",
+        "nextCursor": null,
+        "records": [
+          {
+            "reference": "world:area|block:minecraft:overworld|4808,238,4808|2",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-10",
+                "requestGeneration": 19
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "area|block:minecraft:overworld|4808,238,4808|2",
+              "observedGeneration": 19,
+              "observedAt": "2026-10-27T03:16:32.102846300Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "OTHER",
+            "navigable": false,
+            "title": "Area within 2 blocks of block:minecraft:overworld|4808,238,4808",
+            "payload": {
+              "notable": {
+                "container": {
+                  "minecraft:barrel": [
+                    "4808,236,4808",
+                    "4807,237,4807",
+                    "4808,237,4807",
+                    "4809,237,4807",
+                    "4807,237,4808",
+                    "4808,237,4808",
+                    "4809,237,4808",
+                    "4807,237,4809",
+                    "4808,237,4809",
+                    "4809,237,4809",
+                    "4808,238,4806",
+                    "4807,238,4807",
+                    "4808,238,4807",
+                    "4809,238,4807",
+                    "4806,238,4808",
+                    "4807,238,4808",
+                    "4808,238,4808",
+                    "4809,238,4808",
+                    "4810,238,4808",
+                    "4807,238,4809",
+                    "4808,238,4809",
+                    "4809,238,4809",
+                    "4808,238,4810",
+                    "4807,239,4807",
+                    "4808,239,4807",
+                    "4809,239,4807",
+                    "4807,239,4808",
+                    "4808,239,4808",
+                    "4809,239,4808",
+                    "4807,239,4809",
+                    "4808,239,4809",
+                    "4809,239,4809",
+                    "4808,240,4808"
+                  ]
+                }
+              },
+              "readSpan": {
+                "toGameTime": 2846491,
+                "fromGameTime": 2846491
+              },
+              "blockCounts": {
+                "minecraft:barrel": 33
+              },
+              "radius": 2,
+              "notableCount": 33,
+              "unloadedChunks": 0,
+              "center": {
+                "dimension": "minecraft:overworld",
+                "x": 4808.5,
+                "y": 238.5,
+                "z": 4808.5
+              },
+              "entities": []
+            },
+            "recipe": null
+          }
+        ]
+      },
+      "coverage": "COMPLETE",
+      "detail": null,
+      "recordCount": 1
+    }
+  ],
+  "citations": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "area|block:minecraft:overworld|4808,238,4808|2",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.102846300Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,236,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.102846300Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4807,237,4807",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.102846300Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,237,4807",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.102846300Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4809,237,4807",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.102846300Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4807,237,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,237,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4809,237,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4807,237,4809",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,237,4809",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4809,237,4809",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4806",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4807,238,4807",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4807",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4809,238,4807",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4806,238,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4807,238,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4809,238,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4810,238,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4807,238,4809",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4809",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4809,238,4809",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4810",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4807,239,4807",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,239,4807",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4809,239,4807",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4807,239,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,239,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4809,239,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4807,239,4809",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,239,4809",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4809,239,4809",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    },
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-10",
+        "requestGeneration": 19
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,240,4808",
+      "observedGeneration": 19,
+      "observedAt": "2026-10-27T03:16:32.103358900Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    }
+  ],
+  "timing": [
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "runtime_dispatch",
+      "start_ns": "296073096380400",
+      "event_ns": "296073096425700",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "accepted",
+      "start_ns": "296073096565100",
+      "event_ns": "296073096565100",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "context_capture_start",
+      "start_ns": "296073096620500",
+      "screenshot": "true"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "history_ready",
+      "event_ns": "296073096627200",
+      "elapsed_ms": "0",
+      "conversationTurns": "0"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "observation_ready",
+      "event_ns": "296073096752200",
+      "queueMs": "0",
+      "observationMs": "0"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "frame_image",
+      "event_ns": "296073137696900",
+      "frameMs": "37",
+      "frameBytes": "149698"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "frame_ready",
+      "event_ns": "296073137849000",
+      "waitMs": "41",
+      "frameBytes": "149698"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "capture_ready",
+      "event_ns": "296073137989900",
+      "elapsed_ms": "41",
+      "screenshotBytes": "149698"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "history_selected",
+      "event_ns": "296073138014200",
+      "preparationMs": "0",
+      "historyTurns": "0",
+      "historyTokens": "0",
+      "historyErrors": "0"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "request_built",
+      "event_ns": "296073139648700",
+      "buildMs": "1",
+      "inputItems": "2",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "backend_start",
+      "event_ns": "296073139771300",
+      "elapsed_ms": "43",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "backend_entry",
+      "event_ns": "296073139798900",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "296073139837200",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "296073140601400",
+      "serializationMs": "0",
+      "bodyBytes": "254194",
+      "bodyChars": "254194",
+      "inputItems": "2",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "296073140690200",
+      "requestToDispatchMs": "0"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "296075937528400",
+      "dispatchToHeadersMs": "2796",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "296075937923400",
+      "headersToFirstBytesMs": "0",
+      "dispatchToFirstBytesMs": "2797",
+      "bytes": "24"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "296081218113500",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "8077"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "tool_received",
+      "call": "call_7gS2utxMK3WiAQAMzk6DuZsb",
+      "tool": "list_blocks",
+      "step": "1",
+      "event_ns": "296081218245000",
+      "elapsed_ms": "8121"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "tool_received",
+      "call": "call_xUHLIo4FbM52fynOAASJHANR",
+      "tool": "inspect_area",
+      "step": "2",
+      "event_ns": "296081219614100",
+      "elapsed_ms": "8123"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "tool_result_sent",
+      "call": "call_xUHLIo4FbM52fynOAASJHANR",
+      "tool": "inspect_area",
+      "event_ns": "296081252358700",
+      "toolMs": "32",
+      "resultBytes": "1626",
+      "error": "false"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "tool_result_sent",
+      "call": "call_7gS2utxMK3WiAQAMzk6DuZsb",
+      "tool": "list_blocks",
+      "event_ns": "296081253841800",
+      "toolMs": "35",
+      "resultBytes": "27992",
+      "error": "false"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "auth_ready",
+      "event_ns": "296081254296700",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "body_ready",
+      "event_ns": "296081255524400",
+      "serializationMs": "1",
+      "bodyBytes": "285791",
+      "bodyChars": "285791",
+      "inputItems": "6",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_dispatch",
+      "event_ns": "296081255640600",
+      "requestToDispatchMs": "1"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_headers",
+      "event_ns": "296083694111400",
+      "dispatchToHeadersMs": "2438",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_stream_bytes",
+      "event_ns": "296083698098900",
+      "headersToFirstBytesMs": "3",
+      "dispatchToFirstBytesMs": "2442",
+      "bytes": "24"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_text",
+      "event_ns": "296091360533700",
+      "roundToFirstTextMs": "10106",
+      "dispatchToFirstTextMs": "10104",
+      "deltaChars": "2"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "first_text",
+      "event_ns": "296091360647900",
+      "elapsed_ms": "18264",
+      "backendMs": "18220",
+      "deltaChars": "2"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "provider_terminal",
+      "event_ns": "296125496317400",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "44240"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "tool_summary",
+      "toolCalls": "2",
+      "toolWallMs": "35",
+      "event_ns": "296125496781800"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "model_terminal",
+      "event_ns": "296125496781800",
+      "elapsed_ms": "52400",
+      "backendMs": "52357",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "persist_start",
+      "event_ns": "296125497891900",
+      "elapsed_ms": "52401",
+      "screenshotBytes": "149698"
+    },
+    {
+      "request": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+      "phase": "persist_done",
+      "event_ns": "296125523394800",
+      "elapsed_ms": "52426",
+      "persistMs": "25"
+    }
+  ]
+}

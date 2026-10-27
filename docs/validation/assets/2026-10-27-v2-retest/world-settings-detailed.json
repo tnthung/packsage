@@ -1,0 +1,5 @@
+{
+  "commandConfirmation": "always",
+  "verbosity": "detailed",
+  "showChatsFromOtherSessions": false
+}

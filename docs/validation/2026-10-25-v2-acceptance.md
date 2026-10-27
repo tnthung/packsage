@@ -42535,3 +42535,43 @@ Minecraft is left **running and unpaused in PackSage Adapter Filter Live Test wi
 Closing /chat-screen while Settings was open returned open=false while leaving Settings present; the intermediate state is retained. A real Escape returned to chat, then /chat-screen {"open":false} closed it. Final state readback and screenshot confirm gameplay with no screen. This cleanup did not rerun a scored trial. [chat-final-close.json](../../build/feedback-live/recheck2/chat-final-close.json), [state-before-settings-close.json](../../build/feedback-live/recheck2/state-before-settings-close.json), [settings-escape.png](../../build/feedback-live/recheck2/settings-escape.png), [chat-final-close-after-settings.json](../../build/feedback-live/recheck2/chat-final-close-after-settings.json), [state-final.json](../../build/feedback-live/recheck2/state-final.json).
 
 No bridge token or authorization header was printed or saved. An exact-token scan of this round's evidence and the validation document found zero matches; linked local evidence files were checked for existence. [secret-scan.json](../../build/feedback-live/recheck2/secret-scan.json), [record-checks.json](../../build/feedback-live/recheck2/record-checks.json).
+
+## 2026-10-27 retest
+
+Tested `feat/packsage-v2` at `cb8d068ac8eaa114710783991c72ebb7a0df636c`; installed SHA-256 `EF7A93C49913B32491435525FC4F35B80C0CCFFB00A340740A6BF093893A8B8A`. CurseForge Packsage / PackSage Adapter Filter Live Test, Minecraft 1.21.1, NeoForge 21.1.259, JEI 19.27.0.340 retained. GPT-6.1-Sol, medium; screenshot enabled, automatic search; developer override null and effective prompt unchanged. [Metadata](assets/2026-10-27-v2-retest/run-metadata.json), [complete token-free HTTP ledger](assets/2026-10-27-v2-retest/http.jsonl).
+
+### F4 — PASS for identity and command-call behavior
+
+Fresh chat, exact question **op me**. Request `f90e8fac-83e3-46ef-aa23-568cc48fa8a1`; conversation `5f0f811f-0e44-435d-9df1-304635ddd22f`. The model makes one `run_command {"command":"op TNThung"}` call, with no username question. The real confirmation appears and its Run button is approved through computer use. The game rejects the command with “Unknown or incomplete command.” No operator permission was granted. This creative singleplayer fixture has ordinary command permissions; this is not a level-0/no-elevation retest or evidence that the player was already op.
+
+Verbatim final reply:
+
+> `/op TNThung` failed: the game returned “Unknown or incomplete command.” You’ll need to run it from the server console or have an authorized server admin grant you operator permissions. [command:run|12eaa7af-97c0-4851-bc3a-a20f3421d998]
+
+Completed/saved, 57,639 ms including the confirmation wait. [Result and exact command feedback](assets/2026-10-27-v2-retest/f4.json), [confirmation screenshot](assets/2026-10-27-v2-retest/f4-confirmation.png), [outcome screenshot](assets/2026-10-27-v2-retest/f4-outcome.png).
+
+A separate fresh chat asks exactly **what's my name?**. Request `a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81`; conversation `f345c554-8f37-4e7d-a4cd-33a62a237f11`. Completed/saved in 5,966 ms, no tools. Verbatim reply: “Your name is **TNThung**.” [Result](assets/2026-10-27-v2-retest/identity.json), [screenshot](assets/2026-10-27-v2-retest/identity.png).
+
+### J8 — PASS, including the same-chat follow-up
+
+Reused donkey `11111111-1111-1111-1111-111111111111` at (1605.5,250,1602.5), player at (1604.5,250,1603.5). Both menu-state captures have riddenEntity=null. With openInventory=true, menu slot 44 deposits 17 gold; after close/data inspection the donkey contains 17. Reopen, shift-move slot 2, close/data inspection: empty. Exact commands and menu states are retained in the ledger and j8-* fixture files. The initial data query preceded destination chunk readiness; the subsequent loaded read established the donkey before any transfer.
+
+Fresh chat asks exactly **what did I take out of chests today?**. Request `b5846699-9a44-4156-be0a-7421d0a030b6`; conversation `3cd7d3a4-aed0-48b1-a1f2-448bbac32d98`. One COMPLETE search_journal call returns event 329: withdrawal, 17 gold, donkey identity, Overworld (1605,250,1602), actor TNThung. Completed/saved in 14,274 ms. Verbatim reply:
+
+> Today, **October 27** (your local time), the journal shows **no withdrawals from chest blocks**.
+>
+> It records one withdrawal from another inventory:
+>
+> - **17 gold ingots** taken from a donkey at **(1605, 250, 1602)** at **10:55 a.m.** [View event](journal:event:329)
+
+In that same chat ask exactly **how many, and where exactly?**. Request `c4e9318c-2d5c-4064-b262-1e0b7d518203`. One COMPLETE journal call returns the same event. Completed/saved in 13,635 ms. Verbatim reply:
+
+> **17 gold ingots**, taken from a **donkey’s inventory** at **(1605, 250, 1602) in the Overworld**, today at **10:55 a.m. local time**—not from a chest block. [Withdrawal location](journal:event:329)
+
+Both answers give the journal amount and coordinates; the earlier J8 reply-compliance failure is superseded within this retest scope. The exact returned journal-place target opens in 41 ms. A prior tester attempt incorrectly passed the source reference as targetId and was rejected; only the corrected returned-target attempt is the navigation verdict.
+
+[Original result](assets/2026-10-27-v2-retest/j8.json), [follow-up](assets/2026-10-27-v2-retest/j8-followup.json), [original screenshot](assets/2026-10-27-v2-retest/j8-withdrawal-answer.png), [follow-up screenshot](assets/2026-10-27-v2-retest/j8-followup-answer.png), [navigation](assets/2026-10-27-v2-retest/j8-followup-navigation-correct.json).
+
+### Scope and final state
+
+World clauses and W-R1 are recorded in the [world retest](2026-10-26-world-review-fixes.md#2026-10-27-installed-acceptance); sidebar and layering in the [UI retest](2026-10-27-recipe-cards.md#2026-10-27-sidebar-and-popup-retest). No code, prompt or mods changed. No formatter/build/test commands, push or merge. Temporary world/resource fixtures were removed; original packs/player position restored. Minecraft remains running/unpaused in the test world, chat closed, Answer detail Normal. [Final Settings](assets/2026-10-27-v2-retest/final-settings-normal.png), [final world](assets/2026-10-27-v2-retest/final-world.png).

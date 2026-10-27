@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "result": 1,
+  "feedback": [
+    "Donkey has the following entity data: [{count: 17, Slot: 0b, id: \"minecraft:gold_ingot\"}]"
+  ]
+}

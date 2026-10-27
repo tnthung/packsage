@@ -1,0 +1,23 @@
+{
+  "world": "PackSage Adapter Filter Live Test",
+  "save": "PackSage Adapter Filter Live Test",
+  "paused": false,
+  "running": true,
+  "screen": null,
+  "dimension": "minecraft:overworld",
+  "position": [
+    4808.5,
+    252,
+    4808.5
+  ],
+  "yaw": -45,
+  "pitch": 35.72477,
+  "health": 20,
+  "gamemode": "creative",
+  "gameTime": 2853072,
+  "dayTime": 1266873,
+  "selectedHotbarSlot": 0,
+  "crosshairTarget": null,
+  "riddenEntity": null,
+  "menuId": 0
+}

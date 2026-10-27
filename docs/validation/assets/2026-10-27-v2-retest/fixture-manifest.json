@@ -1,0 +1,142 @@
+{
+  "markerCount": 4097,
+  "markerBaseUUIDs": "00000000-0000-0000-0000-000000000001 through 00000000-0000-0000-0000-000000001000",
+  "tailUUID": "7fffffff-7fff-ffff-7fff-ffff7fffffff",
+  "barrels": {
+    "from": [
+      4800,
+      230,
+      4800
+    ],
+    "to": [
+      4815,
+      246,
+      4815
+    ],
+    "count": 4352,
+    "netherStars": {
+      "amount": 23,
+      "position": [
+        4815,
+        246,
+        4815
+      ]
+    }
+  },
+  "longCows": {
+    "count": 65,
+    "baseUUID": "00000001-0000-0000-0000-",
+    "firstPosition": [
+      4831.9,
+      250,
+      4808.5
+    ],
+    "otherPosition": [
+      4832.2,
+      250,
+      4808.5
+    ],
+    "customNameUTF16": 3010
+  },
+  "villagerUUID": "00000002-0000-0000-0000-000000000001",
+  "offers": 65,
+  "modifiers": 65,
+  "itemChest": [
+    4800,
+    248,
+    4800
+  ],
+  "itemIds": [
+    "stone",
+    "dirt",
+    "cobblestone",
+    "diamond",
+    "emerald",
+    "netherite_ingot",
+    "iron_ingot",
+    "gold_ingot",
+    "copper_ingot",
+    "coal",
+    "charcoal",
+    "stick",
+    "apple",
+    "carrot",
+    "potato",
+    "baked_potato",
+    "beetroot",
+    "wheat",
+    "wheat_seeds",
+    "bone",
+    "rotten_flesh",
+    "string",
+    "spider_eye",
+    "gunpowder",
+    "flint",
+    "leather",
+    "paper"
+  ],
+  "recipeFixture": {
+    "root": "C:/Users/hung1/curseforge/minecraft/Instances/Packsage/saves/PackSage Adapter Filter Live Test/datapacks/packsage_world_final_retest",
+    "count": 128,
+    "output": "minecraft:barrier",
+    "inputs": "9 minecraft:bedrock",
+    "depth": 0
+  },
+  "advancementFixture": {
+    "count": 66,
+    "longRootTitles": true
+  },
+  "resourceFixture": {
+    "root": "C:/Users/hung1/curseforge/minecraft/Instances/Packsage/resourcepacks/packsage-world-final-retest",
+    "localizedItemIds": [
+      "stone",
+      "dirt",
+      "cobblestone",
+      "diamond",
+      "emerald",
+      "netherite_ingot",
+      "iron_ingot",
+      "gold_ingot",
+      "copper_ingot",
+      "coal",
+      "charcoal",
+      "stick",
+      "apple",
+      "carrot",
+      "potato",
+      "baked_potato",
+      "beetroot",
+      "wheat",
+      "wheat_seeds",
+      "bone",
+      "rotten_flesh",
+      "string",
+      "spider_eye",
+      "gunpowder",
+      "flint",
+      "leather",
+      "paper"
+    ]
+  },
+  "testerNotes": [
+    "First screenshot copy returned EBUSY; copied the same original PNG later, without recapture.",
+    "First donkey data query happened before the destination chunk loaded; repeated read after load.",
+    "One navigate attempt used a source reference rather than returned targetId and was rejected; corrected to exact returned target.",
+    "Resource reload interrupted the initial progress/statistics request; retained original log and ran an explicitly labelled replacement.",
+    "The force-loaded neighbor was available to PackSage despite execute-if-loaded returning false; the first unavailable-chunk fixture did not establish an unread branch. The separate 10000-coordinate probe reports two genuinely unread chunks.",
+    "Block localization did not enlarge the ID-based block records, so adversarial block-byte paging was not induced."
+  ],
+  "initialEntityFixture": {
+    "actualMarkers": 17,
+    "reason": "Marker passenger summons did not create the nested markers; only 16 roots plus the named tail existed.",
+    "validates4097Tail": false
+  },
+  "correctedEntityFixture": {
+    "individualSummonSuccesses": 4096,
+    "tailSummonSuccess": true,
+    "verifiedCount": 4097,
+    "countEvidence": "entity-tail-corrected-count.json",
+    "resultEvidence": "entity-tail-corrected.json",
+    "cleanupCount": 4097
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "fields": [
+    "modelId=gpt-6.1-sol",
+    "openPaused=false",
+    "reasoningEffort=medium",
+    "verbosity=normal"
+  ]
+}

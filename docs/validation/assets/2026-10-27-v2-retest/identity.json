@@ -1,0 +1,223 @@
+{
+  "requestId": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+  "conversationId": "f345c554-8f37-4e7d-a4cd-33a62a237f11",
+  "saved": true,
+  "status": "completed",
+  "reply": "Your name is **TNThung**.",
+  "detail": null,
+  "errors": [],
+  "activities": [],
+  "navigationTargets": [],
+  "toolCalls": [],
+  "citations": [],
+  "timing": [
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "runtime_dispatch",
+      "start_ns": "294776355697500",
+      "event_ns": "294776355942200",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "accepted",
+      "start_ns": "294776356227800",
+      "event_ns": "294776356227800",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "history_ready",
+      "event_ns": "294776356377600",
+      "elapsed_ms": "0",
+      "conversationTurns": "0"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "context_capture_start",
+      "start_ns": "294776356386100",
+      "screenshot": "true"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "observation_ready",
+      "event_ns": "294776357675700",
+      "queueMs": "0",
+      "observationMs": "0"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "frame_image",
+      "event_ns": "294776505005600",
+      "frameMs": "142",
+      "frameBytes": "1538492"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "frame_ready",
+      "event_ns": "294776505416200",
+      "waitMs": "147",
+      "frameBytes": "1538492"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "capture_ready",
+      "event_ns": "294776505841600",
+      "elapsed_ms": "149",
+      "screenshotBytes": "1538492"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "history_selected",
+      "event_ns": "294776505860600",
+      "preparationMs": "0",
+      "historyTurns": "0",
+      "historyTokens": "0",
+      "historyErrors": "0"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "request_built",
+      "event_ns": "294776508375300",
+      "buildMs": "2",
+      "inputItems": "2",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "backend_start",
+      "event_ns": "294776508615700",
+      "elapsed_ms": "152",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "backend_entry",
+      "event_ns": "294776508658700",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "294776508710900",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "294776512506700",
+      "serializationMs": "3",
+      "bodyBytes": "2106711",
+      "bodyChars": "2106711",
+      "inputItems": "2",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "294776512909600",
+      "requestToDispatchMs": "4"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "294779845087100",
+      "dispatchToHeadersMs": "3332",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "294779969232700",
+      "headersToFirstBytesMs": "124",
+      "dispatchToFirstBytesMs": "3456",
+      "bytes": "26"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_text",
+      "event_ns": "294781500902400",
+      "roundToFirstTextMs": "4992",
+      "dispatchToFirstTextMs": "4987",
+      "deltaChars": "4"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "first_text",
+      "event_ns": "294781501086700",
+      "elapsed_ms": "5144",
+      "backendMs": "4992",
+      "deltaChars": "4"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "294782322326600",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "5809"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "tool_summary",
+      "toolCalls": "0",
+      "toolWallMs": "0",
+      "event_ns": "294782322813200"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "model_terminal",
+      "event_ns": "294782322813200",
+      "elapsed_ms": "5966",
+      "backendMs": "5814",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "persist_start",
+      "event_ns": "294782323515500",
+      "elapsed_ms": "5967",
+      "screenshotBytes": "1538492"
+    },
+    {
+      "request": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+      "phase": "persist_done",
+      "event_ns": "294782353647100",
+      "elapsed_ms": "5997",
+      "persistMs": "30"
+    }
+  ]
+}

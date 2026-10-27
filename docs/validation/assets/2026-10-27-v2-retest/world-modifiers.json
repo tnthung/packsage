@@ -1,0 +1,890 @@
+{
+  "requestId": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+  "conversationId": "43d9014d-6980-4e22-8224-ea4e4773acc9",
+  "saved": true,
+  "status": "completed",
+  "reply": "Inspected the [Librarian at (4840.5, 250, 4808.5), Overworld](world:entity|00000002-0000-0000-0000-000000000001).\n\n- **Modifier bound:** `max_health` reports `modifiersStatus: \"bounded\"`. The inspection retains **64 modifiers per attribute**, so it cannot display all 65. The returned entries all have amount `0.0` and operation `add_value`; `packsage_retest:modifier9` is not in the retained list. [world:entity|00000002-0000-0000-0000-000000000001]\n- **Health retained:** Current health is **20.0**, maximum health is **20.0**, and the `max_health` attribute’s base and calculated value are both **20.0**. [world:entity|00000002-0000-0000-0000-000000000001]\n- **Location retained:** **(4840.5, 250.0, 4808.5)** in `minecraft:overworld`. [world:entity|00000002-0000-0000-0000-000000000001]\n- **Bounds/notes:** Overall inspection coverage is **partial** because details exceeded the **64 KiB byte budget**, causing the largest facts to be omitted. The section also notes that trade offers are bounded to **64** and were omitted for the byte budget; the retained offer count is **65**. [world:entity|00000002-0000-0000-0000-000000000001]\n\nNo commands were run.",
+  "detail": null,
+  "errors": [],
+  "activities": [
+    {
+      "id": "tool:call_UqpApucFfpN0bVBnI2ordXyT",
+      "title": "Using tool: inspect_entity (step 1)",
+      "detail": "Completed",
+      "status": "COMPLETED",
+      "serializedArguments": "{\"id\":\"00000002-0000-0000-0000-000000000001\"}",
+      "toolName": "inspect_entity",
+      "resultSummary": "Coverage: PARTIAL; records: 1",
+      "durationMillis": 12,
+      "resultDetail": "coverage: PARTIAL | outcome: PARTIAL\nEntity 00000002-0000-0000-0000-000000000001\n  gameTime: 2840829\n  dayTime: 1254630\n  inventories: inventory: minecraft/inventory; label: Inventory; slots: 8, ...",
+      "durationNanos": 12490700
+    }
+  ],
+  "navigationTargets": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "0:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-5",
+        "requestGeneration": 16
+      },
+      "providerId": "world",
+      "sourceHandle": "entity|00000002-0000-0000-0000-000000000001",
+      "targetId": "world-entity|00000002-0000-0000-0000-000000000001"
+    }
+  ],
+  "toolCalls": [
+    {
+      "callId": "call_UqpApucFfpN0bVBnI2ordXyT",
+      "name": "inspect_entity",
+      "arguments": {
+        "id": "00000002-0000-0000-0000-000000000001"
+      },
+      "error": false,
+      "result": {
+        "coverage": "PARTIAL",
+        "outcome": "PARTIAL",
+        "nextCursor": null,
+        "records": [
+          {
+            "reference": "world:entity|00000002-0000-0000-0000-000000000001",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "0:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-5",
+                "requestGeneration": 16
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "entity|00000002-0000-0000-0000-000000000001",
+              "observedGeneration": 16,
+              "observedAt": "2026-10-27T03:09:34.000789400Z",
+              "activity": "ACTIVE",
+              "coverage": "PARTIAL",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "OTHER",
+            "navigable": true,
+            "title": "Entity 00000002-0000-0000-0000-000000000001",
+            "payload": {
+              "gameTime": 2840829,
+              "dayTime": 1254630,
+              "inventories": [
+                {
+                  "inventory": "minecraft/inventory",
+                  "label": "Inventory",
+                  "slots": 8,
+                  "role": "storage"
+                }
+              ],
+              "name": "Librarian",
+              "nameTruncated": false,
+              "holder": "entity:00000002-0000-0000-0000-000000000001",
+              "note": "Entity inspection details exceed the 64 KiB byte budget; the largest facts were omitted, coverage is partial",
+              "id": "00000002-0000-0000-0000-000000000001",
+              "entity": "minecraft:villager",
+              "dimension": "minecraft:overworld",
+              "sections": {
+                "minecraft": {
+                  "coverage": "PARTIAL",
+                  "facts": {
+                    "xp": 0,
+                    "health": 20,
+                    "timeUnits": "lastSlept, lastWorkedAtPoi and golemDetectedUntil are game times in ticks (20 per second); compare them with the record's gameTime",
+                    "playerReputation": 0,
+                    "pricesNote": "costA.count already includes demand; costForPlayer adds this player's reputation and Hero of the Village discounts, which the game applies when trading starts",
+                    "wantsToSpawnGolem": false,
+                    "leashed": false,
+                    "attributes": [
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.armor"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.armor_toughness"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.attack_knockback"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 1,
+                        "value": 1,
+                        "id": "minecraft:generic.burning_time"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.explosion_knockback_resistance"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 1,
+                        "value": 1,
+                        "id": "minecraft:generic.fall_damage_multiplier"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 48,
+                        "value": 48,
+                        "id": "minecraft:generic.follow_range"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0.08,
+                        "value": 0.08,
+                        "id": "minecraft:generic.gravity"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0.41999998688697815,
+                        "value": 0.41999998688697815,
+                        "id": "minecraft:generic.jump_strength"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.knockback_resistance"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.max_absorption"
+                      },
+                      {
+                        "modifiers": [
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier0",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier1",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier10",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier11",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier12",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier13",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier14",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier15",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier16",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier17",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier18",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier19",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier2",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier20",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier21",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier22",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier23",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier24",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier25",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier26",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier27",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier28",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier29",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier3",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier30",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier31",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier32",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier33",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier34",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier35",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier36",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier37",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier38",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier39",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier4",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier40",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier41",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier42",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier43",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier44",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier45",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier46",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier47",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier48",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier49",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier5",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier50",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier51",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier52",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier53",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier54",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier55",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier56",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier57",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier58",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier59",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier6",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier60",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier61",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier62",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier63",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier64",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier7",
+                            "amount": 0
+                          },
+                          {
+                            "operation": "add_value",
+                            "id": "packsage_retest:modifier8",
+                            "amount": 0
+                          }
+                        ],
+                        "id": "minecraft:generic.max_health",
+                        "base": 20,
+                        "value": 20,
+                        "modifiersStatus": "bounded"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.movement_efficiency"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0.5,
+                        "value": 0.5,
+                        "id": "minecraft:generic.movement_speed"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.oxygen_bonus"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 3,
+                        "value": 3,
+                        "id": "minecraft:generic.safe_fall_distance"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 1,
+                        "value": 1,
+                        "id": "minecraft:generic.scale"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0.6,
+                        "value": 0.6,
+                        "id": "minecraft:generic.step_height"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.water_movement_efficiency"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 64,
+                        "value": 64,
+                        "id": "neoforge:nametag_distance"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 1,
+                        "value": 1,
+                        "id": "neoforge:swim_speed"
+                      }
+                    ],
+                    "profession": "minecraft:librarian",
+                    "age": 0,
+                    "trading": false,
+                    "restocksToday": 0,
+                    "offersStatus": "bounded",
+                    "gossip": {},
+                    "maxHealth": 20,
+                    "effects": [],
+                    "offerCount": 65,
+                    "level": 5
+                  },
+                  "note": "Attribute modifiers are bounded to 64 per attribute; Trade offers are bounded to 64; offers omitted for the byte budget"
+                }
+              },
+              "x": 4840.5,
+              "y": 250,
+              "z": 4808.5
+            },
+            "recipe": null
+          }
+        ]
+      },
+      "coverage": "PARTIAL",
+      "detail": null,
+      "recordCount": 1
+    }
+  ],
+  "citations": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "0:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-5",
+        "requestGeneration": 16
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "entity|00000002-0000-0000-0000-000000000001",
+      "observedGeneration": 16,
+      "observedAt": "2026-10-27T03:09:34.000789400Z",
+      "activity": "ACTIVE",
+      "coverage": "PARTIAL",
+      "authority": "SERVER_READ",
+      "provenance": []
+    }
+  ],
+  "timing": [
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "runtime_dispatch",
+      "start_ns": "295657275244000",
+      "event_ns": "295657275354600",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "accepted",
+      "start_ns": "295657275567400",
+      "event_ns": "295657275567400",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "context_capture_start",
+      "start_ns": "295657275651000",
+      "screenshot": "true"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "history_ready",
+      "event_ns": "295657275659800",
+      "elapsed_ms": "0",
+      "conversationTurns": "0"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "observation_ready",
+      "event_ns": "295657275840900",
+      "queueMs": "0",
+      "observationMs": "0"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "frame_image",
+      "event_ns": "295657327340500",
+      "frameMs": "46",
+      "frameBytes": "158100"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "frame_ready",
+      "event_ns": "295657327557900",
+      "waitMs": "51",
+      "frameBytes": "158100"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "capture_ready",
+      "event_ns": "295657327779500",
+      "elapsed_ms": "52",
+      "screenshotBytes": "158100"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "history_selected",
+      "event_ns": "295657327806800",
+      "preparationMs": "0",
+      "historyTurns": "0",
+      "historyTokens": "0",
+      "historyErrors": "0"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "request_built",
+      "event_ns": "295657328649700",
+      "buildMs": "0",
+      "inputItems": "2",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "backend_start",
+      "event_ns": "295657328838500",
+      "elapsed_ms": "53",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "backend_entry",
+      "event_ns": "295657328889400",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "295657329094500",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "295657330013200",
+      "serializationMs": "0",
+      "bodyBytes": "265282",
+      "bodyChars": "265282",
+      "inputItems": "2",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "295657330255800",
+      "requestToDispatchMs": "1"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "295659790534400",
+      "dispatchToHeadersMs": "2460",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "295659790827400",
+      "headersToFirstBytesMs": "0",
+      "dispatchToFirstBytesMs": "2460",
+      "bytes": "24"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "295663137396700",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "5807"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "tool_received",
+      "call": "call_UqpApucFfpN0bVBnI2ordXyT",
+      "tool": "inspect_entity",
+      "step": "1",
+      "event_ns": "295663137562000",
+      "elapsed_ms": "5861"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "tool_result_sent",
+      "call": "call_UqpApucFfpN0bVBnI2ordXyT",
+      "tool": "inspect_entity",
+      "event_ns": "295663150298100",
+      "toolMs": "12",
+      "resultBytes": "8455",
+      "error": "false"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "auth_ready",
+      "event_ns": "295663150586000",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "body_ready",
+      "event_ns": "295663151461700",
+      "serializationMs": "0",
+      "bodyBytes": "274989",
+      "bodyChars": "274989",
+      "inputItems": "4",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_dispatch",
+      "event_ns": "295663151638300",
+      "requestToDispatchMs": "1"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_headers",
+      "event_ns": "295665801157000",
+      "dispatchToHeadersMs": "2649",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_stream_bytes",
+      "event_ns": "295665801868800",
+      "headersToFirstBytesMs": "0",
+      "dispatchToFirstBytesMs": "2650",
+      "bytes": "4096"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_text",
+      "event_ns": "295667749831600",
+      "roundToFirstTextMs": "4599",
+      "dispatchToFirstTextMs": "4598",
+      "deltaChars": "3"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "first_text",
+      "event_ns": "295667749978400",
+      "elapsed_ms": "10474",
+      "backendMs": "10421",
+      "deltaChars": "3"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "provider_terminal",
+      "event_ns": "295676642622800",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "13490"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "tool_summary",
+      "toolCalls": "1",
+      "toolWallMs": "12",
+      "event_ns": "295676643145200"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "model_terminal",
+      "event_ns": "295676643145200",
+      "elapsed_ms": "19367",
+      "backendMs": "19314",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "persist_start",
+      "event_ns": "295676643888600",
+      "elapsed_ms": "19368",
+      "screenshotBytes": "158100"
+    },
+    {
+      "request": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+      "phase": "persist_done",
+      "event_ns": "295676674224500",
+      "elapsed_ms": "19398",
+      "persistMs": "30"
+    }
+  ]
+}

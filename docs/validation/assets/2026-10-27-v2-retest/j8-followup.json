@@ -1,0 +1,443 @@
+{
+  "requestId": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+  "conversationId": "3cd7d3a4-aed0-48b1-a1f2-448bbac32d98",
+  "saved": true,
+  "status": "completed",
+  "reply": "**17 gold ingots**, taken from a **donkey’s inventory** at **(1605, 250, 1602) in the Overworld**, today at **10:55 a.m. local time**—not from a chest block. [Withdrawal location](journal:event:329)",
+  "detail": null,
+  "errors": [],
+  "activities": [
+    {
+      "id": "tool:call_1afDhYCAyE3MKjxceDAiuUY6",
+      "title": "Using tool: search_journal (step 1)",
+      "detail": "Completed",
+      "status": "COMPLETED",
+      "serializedArguments": "{\"filter\":{\"time\":{\"after\":\"2026-10-27T00:00:00+08:00\",\"before\":null,\"lastMinutes\":null},\"area\":null,\"dimension\":null,\"types\":[\"withdraw\"],\"subjects\":null,\"text\":null,\"notesOnly\":null},\"cursor\":null}",
+      "toolName": "search_journal",
+      "resultSummary": "Coverage: COMPLETE; records: 1\nrecording since 2026-10-25T10:23:33.174Z",
+      "durationMillis": 2,
+      "resultDetail": "coverage: COMPLETE | outcome: COMPLETE\nrecording since 2026-10-25T10:23:33.174Z\nTNThung took 17 minecraft:gold_ingot from minecraft:donkey in minecraft:overworld at 1605,250,1602 a...\n  count: 1\n  amount: 17\n  fromGameTime: 2826672",
+      "durationNanos": 2974700
+    }
+  ],
+  "navigationTargets": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "0:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-3",
+        "requestGeneration": 4
+      },
+      "providerId": "journal",
+      "sourceHandle": "event:329",
+      "targetId": "journal-place|minecraft:overworld|1605,250,1602"
+    }
+  ],
+  "toolCalls": [
+    {
+      "callId": "call_1afDhYCAyE3MKjxceDAiuUY6",
+      "name": "search_journal",
+      "arguments": {
+        "filter": {
+          "time": {
+            "after": "2026-10-27T00:00:00+08:00",
+            "before": null,
+            "lastMinutes": null
+          },
+          "area": null,
+          "dimension": null,
+          "types": [
+            "withdraw"
+          ],
+          "subjects": null,
+          "text": null,
+          "notesOnly": null
+        },
+        "cursor": null
+      },
+      "error": false,
+      "result": {
+        "coverage": "COMPLETE",
+        "outcome": "COMPLETE",
+        "detail": "recording since 2026-10-25T10:23:33.174Z",
+        "nextCursor": null,
+        "records": [
+          {
+            "reference": "journal:event:329",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "0:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-3",
+                "requestGeneration": 4
+              },
+              "providerId": "journal",
+              "providerVersion": "1",
+              "sourceHandle": "event:329",
+              "observedGeneration": 4,
+              "observedAt": "2026-10-27T02:56:41.607Z",
+              "activity": "INACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "OTHER",
+            "navigable": true,
+            "title": "TNThung took 17 minecraft:gold_ingot from minecraft:donkey in minecraft:overworld at 1605,250,1602 at 2026-10-27T02:55:09.025Z",
+            "payload": {
+              "count": 1,
+              "amount": 17,
+              "fromGameTime": 2826672,
+              "from": "2026-10-27T02:55:09.025Z",
+              "summary": "TNThung took 17 minecraft:gold_ingot from minecraft:donkey in minecraft:overworld at 1605,250,1602 at 2026-10-27T02:55:09.025Z",
+              "box": {
+                "min": [
+                  1605,
+                  250,
+                  1602
+                ],
+                "max": [
+                  1605,
+                  250,
+                  1602
+                ]
+              },
+              "minutesAgo": 1.5430333333333333,
+              "actor": "player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+              "dimension": "minecraft:overworld",
+              "detail": {
+                "container": "minecraft:donkey",
+                "entity": "11111111-1111-1111-1111-111111111111",
+                "actorName": "TNThung"
+              },
+              "at": "minecraft:overworld|1605,250,1602",
+              "type": "withdraw",
+              "subject": "minecraft:gold_ingot",
+              "to": "2026-10-27T02:55:09.025Z",
+              "countOnly": false,
+              "actorName": "TNThung",
+              "toGameTime": 2826672
+            },
+            "recipe": null
+          }
+        ]
+      },
+      "coverage": "COMPLETE",
+      "detail": "recording since 2026-10-25T10:23:33.174Z",
+      "recordCount": 1
+    }
+  ],
+  "citations": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "0:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-3",
+        "requestGeneration": 4
+      },
+      "providerId": "journal",
+      "providerVersion": "1",
+      "sourceHandle": "event:329",
+      "observedGeneration": 4,
+      "observedAt": "2026-10-27T02:56:41.607Z",
+      "activity": "INACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    }
+  ],
+  "timing": [
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "runtime_dispatch",
+      "start_ns": "294884437019500",
+      "event_ns": "294884437095400",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "accepted",
+      "start_ns": "294884437337100",
+      "event_ns": "294884437337100",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "context_capture_start",
+      "start_ns": "294884437423200",
+      "screenshot": "true"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "history_ready",
+      "event_ns": "294884437438600",
+      "elapsed_ms": "0",
+      "conversationTurns": "1"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "observation_ready",
+      "event_ns": "294884437680600",
+      "queueMs": "0",
+      "observationMs": "0"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "frame_image",
+      "event_ns": "294884480771000",
+      "frameMs": "35",
+      "frameBytes": "152586"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "frame_ready",
+      "event_ns": "294884480996100",
+      "waitMs": "43",
+      "frameBytes": "152586"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "capture_ready",
+      "event_ns": "294884481374300",
+      "elapsed_ms": "44",
+      "screenshotBytes": "152586"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "history_selected",
+      "event_ns": "294884481557100",
+      "preparationMs": "0",
+      "historyTurns": "1",
+      "historyTokens": "83",
+      "historyErrors": "0"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "request_built",
+      "event_ns": "294884482777300",
+      "buildMs": "1",
+      "inputItems": "4",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "backend_start",
+      "event_ns": "294884482956700",
+      "elapsed_ms": "45",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "4",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "backend_entry",
+      "event_ns": "294884482998100",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "4",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "294884483066600",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "294884484067600",
+      "serializationMs": "0",
+      "bodyBytes": "258334",
+      "bodyChars": "258334",
+      "inputItems": "4",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "294884484349300",
+      "requestToDispatchMs": "1"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "294886894754500",
+      "dispatchToHeadersMs": "2410",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "294886894964800",
+      "headersToFirstBytesMs": "0",
+      "dispatchToFirstBytesMs": "2410",
+      "bytes": "1360"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "294890755159400",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "6270"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "tool_received",
+      "call": "call_1afDhYCAyE3MKjxceDAiuUY6",
+      "tool": "search_journal",
+      "step": "1",
+      "event_ns": "294890755373700",
+      "elapsed_ms": "6318"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "tool_result_sent",
+      "call": "call_1afDhYCAyE3MKjxceDAiuUY6",
+      "tool": "search_journal",
+      "event_ns": "294890758539500",
+      "toolMs": "3",
+      "resultBytes": "1541",
+      "error": "false"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "auth_ready",
+      "event_ns": "294890758836200",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "body_ready",
+      "event_ns": "294890759898700",
+      "serializationMs": "0",
+      "bodyBytes": "260473",
+      "bodyChars": "260473",
+      "inputItems": "6",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_dispatch",
+      "event_ns": "294890760196500",
+      "requestToDispatchMs": "1"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_headers",
+      "event_ns": "294893418821600",
+      "dispatchToHeadersMs": "2658",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_stream_bytes",
+      "event_ns": "294893455241200",
+      "headersToFirstBytesMs": "36",
+      "dispatchToFirstBytesMs": "2695",
+      "bytes": "24"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_text",
+      "event_ns": "294895832553600",
+      "roundToFirstTextMs": "5073",
+      "dispatchToFirstTextMs": "5072",
+      "deltaChars": "2"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "first_text",
+      "event_ns": "294895832792400",
+      "elapsed_ms": "11395",
+      "backendMs": "11349",
+      "deltaChars": "2"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "provider_terminal",
+      "event_ns": "294898072907700",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "7312"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "tool_summary",
+      "toolCalls": "1",
+      "toolWallMs": "3",
+      "event_ns": "294898073206300"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "model_terminal",
+      "event_ns": "294898073206300",
+      "elapsed_ms": "13635",
+      "backendMs": "13590",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "persist_start",
+      "event_ns": "294898073470700",
+      "elapsed_ms": "13636",
+      "screenshotBytes": "152586"
+    },
+    {
+      "request": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+      "phase": "persist_done",
+      "event_ns": "294898096560400",
+      "elapsed_ms": "13659",
+      "persistMs": "23"
+    }
+  ]
+}

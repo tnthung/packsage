@@ -1,0 +1,3555 @@
+{
+  "f4": {
+    "requestId": "f90e8fac-83e3-46ef-aa23-568cc48fa8a1",
+    "conversationId": "5f0f811f-0e44-435d-9df1-304635ddd22f",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "57639",
+    "calls": [
+      {
+        "name": "run_command",
+        "arguments": {
+          "command": "op TNThung"
+        },
+        "coverage": "COMPLETE",
+        "detail": "executed as the player",
+        "records": 1,
+        "recordBytes": 883,
+        "resultBytes": 990,
+        "maxRecordBytes": 881,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "command:run|12eaa7af-97c0-4851-bc3a-a20f3421d998"
+        ]
+      }
+    ]
+  },
+  "identity": {
+    "requestId": "a8c4467f-d7b5-4637-b8c2-5a4b3ac47a81",
+    "conversationId": "f345c554-8f37-4e7d-a4cd-33a62a237f11",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "5966",
+    "calls": []
+  },
+  "j8": {
+    "requestId": "b5846699-9a44-4156-be0a-7421d0a030b6",
+    "conversationId": "3cd7d3a4-aed0-48b1-a1f2-448bbac32d98",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "14274",
+    "calls": [
+      {
+        "name": "search_journal",
+        "arguments": {
+          "filter": {
+            "time": {
+              "after": "2026-10-27T00:00:00+08:00",
+              "before": "2026-10-27T10:55:38+08:00",
+              "lastMinutes": null
+            },
+            "area": null,
+            "dimension": null,
+            "types": [
+              "withdraw"
+            ],
+            "subjects": null,
+            "text": null,
+            "notesOnly": null
+          },
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": "recording since 2026-10-25T10:23:33.174Z",
+        "records": 1,
+        "recordBytes": 1416,
+        "resultBytes": 1541,
+        "maxRecordBytes": 1414,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "journal:event:329"
+        ]
+      }
+    ]
+  },
+  "j8-followup": {
+    "requestId": "c4e9318c-2d5c-4064-b262-1e0b7d518203",
+    "conversationId": "3cd7d3a4-aed0-48b1-a1f2-448bbac32d98",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "13635",
+    "calls": [
+      {
+        "name": "search_journal",
+        "arguments": {
+          "filter": {
+            "time": {
+              "after": "2026-10-27T00:00:00+08:00",
+              "before": null,
+              "lastMinutes": null
+            },
+            "area": null,
+            "dimension": null,
+            "types": [
+              "withdraw"
+            ],
+            "subjects": null,
+            "text": null,
+            "notesOnly": null
+          },
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": "recording since 2026-10-25T10:23:33.174Z",
+        "records": 1,
+        "recordBytes": 1416,
+        "resultBytes": 1541,
+        "maxRecordBytes": 1414,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "journal:event:329"
+        ]
+      }
+    ]
+  },
+  "world-dense": {
+    "requestId": "5c1624c9-1ba7-43e6-b1d5-10174cafff31",
+    "conversationId": "db532e53-399d-4bbd-9000-a365bc5b8261",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "99548",
+    "calls": [
+      {
+        "name": "list_entities",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24,
+          "filter": {
+            "ids": null,
+            "tags": null,
+            "text": "WorldTail4097"
+          },
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": "The read spanned multiple server ticks; game-time span: 2828639..2828640",
+        "records": 1,
+        "recordBytes": 978,
+        "resultBytes": 1135,
+        "maxRecordBytes": 976,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:entity|7fffffff-7fff-ffff-7fff-ffff7fffffff"
+        ]
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:nether_star"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24,
+          "includeNested": true,
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2828639..2828647; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 647,
+        "maxRecordBytes": 0,
+        "nextCursor": "67c49022-3292-4b81-b6c8-01f51b7c2e4f",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:nether_star"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 24,
+            "includeNested": true,
+            "cursor": "67c49022-3292-4b81-b6c8-01f51b7c2e4f"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "inspect_area",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24
+        },
+        "coverage": "PARTIAL",
+        "detail": "Only the first 4096 notable blocks are listed; Notable blocks reached the 4096 cap; use list_blocks with a filter for the rest; Area notable-block byte budget reached; 2051 notable blocks omitted from this summary; use list_blocks with a filter for the rest",
+        "records": 1,
+        "recordBytes": 36924,
+        "resultBytes": 37264,
+        "maxRecordBytes": 36922,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:area|block:minecraft:overworld|4808,240,4808|24"
+        ]
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:nether_star"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24,
+          "includeNested": true,
+          "cursor": "67c49022-3292-4b81-b6c8-01f51b7c2e4f"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2828639..2828647; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 746,
+        "maxRecordBytes": 0,
+        "nextCursor": "74a8d7f5-0dd7-4492-aaac-2d06028da6b6",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:nether_star"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 24,
+            "includeNested": true,
+            "cursor": "74a8d7f5-0dd7-4492-aaac-2d06028da6b6"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:nether_star"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24,
+          "includeNested": true,
+          "cursor": "74a8d7f5-0dd7-4492-aaac-2d06028da6b6"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2828639..2828647; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 845,
+        "maxRecordBytes": 0,
+        "nextCursor": "9008939e-5f7a-4dd3-a88f-65b9d821fd54",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:nether_star"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 24,
+            "includeNested": true,
+            "cursor": "9008939e-5f7a-4dd3-a88f-65b9d821fd54"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:nether_star"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24,
+          "includeNested": true,
+          "cursor": "9008939e-5f7a-4dd3-a88f-65b9d821fd54"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2828639..2828647; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 944,
+        "maxRecordBytes": 0,
+        "nextCursor": "400b2406-9c0d-4043-8fae-c62eb06c2205",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:nether_star"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 24,
+            "includeNested": true,
+            "cursor": "400b2406-9c0d-4043-8fae-c62eb06c2205"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:nether_star"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24,
+          "includeNested": true,
+          "cursor": "400b2406-9c0d-4043-8fae-c62eb06c2205"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2828639..2828647; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 1043,
+        "maxRecordBytes": 0,
+        "nextCursor": "2e9ce29d-2e24-469b-9aa5-e7ad12ad135b",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:nether_star"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 24,
+            "includeNested": true,
+            "cursor": "2e9ce29d-2e24-469b-9aa5-e7ad12ad135b"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:nether_star"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24,
+          "includeNested": true,
+          "cursor": "2e9ce29d-2e24-469b-9aa5-e7ad12ad135b"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2828639..2828647; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 1142,
+        "maxRecordBytes": 0,
+        "nextCursor": "c7c7090f-521c-4f9b-98c0-b94a8087fad4",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:nether_star"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 24,
+            "includeNested": true,
+            "cursor": "c7c7090f-521c-4f9b-98c0-b94a8087fad4"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:nether_star"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24,
+          "includeNested": true,
+          "cursor": "c7c7090f-521c-4f9b-98c0-b94a8087fad4"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2828639..2828647; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 1241,
+        "maxRecordBytes": 0,
+        "nextCursor": "5f9d2d0a-0e7e-42ca-a732-196da4a98bc1",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:nether_star"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 24,
+            "includeNested": true,
+            "cursor": "5f9d2d0a-0e7e-42ca-a732-196da4a98bc1"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:nether_star"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24,
+          "includeNested": true,
+          "cursor": "5f9d2d0a-0e7e-42ca-a732-196da4a98bc1"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2828639..2828647; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 1340,
+        "maxRecordBytes": 0,
+        "nextCursor": "c9275e80-010f-4263-87ac-39a284cb2ba9",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:nether_star"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 24,
+            "includeNested": true,
+            "cursor": "c9275e80-010f-4263-87ac-39a284cb2ba9"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:nether_star"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 24,
+          "includeNested": true,
+          "cursor": "c9275e80-010f-4263-87ac-39a284cb2ba9"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2828639..2828647; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page",
+        "records": 2,
+        "recordBytes": 1911,
+        "resultBytes": 2957,
+        "maxRecordBytes": 1047,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:item|block:minecraft:overworld|4815,246,4815>minecraft/container#0@minecraft:nether_star",
+          "world:block|minecraft:overworld|4815,246,4815"
+        ]
+      }
+    ]
+  },
+  "world-long": {
+    "requestId": "007a926d-0692-4975-a477-6e081cac3a92",
+    "conversationId": "6d129298-a806-4a66-9d24-f34c8a167454",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "69606",
+    "calls": [
+      {
+        "name": "list_entities",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4832,250,4808"
+          },
+          "radius": 4,
+          "filter": {
+            "ids": [
+              "minecraft:cow"
+            ],
+            "tags": null,
+            "text": null
+          },
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "This page holds 64 matches, the page limit; continue with the cursor; Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entity page byte budget reached; continue with the cursor",
+        "records": 12,
+        "recordBytes": 65125,
+        "resultBytes": 65717,
+        "maxRecordBytes": 5426,
+        "nextCursor": "d088106c-13ce-43ea-b80b-cd3128aa4e2b",
+        "nextCall": {
+          "name": "list_entities",
+          "arguments": {
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4832,250,4808"
+            },
+            "radius": 4,
+            "filter": {
+              "ids": [
+                "minecraft:cow"
+              ],
+              "tags": null,
+              "text": null
+            },
+            "cursor": "d088106c-13ce-43ea-b80b-cd3128aa4e2b"
+          }
+        },
+        "refs": [
+          "world:entity|00000001-0000-0000-0000-000000000001",
+          "world:entity|00000001-0000-0000-0000-000000000002",
+          "world:entity|00000001-0000-0000-0000-000000000003",
+          "world:entity|00000001-0000-0000-0000-000000000004",
+          "world:entity|00000001-0000-0000-0000-000000000005",
+          "world:entity|00000001-0000-0000-0000-000000000006",
+          "world:entity|00000001-0000-0000-0000-000000000007",
+          "world:entity|00000001-0000-0000-0000-000000000008",
+          "world:entity|00000001-0000-0000-0000-000000000009",
+          "world:entity|00000001-0000-0000-0000-00000000000a",
+          "world:entity|00000001-0000-0000-0000-00000000000b",
+          "world:entity|00000001-0000-0000-0000-00000000000c"
+        ]
+      },
+      {
+        "name": "list_entities",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4832,250,4808"
+          },
+          "radius": 4,
+          "filter": {
+            "ids": [
+              "minecraft:cow"
+            ],
+            "tags": null,
+            "text": null
+          },
+          "cursor": "d088106c-13ce-43ea-b80b-cd3128aa4e2b"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entity page byte budget reached; continue with the cursor",
+        "records": 12,
+        "recordBytes": 65125,
+        "resultBytes": 65647,
+        "maxRecordBytes": 5426,
+        "nextCursor": "bcc791d9-8a1b-4557-9f95-4ab7a576fff2",
+        "nextCall": {
+          "name": "list_entities",
+          "arguments": {
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4832,250,4808"
+            },
+            "radius": 4,
+            "filter": {
+              "ids": [
+                "minecraft:cow"
+              ],
+              "tags": null,
+              "text": null
+            },
+            "cursor": "bcc791d9-8a1b-4557-9f95-4ab7a576fff2"
+          }
+        },
+        "refs": [
+          "world:entity|00000001-0000-0000-0000-00000000000d",
+          "world:entity|00000001-0000-0000-0000-00000000000e",
+          "world:entity|00000001-0000-0000-0000-00000000000f",
+          "world:entity|00000001-0000-0000-0000-000000000010",
+          "world:entity|00000001-0000-0000-0000-000000000011",
+          "world:entity|00000001-0000-0000-0000-000000000012",
+          "world:entity|00000001-0000-0000-0000-000000000013",
+          "world:entity|00000001-0000-0000-0000-000000000014",
+          "world:entity|00000001-0000-0000-0000-000000000015",
+          "world:entity|00000001-0000-0000-0000-000000000016",
+          "world:entity|00000001-0000-0000-0000-000000000017",
+          "world:entity|00000001-0000-0000-0000-000000000018"
+        ]
+      },
+      {
+        "name": "inspect_entity",
+        "arguments": {
+          "id": "00000001-0000-0000-0000-000000000001"
+        },
+        "coverage": "PARTIAL",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 9837,
+        "resultBytes": 9908,
+        "maxRecordBytes": 9835,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:entity|00000001-0000-0000-0000-000000000001"
+        ]
+      },
+      {
+        "name": "list_entities",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4832,250,4808"
+          },
+          "radius": 4,
+          "filter": {
+            "ids": [
+              "minecraft:cow"
+            ],
+            "tags": null,
+            "text": null
+          },
+          "cursor": "bcc791d9-8a1b-4557-9f95-4ab7a576fff2"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entity page byte budget reached; continue with the cursor",
+        "records": 12,
+        "recordBytes": 65125,
+        "resultBytes": 65647,
+        "maxRecordBytes": 5426,
+        "nextCursor": "e7d9b028-dffa-4aea-aae0-e2eae5953d75",
+        "nextCall": {
+          "name": "list_entities",
+          "arguments": {
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4832,250,4808"
+            },
+            "radius": 4,
+            "filter": {
+              "ids": [
+                "minecraft:cow"
+              ],
+              "tags": null,
+              "text": null
+            },
+            "cursor": "e7d9b028-dffa-4aea-aae0-e2eae5953d75"
+          }
+        },
+        "refs": [
+          "world:entity|00000001-0000-0000-0000-000000000019",
+          "world:entity|00000001-0000-0000-0000-00000000001a",
+          "world:entity|00000001-0000-0000-0000-00000000001b",
+          "world:entity|00000001-0000-0000-0000-00000000001c",
+          "world:entity|00000001-0000-0000-0000-00000000001d",
+          "world:entity|00000001-0000-0000-0000-00000000001e",
+          "world:entity|00000001-0000-0000-0000-00000000001f",
+          "world:entity|00000001-0000-0000-0000-000000000020",
+          "world:entity|00000001-0000-0000-0000-000000000021",
+          "world:entity|00000001-0000-0000-0000-000000000022",
+          "world:entity|00000001-0000-0000-0000-000000000023",
+          "world:entity|00000001-0000-0000-0000-000000000024"
+        ]
+      },
+      {
+        "name": "list_entities",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4832,250,4808"
+          },
+          "radius": 4,
+          "filter": {
+            "ids": [
+              "minecraft:cow"
+            ],
+            "tags": null,
+            "text": null
+          },
+          "cursor": "e7d9b028-dffa-4aea-aae0-e2eae5953d75"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entity page byte budget reached; continue with the cursor",
+        "records": 12,
+        "recordBytes": 65110,
+        "resultBytes": 65632,
+        "maxRecordBytes": 5426,
+        "nextCursor": "ae214e35-3412-4f28-8f8d-016cdfe5442e",
+        "nextCall": {
+          "name": "list_entities",
+          "arguments": {
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4832,250,4808"
+            },
+            "radius": 4,
+            "filter": {
+              "ids": [
+                "minecraft:cow"
+              ],
+              "tags": null,
+              "text": null
+            },
+            "cursor": "ae214e35-3412-4f28-8f8d-016cdfe5442e"
+          }
+        },
+        "refs": [
+          "world:entity|00000001-0000-0000-0000-000000000025",
+          "world:entity|00000001-0000-0000-0000-000000000026",
+          "world:entity|00000001-0000-0000-0000-000000000027",
+          "world:entity|00000001-0000-0000-0000-000000000028",
+          "world:entity|00000001-0000-0000-0000-000000000029",
+          "world:entity|00000001-0000-0000-0000-00000000002a",
+          "world:entity|00000001-0000-0000-0000-00000000002b",
+          "world:entity|00000001-0000-0000-0000-00000000002c",
+          "world:entity|00000001-0000-0000-0000-00000000002d",
+          "world:entity|00000001-0000-0000-0000-00000000002e",
+          "world:entity|00000001-0000-0000-0000-00000000002f",
+          "world:entity|00000001-0000-0000-0000-000000000030"
+        ]
+      },
+      {
+        "name": "list_entities",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4832,250,4808"
+          },
+          "radius": 4,
+          "filter": {
+            "ids": [
+              "minecraft:cow"
+            ],
+            "tags": null,
+            "text": null
+          },
+          "cursor": "ae214e35-3412-4f28-8f8d-016cdfe5442e"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entity page byte budget reached; continue with the cursor",
+        "records": 12,
+        "recordBytes": 65125,
+        "resultBytes": 65647,
+        "maxRecordBytes": 5426,
+        "nextCursor": "a01c8be3-d05f-419e-9ac2-4c937f85d1f2",
+        "nextCall": {
+          "name": "list_entities",
+          "arguments": {
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4832,250,4808"
+            },
+            "radius": 4,
+            "filter": {
+              "ids": [
+                "minecraft:cow"
+              ],
+              "tags": null,
+              "text": null
+            },
+            "cursor": "a01c8be3-d05f-419e-9ac2-4c937f85d1f2"
+          }
+        },
+        "refs": [
+          "world:entity|00000001-0000-0000-0000-000000000031",
+          "world:entity|00000001-0000-0000-0000-000000000032",
+          "world:entity|00000001-0000-0000-0000-000000000033",
+          "world:entity|00000001-0000-0000-0000-000000000034",
+          "world:entity|00000001-0000-0000-0000-000000000035",
+          "world:entity|00000001-0000-0000-0000-000000000036",
+          "world:entity|00000001-0000-0000-0000-000000000037",
+          "world:entity|00000001-0000-0000-0000-000000000038",
+          "world:entity|00000001-0000-0000-0000-000000000039",
+          "world:entity|00000001-0000-0000-0000-00000000003a",
+          "world:entity|00000001-0000-0000-0000-00000000003b",
+          "world:entity|00000001-0000-0000-0000-00000000003c"
+        ]
+      },
+      {
+        "name": "list_entities",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4832,250,4808"
+          },
+          "radius": 4,
+          "filter": {
+            "ids": [
+              "minecraft:cow"
+            ],
+            "tags": null,
+            "text": null
+          },
+          "cursor": "a01c8be3-d05f-419e-9ac2-4c937f85d1f2"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records",
+        "records": 5,
+        "recordBytes": 27136,
+        "resultBytes": 27317,
+        "maxRecordBytes": 5426,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:entity|00000001-0000-0000-0000-00000000003d",
+          "world:entity|00000001-0000-0000-0000-00000000003e",
+          "world:entity|00000001-0000-0000-0000-00000000003f",
+          "world:entity|00000001-0000-0000-0000-000000000040",
+          "world:entity|00000001-0000-0000-0000-000000000041"
+        ]
+      }
+    ]
+  },
+  "world-poi-stats-progress": {
+    "requestId": "771e3d6b-ae86-4b7c-befc-d1175d1564b5",
+    "conversationId": "f753054a-bd47-4fc8-8fd8-8f4ff25f4ee6",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "34175",
+    "calls": [
+      {
+        "name": "inspect_block",
+        "arguments": {
+          "place": "minecraft:overworld|4808,248,4808"
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 1096,
+        "resultBytes": 1169,
+        "maxRecordBytes": 1094,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:block|minecraft:overworld|4808,248,4808"
+        ]
+      },
+      {
+        "name": "inspect_block",
+        "arguments": {
+          "place": "minecraft:overworld|4809,246,4809"
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 1192,
+        "resultBytes": 1265,
+        "maxRecordBytes": 1190,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:block|minecraft:overworld|4809,246,4809"
+        ]
+      },
+      {
+        "name": "list_statistics",
+        "arguments": {
+          "categories": [
+            "mined"
+          ],
+          "subjects": {
+            "ids": [
+              "minecraft:stone"
+            ],
+            "tags": null,
+            "text": null
+          },
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 820,
+        "resultBytes": 893,
+        "maxRecordBytes": 818,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "progress:stat|minecraft|mined|minecraft:stone"
+        ]
+      },
+      {
+        "name": "list_statistics",
+        "arguments": {
+          "categories": [
+            "custom"
+          ],
+          "subjects": {
+            "ids": [
+              "minecraft:jump"
+            ],
+            "tags": null,
+            "text": null
+          },
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 791,
+        "resultBytes": 864,
+        "maxRecordBytes": 789,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "progress:stat|minecraft|custom|minecraft:jump"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": null,
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": null,
+        "records": 64,
+        "recordBytes": 58667,
+        "resultBytes": 58926,
+        "maxRecordBytes": 1069,
+        "nextCursor": "progress:507f5263-30f4-4788-8bd7-3b1c451fa0ff",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": null,
+            "cursor": "progress:507f5263-30f4-4788-8bd7-3b1c451fa0ff"
+          }
+        },
+        "refs": [
+          "progress:tree|minecraft/minecraft:adventure/root",
+          "progress:tree|minecraft/minecraft:end/root",
+          "progress:tree|minecraft/minecraft:husbandry/root",
+          "progress:tree|minecraft/minecraft:nether/root",
+          "progress:tree|minecraft/minecraft:story/root",
+          "progress:tree|minecraft/naturesaura:root",
+          "progress:tree|minecraft/packsage_acceptance:root",
+          "progress:progress|minecraft/minecraft:adventure/root",
+          "progress:progress|minecraft/minecraft:adventure/avoid_vibration",
+          "progress:progress|minecraft/minecraft:adventure/brush_armadillo",
+          "progress:progress|minecraft/minecraft:adventure/crafters_crafting_crafters",
+          "progress:progress|minecraft/minecraft:adventure/fall_from_world_height",
+          "progress:progress|minecraft/minecraft:adventure/honey_block_slide",
+          "progress:progress|minecraft/minecraft:adventure/kill_a_mob",
+          "progress:progress|minecraft/minecraft:adventure/kill_all_mobs",
+          "progress:progress|minecraft/minecraft:adventure/kill_mob_near_sculk_catalyst",
+          "progress:progress|minecraft/minecraft:adventure/shoot_arrow",
+          "progress:progress|minecraft/minecraft:adventure/bullseye",
+          "progress:progress|minecraft/minecraft:adventure/sniper_duel",
+          "progress:progress|minecraft/minecraft:adventure/throw_trident",
+          "progress:progress|minecraft/minecraft:adventure/very_very_frightening",
+          "progress:progress|minecraft/minecraft:adventure/totem_of_undying",
+          "progress:progress|minecraft/minecraft:adventure/lightning_rod_with_villager_no_fire",
+          "progress:progress|minecraft/minecraft:adventure/minecraft_trials_edition",
+          "progress:progress|minecraft/minecraft:adventure/blowback",
+          "progress:progress|minecraft/minecraft:adventure/lighten_up",
+          "progress:progress|minecraft/minecraft:adventure/overoverkill",
+          "progress:progress|minecraft/minecraft:adventure/under_lock_and_key",
+          "progress:progress|minecraft/minecraft:adventure/revaulting",
+          "progress:progress|minecraft/minecraft:adventure/who_needs_rockets",
+          "progress:progress|minecraft/minecraft:adventure/ol_betsy",
+          "progress:progress|minecraft/minecraft:adventure/two_birds_one_arrow",
+          "progress:progress|minecraft/minecraft:adventure/whos_the_pillager_now",
+          "progress:progress|minecraft/hidden:5ba170fe-fdcd-47f8-977a-eac3d8cfe741",
+          "progress:progress|minecraft/minecraft:adventure/read_power_of_chiseled_bookshelf",
+          "progress:progress|minecraft/minecraft:adventure/salvage_sherd",
+          "progress:progress|minecraft/minecraft:adventure/craft_decorated_pot_using_only_sherds",
+          "progress:progress|minecraft/minecraft:adventure/sleep_in_bed",
+          "progress:progress|minecraft/minecraft:adventure/adventuring_time",
+          "progress:progress|minecraft/minecraft:adventure/play_jukebox_in_meadows",
+          "progress:progress|minecraft/minecraft:adventure/walk_on_powder_snow_with_leather_boots",
+          "progress:progress|minecraft/minecraft:adventure/spyglass_at_parrot",
+          "progress:progress|minecraft/minecraft:adventure/spyglass_at_ghast",
+          "progress:progress|minecraft/minecraft:adventure/spyglass_at_dragon",
+          "progress:progress|minecraft/minecraft:adventure/trade",
+          "progress:progress|minecraft/minecraft:adventure/summon_iron_golem",
+          "progress:progress|minecraft/minecraft:adventure/trade_at_world_height",
+          "progress:progress|minecraft/minecraft:adventure/trim_with_any_armor_pattern",
+          "progress:progress|minecraft/minecraft:adventure/trim_with_all_exclusive_armor_patterns",
+          "progress:progress|minecraft/hidden:84247f60-82ce-4613-86f9-ada1a33785a0",
+          "progress:progress|minecraft/hidden:7f18d556-52f0-4d66-9801-7a7c4feaf985",
+          "progress:progress|minecraft/minecraft:end/root",
+          "progress:progress|minecraft/minecraft:end/kill_dragon",
+          "progress:progress|minecraft/minecraft:end/dragon_breath",
+          "progress:progress|minecraft/minecraft:end/dragon_egg",
+          "progress:progress|minecraft/minecraft:end/enter_end_gateway",
+          "progress:progress|minecraft/minecraft:end/find_end_city",
+          "progress:progress|minecraft/minecraft:end/elytra",
+          "progress:progress|minecraft/minecraft:end/levitate",
+          "progress:progress|minecraft/minecraft:end/respawn_dragon",
+          "progress:progress|minecraft/minecraft:husbandry/root",
+          "progress:progress|minecraft/minecraft:husbandry/breed_an_animal",
+          "progress:progress|minecraft/minecraft:husbandry/bred_all_animals",
+          "progress:progress|minecraft/minecraft:husbandry/fishy_business"
+        ]
+      }
+    ]
+  },
+  "world-frozen": {
+    "requestId": "61c7def7-9935-4aff-803e-40f19fbf9a93",
+    "conversationId": "143b2893-4d60-418f-bee9-a6f4ab913c78",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "89833",
+    "calls": [
+      {
+        "name": "list_entities",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,250,4808"
+          },
+          "radius": 1,
+          "filter": {
+            "ids": null,
+            "tags": null,
+            "text": "NoSuchFrozenEntity"
+          },
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 75,
+        "maxRecordBytes": 0,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 20,
+          "includeNested": false,
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2830471..2830471; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 647,
+        "maxRecordBytes": 0,
+        "nextCursor": "5f7828bd-251f-4eac-8391-07fdaacaa659",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:dragon_egg"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 20,
+            "includeNested": false,
+            "cursor": "5f7828bd-251f-4eac-8391-07fdaacaa659"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 20,
+          "includeNested": false,
+          "cursor": "5f7828bd-251f-4eac-8391-07fdaacaa659"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2830471..2830471; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 746,
+        "maxRecordBytes": 0,
+        "nextCursor": "2528b841-da03-42ae-888d-ead0b5b350bf",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:dragon_egg"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 20,
+            "includeNested": false,
+            "cursor": "2528b841-da03-42ae-888d-ead0b5b350bf"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 20,
+          "includeNested": false,
+          "cursor": "2528b841-da03-42ae-888d-ead0b5b350bf"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2830471..2830471; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 845,
+        "maxRecordBytes": 0,
+        "nextCursor": "4df9627c-3daf-4d61-af5d-f5913d50d092",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:dragon_egg"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 20,
+            "includeNested": false,
+            "cursor": "4df9627c-3daf-4d61-af5d-f5913d50d092"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 20,
+          "includeNested": false,
+          "cursor": "4df9627c-3daf-4d61-af5d-f5913d50d092"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2830471..2830471; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 944,
+        "maxRecordBytes": 0,
+        "nextCursor": "c193360e-98cd-40df-842d-9a76c4ace948",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:dragon_egg"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 20,
+            "includeNested": false,
+            "cursor": "c193360e-98cd-40df-842d-9a76c4ace948"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 20,
+          "includeNested": false,
+          "cursor": "c193360e-98cd-40df-842d-9a76c4ace948"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2830471..2830471; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 1043,
+        "maxRecordBytes": 0,
+        "nextCursor": "25e5f5ca-4265-4a5a-b451-a67f9c2e6722",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:dragon_egg"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 20,
+            "includeNested": false,
+            "cursor": "25e5f5ca-4265-4a5a-b451-a67f9c2e6722"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 20,
+          "includeNested": false,
+          "cursor": "25e5f5ca-4265-4a5a-b451-a67f9c2e6722"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2830471..2830471; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 1142,
+        "maxRecordBytes": 0,
+        "nextCursor": "6568904f-b372-4392-bbc2-648f781fbd78",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:dragon_egg"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 20,
+            "includeNested": false,
+            "cursor": "6568904f-b372-4392-bbc2-648f781fbd78"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 20,
+          "includeNested": false,
+          "cursor": "6568904f-b372-4392-bbc2-648f781fbd78"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2830471..2830471; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 1241,
+        "maxRecordBytes": 0,
+        "nextCursor": "eb5bde69-b65d-4a32-bc60-e719661ac909",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:dragon_egg"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 20,
+            "includeNested": false,
+            "cursor": "eb5bde69-b65d-4a32-bc60-e719661ac909"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 20,
+          "includeNested": false,
+          "cursor": "eb5bde69-b65d-4a32-bc60-e719661ac909"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2830471..2830471; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Searched 512 containers, the page limit; continue with the cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 1340,
+        "maxRecordBytes": 0,
+        "nextCursor": "51f931db-156d-4a9c-adec-602df4b3e57b",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:dragon_egg"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4808,240,4808"
+            },
+            "radius": 20,
+            "includeNested": false,
+            "cursor": "51f931db-156d-4a9c-adec-602df4b3e57b"
+          }
+        },
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,240,4808"
+          },
+          "radius": 20,
+          "includeNested": false,
+          "cursor": "51f931db-156d-4a9c-adec-602df4b3e57b"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Counts cover only the containers searched for each page; an item can appear again on another page; The read spanned multiple server ticks; game-time span: 2830471..2830471; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page; Counts cover only the containers searched for each page; an item can appear again on another page",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 1048,
+        "maxRecordBytes": 0,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": []
+      }
+    ]
+  },
+  "world-item-long": {
+    "requestId": "4d66a4b9-8e39-4320-ac27-057254f06104",
+    "conversationId": "6de3b084-bd31-4efb-a7d0-6cf7402b731e",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "40442",
+    "calls": [
+      {
+        "name": "list_items",
+        "arguments": {
+          "holder": "minecraft:overworld|4800,248,4800",
+          "inventory": null,
+          "filter": null,
+          "cursor": null
+        },
+        "coverage": "ERROR",
+        "detail": "INVALID_ARGUMENTS: invalid item path: minecraft:overworld|4800,248,4800",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 161,
+        "maxRecordBytes": 0,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": []
+      },
+      {
+        "name": "inspect_block",
+        "arguments": {
+          "place": "minecraft:overworld|4800,248,4800"
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 1160,
+        "resultBytes": 1233,
+        "maxRecordBytes": 1158,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:block|minecraft:overworld|4800,248,4800"
+        ]
+      },
+      {
+        "name": "list_items",
+        "arguments": {
+          "holder": "block:minecraft:overworld|4800,248,4800",
+          "inventory": null,
+          "filter": null,
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 2,
+        "recordBytes": 2539,
+        "resultBytes": 2612,
+        "maxRecordBytes": 1598,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:block|minecraft:overworld|4800,248,4800",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#0@minecraft:diamond"
+        ]
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:diamond"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4800,248,4800"
+          },
+          "radius": 2,
+          "includeNested": true,
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 2,
+        "recordBytes": 2462,
+        "resultBytes": 2535,
+        "maxRecordBytes": 1598,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#0@minecraft:diamond",
+          "world:block|minecraft:overworld|4800,248,4800"
+        ]
+      }
+    ]
+  },
+  "world-inspection": {
+    "requestId": "69b7f848-2482-4c07-90a4-92b12722c061",
+    "conversationId": "7a77f919-22f9-4bec-9ebe-0d14b1b33695",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "21308",
+    "calls": [
+      {
+        "name": "inspect_entity",
+        "arguments": {
+          "id": "00000002-0000-0000-0000-000000000001"
+        },
+        "coverage": "PARTIAL",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 3567,
+        "resultBytes": 3638,
+        "maxRecordBytes": 3565,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:entity|00000002-0000-0000-0000-000000000001"
+        ]
+      }
+    ]
+  },
+  "world-stable": {
+    "requestId": "b4cc06b6-ef09-4564-baf5-2b84424322fb",
+    "conversationId": "168fd046-bfa3-40a5-965e-f6027d10bb93",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "23675",
+    "calls": [
+      {
+        "name": "list_entities",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,250,4808"
+          },
+          "radius": 1,
+          "filter": {
+            "ids": null,
+            "tags": null,
+            "text": "NoSuchStableEntity"
+          },
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 75,
+        "maxRecordBytes": 0,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": []
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,250,4808"
+          },
+          "radius": 1,
+          "includeNested": false,
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": "The read spanned multiple server ticks; game-time span: 2830705..2830706",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 159,
+        "maxRecordBytes": 0,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": []
+      },
+      {
+        "name": "inspect_block",
+        "arguments": {
+          "place": "minecraft:overworld|4800,249,4800"
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 1024,
+        "resultBytes": 1097,
+        "maxRecordBytes": 1022,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:block|minecraft:overworld|4800,249,4800"
+        ]
+      }
+    ]
+  },
+  "world-routes": {
+    "requestId": "09c811ad-bcc2-4505-99de-286f6a756e2f",
+    "conversationId": "c5e9fb1a-1356-4b97-8856-cbb9d6552ac5",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "19619",
+    "calls": [
+      {
+        "name": "plan_recipe",
+        "arguments": {
+          "identity": "minecraft:barrier",
+          "quantity": 1,
+          "depth": 0
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed; 37 records omitted at the output byte or record limit; refine the request to reduce output size; recipe-branch-cap=64; bounded-depth:minecraft:barrier",
+        "records": 27,
+        "recordBytes": 118015,
+        "resultBytes": 118359,
+        "maxRecordBytes": 4394,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "native:plan|minecraft:barrier|1|0|0|packsage_retest:route_000",
+          "native:plan|minecraft:barrier|1|0|1|packsage_retest:route_003",
+          "native:plan|minecraft:barrier|1|0|2|packsage_retest:route_004",
+          "native:plan|minecraft:barrier|1|0|3|packsage_retest:route_001",
+          "native:plan|minecraft:barrier|1|0|4|packsage_retest:route_002",
+          "native:plan|minecraft:barrier|1|0|5|packsage_retest:route_007",
+          "native:plan|minecraft:barrier|1|0|6|packsage_retest:route_008",
+          "native:plan|minecraft:barrier|1|0|7|packsage_retest:route_005",
+          "native:plan|minecraft:barrier|1|0|8|packsage_retest:route_006",
+          "native:plan|minecraft:barrier|1|0|9|packsage_retest:route_009",
+          "native:plan|minecraft:barrier|1|0|10|packsage_retest:route_010",
+          "native:plan|minecraft:barrier|1|0|11|packsage_retest:route_011",
+          "native:plan|minecraft:barrier|1|0|12|packsage_retest:route_014",
+          "native:plan|minecraft:barrier|1|0|13|packsage_retest:route_015",
+          "native:plan|minecraft:barrier|1|0|14|packsage_retest:route_012",
+          "native:plan|minecraft:barrier|1|0|15|packsage_retest:route_013",
+          "native:plan|minecraft:barrier|1|0|16|packsage_retest:route_018",
+          "native:plan|minecraft:barrier|1|0|17|packsage_retest:route_019",
+          "native:plan|minecraft:barrier|1|0|18|packsage_retest:route_016",
+          "native:plan|minecraft:barrier|1|0|19|packsage_retest:route_017",
+          "native:plan|minecraft:barrier|1|0|20|packsage_retest:route_021",
+          "native:plan|minecraft:barrier|1|0|21|packsage_retest:route_022",
+          "native:plan|minecraft:barrier|1|0|22|packsage_retest:route_020",
+          "native:plan|minecraft:barrier|1|0|23|packsage_retest:route_025",
+          "native:plan|minecraft:barrier|1|0|24|packsage_retest:route_026",
+          "native:plan|minecraft:barrier|1|0|25|packsage_retest:route_023",
+          "native:plan|minecraft:barrier|1|0|26|packsage_retest:route_024"
+        ]
+      }
+    ]
+  },
+  "world-small-frozen": {
+    "requestId": "e3af170f-94b7-4f9f-ab50-27bf996d236a",
+    "conversationId": "a3a9770e-c35c-4882-8c2f-580460ae5b1a",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "17348",
+    "calls": [
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,250,4808"
+          },
+          "radius": 1,
+          "includeNested": false,
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": "The read spanned multiple server ticks; game-time span: 2840829..2840829",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 159,
+        "maxRecordBytes": 0,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": []
+      }
+    ]
+  },
+  "world-modifiers": {
+    "requestId": "94eaa79b-0665-4356-b17d-a6eff93c51a8",
+    "conversationId": "43d9014d-6980-4e22-8224-ea4e4773acc9",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "19367",
+    "calls": [
+      {
+        "name": "inspect_entity",
+        "arguments": {
+          "id": "00000002-0000-0000-0000-000000000001"
+        },
+        "coverage": "PARTIAL",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 8182,
+        "resultBytes": 8253,
+        "maxRecordBytes": 8180,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:entity|00000002-0000-0000-0000-000000000001"
+        ]
+      }
+    ]
+  },
+  "world-item-byte-pages": {
+    "requestId": "25bebb4b-2dc2-4060-8ffe-d787dfecfe34",
+    "conversationId": "7b5a93a4-4c99-4754-9570-930b08c61226",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "98124",
+    "calls": [
+      {
+        "name": "list_items",
+        "arguments": {
+          "holder": "block:minecraft:overworld|4800,248,4800",
+          "inventory": null,
+          "filter": null,
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records; This page shows 11 entries, the page limit with their holders and encoded byte budget; continue with the cursor",
+        "records": 12,
+        "recordBytes": 64356,
+        "resultBytes": 64859,
+        "maxRecordBytes": 5783,
+        "nextCursor": "71ff1eab-22ac-4805-bd5f-e8dafaad2855",
+        "nextCall": {
+          "name": "list_items",
+          "arguments": {
+            "holder": "block:minecraft:overworld|4800,248,4800",
+            "inventory": null,
+            "filter": null,
+            "cursor": "71ff1eab-22ac-4805-bd5f-e8dafaad2855"
+          }
+        },
+        "refs": [
+          "world:block|minecraft:overworld|4800,248,4800",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#12@minecraft:apple",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#15@minecraft:baked_potato",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#16@minecraft:beetroot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#19@minecraft:bone",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#13@minecraft:carrot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#10@minecraft:charcoal",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#9@minecraft:coal",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#2@minecraft:cobblestone",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#8@minecraft:copper_ingot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#3@minecraft:diamond",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#1@minecraft:dirt"
+        ]
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:stone",
+              "minecraft:dirt",
+              "minecraft:cobblestone",
+              "minecraft:diamond",
+              "minecraft:emerald",
+              "minecraft:netherite_ingot",
+              "minecraft:iron_ingot",
+              "minecraft:gold_ingot",
+              "minecraft:copper_ingot",
+              "minecraft:coal",
+              "minecraft:charcoal",
+              "minecraft:stick",
+              "minecraft:apple",
+              "minecraft:carrot",
+              "minecraft:potato",
+              "minecraft:baked_potato",
+              "minecraft:beetroot",
+              "minecraft:wheat",
+              "minecraft:wheat_seeds",
+              "minecraft:bone",
+              "minecraft:rotten_flesh",
+              "minecraft:string",
+              "minecraft:spider_eye",
+              "minecraft:gunpowder",
+              "minecraft:flint",
+              "minecraft:leather",
+              "minecraft:paper"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4800,248,4800"
+          },
+          "radius": 1,
+          "includeNested": false,
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "The read spanned multiple server ticks; game-time span: 2840829..2840829; Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records; This page shows 11 entries, the page limit with their holders and encoded byte budget; continue with the cursor",
+        "records": 12,
+        "recordBytes": 64385,
+        "resultBytes": 65611,
+        "maxRecordBytes": 5857,
+        "nextCursor": "05a72dae-f62c-4aa8-945a-3d2490e4451f",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:stone",
+                "minecraft:dirt",
+                "minecraft:cobblestone",
+                "minecraft:diamond",
+                "minecraft:emerald",
+                "minecraft:netherite_ingot",
+                "minecraft:iron_ingot",
+                "minecraft:gold_ingot",
+                "minecraft:copper_ingot",
+                "minecraft:coal",
+                "minecraft:charcoal",
+                "minecraft:stick",
+                "minecraft:apple",
+                "minecraft:carrot",
+                "minecraft:potato",
+                "minecraft:baked_potato",
+                "minecraft:beetroot",
+                "minecraft:wheat",
+                "minecraft:wheat_seeds",
+                "minecraft:bone",
+                "minecraft:rotten_flesh",
+                "minecraft:string",
+                "minecraft:spider_eye",
+                "minecraft:gunpowder",
+                "minecraft:flint",
+                "minecraft:leather",
+                "minecraft:paper"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4800,248,4800"
+            },
+            "radius": 1,
+            "includeNested": false,
+            "cursor": "05a72dae-f62c-4aa8-945a-3d2490e4451f"
+          }
+        },
+        "refs": [
+          "world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#8@minecraft:gold_ingot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#12@minecraft:apple",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#15@minecraft:baked_potato",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#16@minecraft:beetroot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#19@minecraft:bone",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#13@minecraft:carrot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#10@minecraft:charcoal",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#9@minecraft:coal",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#2@minecraft:cobblestone",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#8@minecraft:copper_ingot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#3@minecraft:diamond",
+          "world:block|minecraft:overworld|4800,248,4800"
+        ]
+      },
+      {
+        "name": "list_items",
+        "arguments": {
+          "holder": "block:minecraft:overworld|4800,248,4800",
+          "inventory": null,
+          "filter": null,
+          "cursor": "71ff1eab-22ac-4805-bd5f-e8dafaad2855"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records; This page shows 11 entries, the page limit with their holders and encoded byte budget; continue with the cursor",
+        "records": 12,
+        "recordBytes": 64338,
+        "resultBytes": 64841,
+        "maxRecordBytes": 5795,
+        "nextCursor": "657fce06-8cb5-4321-9b76-da7d1f841de2",
+        "nextCall": {
+          "name": "list_items",
+          "arguments": {
+            "holder": "block:minecraft:overworld|4800,248,4800",
+            "inventory": null,
+            "filter": null,
+            "cursor": "657fce06-8cb5-4321-9b76-da7d1f841de2"
+          }
+        },
+        "refs": [
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#4@minecraft:emerald",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#24@minecraft:flint",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#7@minecraft:gold_ingot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#23@minecraft:gunpowder",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#6@minecraft:iron_ingot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#25@minecraft:leather",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#5@minecraft:netherite_ingot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#26@minecraft:paper",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#14@minecraft:potato",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#20@minecraft:rotten_flesh",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#22@minecraft:spider_eye",
+          "world:block|minecraft:overworld|4800,248,4800"
+        ]
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:stone",
+              "minecraft:dirt",
+              "minecraft:cobblestone",
+              "minecraft:diamond",
+              "minecraft:emerald",
+              "minecraft:netherite_ingot",
+              "minecraft:iron_ingot",
+              "minecraft:gold_ingot",
+              "minecraft:copper_ingot",
+              "minecraft:coal",
+              "minecraft:charcoal",
+              "minecraft:stick",
+              "minecraft:apple",
+              "minecraft:carrot",
+              "minecraft:potato",
+              "minecraft:baked_potato",
+              "minecraft:beetroot",
+              "minecraft:wheat",
+              "minecraft:wheat_seeds",
+              "minecraft:bone",
+              "minecraft:rotten_flesh",
+              "minecraft:string",
+              "minecraft:spider_eye",
+              "minecraft:gunpowder",
+              "minecraft:flint",
+              "minecraft:leather",
+              "minecraft:paper"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4800,248,4800"
+          },
+          "radius": 1,
+          "includeNested": false,
+          "cursor": "05a72dae-f62c-4aa8-945a-3d2490e4451f"
+        },
+        "coverage": "PARTIAL",
+        "detail": "The read spanned multiple server ticks; game-time span: 2840829..2840829; Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records; This page shows 11 entries, the page limit with their holders and encoded byte budget; continue with the cursor",
+        "records": 12,
+        "recordBytes": 64314,
+        "resultBytes": 65638,
+        "maxRecordBytes": 5795,
+        "nextCursor": "3e3b6d61-670d-461c-9194-e042b493ff27",
+        "nextCall": {
+          "name": "find_items",
+          "arguments": {
+            "filter": {
+              "ids": [
+                "minecraft:stone",
+                "minecraft:dirt",
+                "minecraft:cobblestone",
+                "minecraft:diamond",
+                "minecraft:emerald",
+                "minecraft:netherite_ingot",
+                "minecraft:iron_ingot",
+                "minecraft:gold_ingot",
+                "minecraft:copper_ingot",
+                "minecraft:coal",
+                "minecraft:charcoal",
+                "minecraft:stick",
+                "minecraft:apple",
+                "minecraft:carrot",
+                "minecraft:potato",
+                "minecraft:baked_potato",
+                "minecraft:beetroot",
+                "minecraft:wheat",
+                "minecraft:wheat_seeds",
+                "minecraft:bone",
+                "minecraft:rotten_flesh",
+                "minecraft:string",
+                "minecraft:spider_eye",
+                "minecraft:gunpowder",
+                "minecraft:flint",
+                "minecraft:leather",
+                "minecraft:paper"
+              ],
+              "tags": null,
+              "text": null,
+              "tooltip": null
+            },
+            "center": {
+              "type": "block",
+              "id": null,
+              "place": "minecraft:overworld|4800,248,4800"
+            },
+            "radius": 1,
+            "includeNested": false,
+            "cursor": "3e3b6d61-670d-461c-9194-e042b493ff27"
+          }
+        },
+        "refs": [
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#1@minecraft:dirt",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#4@minecraft:emerald",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#24@minecraft:flint",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#23@minecraft:gunpowder",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#6@minecraft:iron_ingot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#25@minecraft:leather",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#5@minecraft:netherite_ingot",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#26@minecraft:paper",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#14@minecraft:potato",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#20@minecraft:rotten_flesh",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#22@minecraft:spider_eye",
+          "world:block|minecraft:overworld|4800,248,4800"
+        ]
+      },
+      {
+        "name": "list_items",
+        "arguments": {
+          "holder": "block:minecraft:overworld|4800,248,4800",
+          "inventory": null,
+          "filter": null,
+          "cursor": "657fce06-8cb5-4321-9b76-da7d1f841de2"
+        },
+        "coverage": "PARTIAL",
+        "detail": "Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records",
+        "records": 6,
+        "recordBytes": 29669,
+        "resultBytes": 29848,
+        "maxRecordBytes": 5778,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#11@minecraft:stick",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#0@minecraft:stone",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#21@minecraft:string",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#17@minecraft:wheat",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#18@minecraft:wheat_seeds",
+          "world:block|minecraft:overworld|4800,248,4800"
+        ]
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:stone",
+              "minecraft:dirt",
+              "minecraft:cobblestone",
+              "minecraft:diamond",
+              "minecraft:emerald",
+              "minecraft:netherite_ingot",
+              "minecraft:iron_ingot",
+              "minecraft:gold_ingot",
+              "minecraft:copper_ingot",
+              "minecraft:coal",
+              "minecraft:charcoal",
+              "minecraft:stick",
+              "minecraft:apple",
+              "minecraft:carrot",
+              "minecraft:potato",
+              "minecraft:baked_potato",
+              "minecraft:beetroot",
+              "minecraft:wheat",
+              "minecraft:wheat_seeds",
+              "minecraft:bone",
+              "minecraft:rotten_flesh",
+              "minecraft:string",
+              "minecraft:spider_eye",
+              "minecraft:gunpowder",
+              "minecraft:flint",
+              "minecraft:leather",
+              "minecraft:paper"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4800,248,4800"
+          },
+          "radius": 1,
+          "includeNested": false,
+          "cursor": "3e3b6d61-670d-461c-9194-e042b493ff27"
+        },
+        "coverage": "PARTIAL",
+        "detail": "The read spanned multiple server ticks; game-time span: 2840829..2840829; Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records",
+        "records": 6,
+        "recordBytes": 29669,
+        "resultBytes": 30118,
+        "maxRecordBytes": 5778,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#11@minecraft:stick",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#0@minecraft:stone",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#21@minecraft:string",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#17@minecraft:wheat",
+          "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#18@minecraft:wheat_seeds",
+          "world:block|minecraft:overworld|4800,248,4800"
+        ]
+      }
+    ]
+  },
+  "world-progress-stat-pages-replacement": {
+    "requestId": "26b4896b-3943-4369-a78d-9a753745f012",
+    "conversationId": "83764bf6-b24c-4925-8a87-80cd5c43ba4f",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "229006",
+    "calls": [
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 9,
+        "recordBytes": 93061,
+        "resultBytes": 93446,
+        "maxRecordBytes": 10339,
+        "nextCursor": "progress:e7cfafee-bce1-45f8-9cdb-ba13d127d1c2",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:e7cfafee-bce1-45f8-9cdb-ba13d127d1c2"
+          }
+        },
+        "refs": [
+          "progress:tree|minecraft/packsage_retest:long_00",
+          "progress:tree|minecraft/packsage_retest:long_01",
+          "progress:tree|minecraft/packsage_retest:long_02",
+          "progress:tree|minecraft/packsage_retest:long_03",
+          "progress:tree|minecraft/packsage_retest:long_04",
+          "progress:tree|minecraft/packsage_retest:long_05",
+          "progress:tree|minecraft/packsage_retest:long_06",
+          "progress:tree|minecraft/packsage_retest:long_07",
+          "progress:tree|minecraft/packsage_retest:long_08"
+        ]
+      },
+      {
+        "name": "list_statistics",
+        "arguments": {
+          "categories": null,
+          "subjects": null,
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 48,
+        "recordBytes": 97744,
+        "resultBytes": 98122,
+        "maxRecordBytes": 10358,
+        "nextCursor": "progress:cd477da7-e90b-4441-bcc8-dcac14a7c373",
+        "nextCall": {
+          "name": "list_statistics",
+          "arguments": {
+            "categories": null,
+            "subjects": null,
+            "cursor": "progress:cd477da7-e90b-4441-bcc8-dcac14a7c373"
+          }
+        },
+        "refs": [
+          "progress:stat|minecraft|mined|minecraft:deepslate_diamond_ore",
+          "progress:stat|minecraft|mined|minecraft:diamond_ore",
+          "progress:stat|minecraft|mined|minecraft:stone",
+          "progress:stat|minecraft|crafted|minecraft:bread",
+          "progress:stat|minecraft|used|minecraft:diamond_block",
+          "progress:stat|minecraft|used|minecraft:diamond_pickaxe",
+          "progress:stat|minecraft|used|minecraft:diamond_sword",
+          "progress:stat|minecraft|used|minecraft:egg",
+          "progress:stat|minecraft|used|minecraft:horse_spawn_egg",
+          "progress:stat|minecraft|used|minecraft:netherite_pickaxe",
+          "progress:stat|minecraft|used|minecraft:oak_planks",
+          "progress:stat|minecraft|used|minecraft:skeleton_horse_spawn_egg",
+          "progress:stat|minecraft|used|minecraft:stripped_oak_wood",
+          "progress:stat|minecraft|picked_up|minecraft:cobblestone",
+          "progress:stat|minecraft|picked_up|minecraft:diamond",
+          "progress:stat|minecraft|picked_up|minecraft:diamond_sword",
+          "progress:stat|minecraft|picked_up|minecraft:egg",
+          "progress:stat|minecraft|picked_up|minecraft:gunpowder",
+          "progress:stat|minecraft|picked_up|minecraft:porkchop",
+          "progress:stat|minecraft|picked_up|minecraft:spider_eye",
+          "progress:stat|minecraft|picked_up|minecraft:string",
+          "progress:stat|minecraft|dropped|minecraft:diamond_sword",
+          "progress:stat|minecraft|killed|minecraft:creeper",
+          "progress:stat|minecraft|killed|minecraft:pig",
+          "progress:stat|minecraft|killed|minecraft:spider",
+          "progress:stat|minecraft|killed_by|minecraft:zombie",
+          "progress:stat|minecraft|custom|minecraft:crouch_one_cm",
+          "progress:stat|minecraft|custom|minecraft:damage_dealt",
+          "progress:stat|minecraft|custom|minecraft:damage_taken",
+          "progress:stat|minecraft|custom|minecraft:deaths",
+          "progress:stat|minecraft|custom|minecraft:drop",
+          "progress:stat|minecraft|custom|minecraft:fly_one_cm",
+          "progress:stat|minecraft|custom|minecraft:interact_with_crafting_table",
+          "progress:stat|minecraft|custom|minecraft:jump",
+          "progress:stat|minecraft|custom|minecraft:leave_game",
+          "progress:stat|minecraft|custom|minecraft:mob_kills",
+          "progress:stat|minecraft|custom|minecraft:open_chest",
+          "progress:stat|minecraft|custom|minecraft:play_time",
+          "progress:stat|minecraft|custom|minecraft:raid_trigger",
+          "progress:stat|minecraft|custom|minecraft:sneak_time",
+          "progress:stat|minecraft|custom|minecraft:sprint_one_cm",
+          "progress:stat|minecraft|custom|minecraft:talked_to_villager",
+          "progress:stat|minecraft|custom|minecraft:time_since_death",
+          "progress:stat|minecraft|custom|minecraft:time_since_rest",
+          "progress:stat|minecraft|custom|minecraft:total_world_time",
+          "progress:stat|minecraft|custom|minecraft:traded_with_villager",
+          "progress:stat|minecraft|custom|minecraft:walk_on_water_one_cm",
+          "progress:stat|minecraft|custom|minecraft:walk_one_cm"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:e7cfafee-bce1-45f8-9cdb-ba13d127d1c2"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 9,
+        "recordBytes": 93013,
+        "resultBytes": 93398,
+        "maxRecordBytes": 10339,
+        "nextCursor": "progress:2aa7e7e2-afd1-48a6-8170-f634499d889a",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:2aa7e7e2-afd1-48a6-8170-f634499d889a"
+          }
+        },
+        "refs": [
+          "progress:tree|minecraft/packsage_retest:long_09",
+          "progress:tree|minecraft/packsage_retest:long_10",
+          "progress:tree|minecraft/packsage_retest:long_11",
+          "progress:tree|minecraft/packsage_retest:long_12",
+          "progress:tree|minecraft/packsage_retest:long_13",
+          "progress:tree|minecraft/packsage_retest:long_14",
+          "progress:tree|minecraft/packsage_retest:long_15",
+          "progress:tree|minecraft/packsage_retest:long_16",
+          "progress:tree|minecraft/packsage_retest:long_17"
+        ]
+      },
+      {
+        "name": "list_statistics",
+        "arguments": {
+          "categories": null,
+          "subjects": null,
+          "cursor": "progress:cd477da7-e90b-4441-bcc8-dcac14a7c373"
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 905,
+        "resultBytes": 978,
+        "maxRecordBytes": 903,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "progress:stat|minecraft|custom|minecraft:walk_under_water_one_cm"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:2aa7e7e2-afd1-48a6-8170-f634499d889a"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 9,
+        "recordBytes": 93034,
+        "resultBytes": 93419,
+        "maxRecordBytes": 10336,
+        "nextCursor": "progress:3a09848e-dd20-4d0d-af6f-2bda0b00a718",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:3a09848e-dd20-4d0d-af6f-2bda0b00a718"
+          }
+        },
+        "refs": [
+          "progress:tree|minecraft/packsage_retest:long_18",
+          "progress:tree|minecraft/packsage_retest:long_19",
+          "progress:tree|minecraft/packsage_retest:long_20",
+          "progress:tree|minecraft/packsage_retest:long_21",
+          "progress:tree|minecraft/packsage_retest:long_22",
+          "progress:tree|minecraft/packsage_retest:long_23",
+          "progress:tree|minecraft/packsage_retest:long_24",
+          "progress:tree|minecraft/packsage_retest:long_25",
+          "progress:tree|minecraft/packsage_retest:long_26"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:3a09848e-dd20-4d0d-af6f-2bda0b00a718"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 9,
+        "recordBytes": 93034,
+        "resultBytes": 93419,
+        "maxRecordBytes": 10336,
+        "nextCursor": "progress:adf972a9-5be5-4937-9cbc-a0b514f6f383",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:adf972a9-5be5-4937-9cbc-a0b514f6f383"
+          }
+        },
+        "refs": [
+          "progress:tree|minecraft/packsage_retest:long_27",
+          "progress:tree|minecraft/packsage_retest:long_28",
+          "progress:tree|minecraft/packsage_retest:long_29",
+          "progress:tree|minecraft/packsage_retest:long_30",
+          "progress:tree|minecraft/packsage_retest:long_31",
+          "progress:tree|minecraft/packsage_retest:long_32",
+          "progress:tree|minecraft/packsage_retest:long_33",
+          "progress:tree|minecraft/packsage_retest:long_34",
+          "progress:tree|minecraft/packsage_retest:long_35"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:adf972a9-5be5-4937-9cbc-a0b514f6f383"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 9,
+        "recordBytes": 93034,
+        "resultBytes": 93419,
+        "maxRecordBytes": 10336,
+        "nextCursor": "progress:a8c44e55-1183-41f0-893b-bc2269cabd6a",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:a8c44e55-1183-41f0-893b-bc2269cabd6a"
+          }
+        },
+        "refs": [
+          "progress:tree|minecraft/packsage_retest:long_36",
+          "progress:tree|minecraft/packsage_retest:long_37",
+          "progress:tree|minecraft/packsage_retest:long_38",
+          "progress:tree|minecraft/packsage_retest:long_39",
+          "progress:tree|minecraft/packsage_retest:long_40",
+          "progress:tree|minecraft/packsage_retest:long_41",
+          "progress:tree|minecraft/packsage_retest:long_42",
+          "progress:tree|minecraft/packsage_retest:long_43",
+          "progress:tree|minecraft/packsage_retest:long_44"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:a8c44e55-1183-41f0-893b-bc2269cabd6a"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 9,
+        "recordBytes": 93034,
+        "resultBytes": 93419,
+        "maxRecordBytes": 10336,
+        "nextCursor": "progress:210fb272-fff9-44fe-9049-5aaa8f015bfe",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:210fb272-fff9-44fe-9049-5aaa8f015bfe"
+          }
+        },
+        "refs": [
+          "progress:tree|minecraft/packsage_retest:long_45",
+          "progress:tree|minecraft/packsage_retest:long_46",
+          "progress:tree|minecraft/packsage_retest:long_47",
+          "progress:tree|minecraft/packsage_retest:long_48",
+          "progress:tree|minecraft/packsage_retest:long_49",
+          "progress:tree|minecraft/packsage_retest:long_50",
+          "progress:tree|minecraft/packsage_retest:long_51",
+          "progress:tree|minecraft/packsage_retest:long_52",
+          "progress:tree|minecraft/packsage_retest:long_53"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:210fb272-fff9-44fe-9049-5aaa8f015bfe"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 9,
+        "recordBytes": 93007,
+        "resultBytes": 93392,
+        "maxRecordBytes": 10333,
+        "nextCursor": "progress:d03ac9fa-ae89-4566-ae7c-ffb66741a423",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:d03ac9fa-ae89-4566-ae7c-ffb66741a423"
+          }
+        },
+        "refs": [
+          "progress:tree|minecraft/packsage_retest:long_54",
+          "progress:tree|minecraft/packsage_retest:long_55",
+          "progress:tree|minecraft/packsage_retest:long_56",
+          "progress:tree|minecraft/packsage_retest:long_57",
+          "progress:tree|minecraft/packsage_retest:long_58",
+          "progress:tree|minecraft/packsage_retest:long_59",
+          "progress:tree|minecraft/packsage_retest:long_60",
+          "progress:tree|minecraft/packsage_retest:long_61",
+          "progress:tree|minecraft/packsage_retest:long_62"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:d03ac9fa-ae89-4566-ae7c-ffb66741a423"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 7,
+        "recordBytes": 91636,
+        "resultBytes": 92021,
+        "maxRecordBytes": 15155,
+        "nextCursor": "progress:642c1832-721a-4027-9e42-bb599017e661",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:642c1832-721a-4027-9e42-bb599017e661"
+          }
+        },
+        "refs": [
+          "progress:tree|minecraft/packsage_retest:long_63",
+          "progress:tree|minecraft/packsage_retest:long_64",
+          "progress:tree|minecraft/packsage_retest:long_65",
+          "progress:progress|minecraft/packsage_retest:long_00",
+          "progress:progress|minecraft/packsage_retest:long_01",
+          "progress:progress|minecraft/packsage_retest:long_02",
+          "progress:progress|minecraft/packsage_retest:long_03"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:642c1832-721a-4027-9e42-bb599017e661"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 6,
+        "recordBytes": 90937,
+        "resultBytes": 91322,
+        "maxRecordBytes": 15155,
+        "nextCursor": "progress:dddeaaf5-d0d6-48b9-96c3-40b78c93482f",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:dddeaaf5-d0d6-48b9-96c3-40b78c93482f"
+          }
+        },
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_04",
+          "progress:progress|minecraft/packsage_retest:long_05",
+          "progress:progress|minecraft/packsage_retest:long_06",
+          "progress:progress|minecraft/packsage_retest:long_07",
+          "progress:progress|minecraft/packsage_retest:long_08",
+          "progress:progress|minecraft/packsage_retest:long_09"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:dddeaaf5-d0d6-48b9-96c3-40b78c93482f"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 6,
+        "recordBytes": 90907,
+        "resultBytes": 91292,
+        "maxRecordBytes": 15150,
+        "nextCursor": "progress:02f2c7ab-bd4f-4023-8a02-5ebcd1f099f4",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:02f2c7ab-bd4f-4023-8a02-5ebcd1f099f4"
+          }
+        },
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_10",
+          "progress:progress|minecraft/packsage_retest:long_11",
+          "progress:progress|minecraft/packsage_retest:long_12",
+          "progress:progress|minecraft/packsage_retest:long_13",
+          "progress:progress|minecraft/packsage_retest:long_14",
+          "progress:progress|minecraft/packsage_retest:long_15"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:02f2c7ab-bd4f-4023-8a02-5ebcd1f099f4"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 6,
+        "recordBytes": 90907,
+        "resultBytes": 91292,
+        "maxRecordBytes": 15150,
+        "nextCursor": "progress:feb8c416-889a-4d72-817d-709502c69ae6",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:feb8c416-889a-4d72-817d-709502c69ae6"
+          }
+        },
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_16",
+          "progress:progress|minecraft/packsage_retest:long_17",
+          "progress:progress|minecraft/packsage_retest:long_18",
+          "progress:progress|minecraft/packsage_retest:long_19",
+          "progress:progress|minecraft/packsage_retest:long_20",
+          "progress:progress|minecraft/packsage_retest:long_21"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:feb8c416-889a-4d72-817d-709502c69ae6"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 6,
+        "recordBytes": 90907,
+        "resultBytes": 91292,
+        "maxRecordBytes": 15150,
+        "nextCursor": "progress:229bf17e-3989-4aef-8023-288a0a65298c",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:229bf17e-3989-4aef-8023-288a0a65298c"
+          }
+        },
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_22",
+          "progress:progress|minecraft/packsage_retest:long_23",
+          "progress:progress|minecraft/packsage_retest:long_24",
+          "progress:progress|minecraft/packsage_retest:long_25",
+          "progress:progress|minecraft/packsage_retest:long_26",
+          "progress:progress|minecraft/packsage_retest:long_27"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:229bf17e-3989-4aef-8023-288a0a65298c"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 6,
+        "recordBytes": 90907,
+        "resultBytes": 91292,
+        "maxRecordBytes": 15150,
+        "nextCursor": "progress:e6e69ec2-1774-4c95-b3b7-31ef1950f79e",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:e6e69ec2-1774-4c95-b3b7-31ef1950f79e"
+          }
+        },
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_28",
+          "progress:progress|minecraft/packsage_retest:long_29",
+          "progress:progress|minecraft/packsage_retest:long_30",
+          "progress:progress|minecraft/packsage_retest:long_31",
+          "progress:progress|minecraft/packsage_retest:long_32",
+          "progress:progress|minecraft/packsage_retest:long_33"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:e6e69ec2-1774-4c95-b3b7-31ef1950f79e"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 6,
+        "recordBytes": 90907,
+        "resultBytes": 91292,
+        "maxRecordBytes": 15150,
+        "nextCursor": "progress:33703760-1517-48ea-9a96-0992cb520e75",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:33703760-1517-48ea-9a96-0992cb520e75"
+          }
+        },
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_34",
+          "progress:progress|minecraft/packsage_retest:long_35",
+          "progress:progress|minecraft/packsage_retest:long_36",
+          "progress:progress|minecraft/packsage_retest:long_37",
+          "progress:progress|minecraft/packsage_retest:long_38",
+          "progress:progress|minecraft/packsage_retest:long_39"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:33703760-1517-48ea-9a96-0992cb520e75"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 6,
+        "recordBytes": 90907,
+        "resultBytes": 91292,
+        "maxRecordBytes": 15150,
+        "nextCursor": "progress:c53d41c7-335e-4738-acf2-acffd5983d7c",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:c53d41c7-335e-4738-acf2-acffd5983d7c"
+          }
+        },
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_40",
+          "progress:progress|minecraft/packsage_retest:long_41",
+          "progress:progress|minecraft/packsage_retest:long_42",
+          "progress:progress|minecraft/packsage_retest:long_43",
+          "progress:progress|minecraft/packsage_retest:long_44",
+          "progress:progress|minecraft/packsage_retest:long_45"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:c53d41c7-335e-4738-acf2-acffd5983d7c"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 6,
+        "recordBytes": 90907,
+        "resultBytes": 91292,
+        "maxRecordBytes": 15150,
+        "nextCursor": "progress:6135a0b5-3f98-4bf2-96a7-746fa3f9d00d",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:6135a0b5-3f98-4bf2-96a7-746fa3f9d00d"
+          }
+        },
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_46",
+          "progress:progress|minecraft/packsage_retest:long_47",
+          "progress:progress|minecraft/packsage_retest:long_48",
+          "progress:progress|minecraft/packsage_retest:long_49",
+          "progress:progress|minecraft/packsage_retest:long_50",
+          "progress:progress|minecraft/packsage_retest:long_51"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:6135a0b5-3f98-4bf2-96a7-746fa3f9d00d"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 6,
+        "recordBytes": 90907,
+        "resultBytes": 91292,
+        "maxRecordBytes": 15150,
+        "nextCursor": "progress:a37f2791-5e6f-46ce-a569-bc12ed6abd4a",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:a37f2791-5e6f-46ce-a569-bc12ed6abd4a"
+          }
+        },
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_52",
+          "progress:progress|minecraft/packsage_retest:long_53",
+          "progress:progress|minecraft/packsage_retest:long_54",
+          "progress:progress|minecraft/packsage_retest:long_55",
+          "progress:progress|minecraft/packsage_retest:long_56",
+          "progress:progress|minecraft/packsage_retest:long_57"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:a37f2791-5e6f-46ce-a569-bc12ed6abd4a"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 6,
+        "recordBytes": 90907,
+        "resultBytes": 91292,
+        "maxRecordBytes": 15150,
+        "nextCursor": "progress:b33b3018-fe95-4955-b2f5-2e490ac808df",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:b33b3018-fe95-4955-b2f5-2e490ac808df"
+          }
+        },
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_58",
+          "progress:progress|minecraft/packsage_retest:long_59",
+          "progress:progress|minecraft/packsage_retest:long_60",
+          "progress:progress|minecraft/packsage_retest:long_61",
+          "progress:progress|minecraft/packsage_retest:long_62",
+          "progress:progress|minecraft/packsage_retest:long_63"
+        ]
+      },
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:b33b3018-fe95-4955-b2f5-2e490ac808df"
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 2,
+        "recordBytes": 30303,
+        "resultBytes": 30495,
+        "maxRecordBytes": 15150,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "progress:progress|minecraft/packsage_retest:long_64",
+          "progress:progress|minecraft/packsage_retest:long_65"
+        ]
+      }
+    ]
+  },
+  "world-block-byte-pages": {
+    "requestId": "e5614cbe-83ae-432e-a8c6-c4015cbe9f6d",
+    "conversationId": "71b4d848-1ec6-4cec-bd2a-df1936323515",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "52400",
+    "calls": [
+      {
+        "name": "list_blocks",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,238,4808"
+          },
+          "radius": 2,
+          "filter": {
+            "ids": [
+              "minecraft:barrel"
+            ],
+            "tags": null,
+            "text": null
+          },
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 33,
+        "recordBytes": 27919,
+        "resultBytes": 27992,
+        "maxRecordBytes": 845,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:block|minecraft:overworld|4808,236,4808",
+          "world:block|minecraft:overworld|4807,237,4807",
+          "world:block|minecraft:overworld|4808,237,4807",
+          "world:block|minecraft:overworld|4809,237,4807",
+          "world:block|minecraft:overworld|4807,237,4808",
+          "world:block|minecraft:overworld|4808,237,4808",
+          "world:block|minecraft:overworld|4809,237,4808",
+          "world:block|minecraft:overworld|4807,237,4809",
+          "world:block|minecraft:overworld|4808,237,4809",
+          "world:block|minecraft:overworld|4809,237,4809",
+          "world:block|minecraft:overworld|4808,238,4806",
+          "world:block|minecraft:overworld|4807,238,4807",
+          "world:block|minecraft:overworld|4808,238,4807",
+          "world:block|minecraft:overworld|4809,238,4807",
+          "world:block|minecraft:overworld|4806,238,4808",
+          "world:block|minecraft:overworld|4807,238,4808",
+          "world:block|minecraft:overworld|4808,238,4808",
+          "world:block|minecraft:overworld|4809,238,4808",
+          "world:block|minecraft:overworld|4810,238,4808",
+          "world:block|minecraft:overworld|4807,238,4809",
+          "world:block|minecraft:overworld|4808,238,4809",
+          "world:block|minecraft:overworld|4809,238,4809",
+          "world:block|minecraft:overworld|4808,238,4810",
+          "world:block|minecraft:overworld|4807,239,4807",
+          "world:block|minecraft:overworld|4808,239,4807",
+          "world:block|minecraft:overworld|4809,239,4807",
+          "world:block|minecraft:overworld|4807,239,4808",
+          "world:block|minecraft:overworld|4808,239,4808",
+          "world:block|minecraft:overworld|4809,239,4808",
+          "world:block|minecraft:overworld|4807,239,4809",
+          "world:block|minecraft:overworld|4808,239,4809",
+          "world:block|minecraft:overworld|4809,239,4809",
+          "world:block|minecraft:overworld|4808,240,4808"
+        ]
+      },
+      {
+        "name": "inspect_area",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,238,4808"
+          },
+          "radius": 2
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 1553,
+        "resultBytes": 1626,
+        "maxRecordBytes": 1551,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:area|block:minecraft:overworld|4808,238,4808|2"
+        ]
+      }
+    ]
+  },
+  "world-unavailable": {
+    "requestId": "36c7953b-5292-43db-8270-b2f2b59d37e5",
+    "conversationId": "e1c410fc-c20d-4a0b-b29c-0c92c67b55bd",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "18388",
+    "calls": [
+      {
+        "name": "inspect_area",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|6000,250,6008"
+          },
+          "radius": 1
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 1,
+        "recordBytes": 1037,
+        "resultBytes": 1110,
+        "maxRecordBytes": 1035,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:area|block:minecraft:overworld|6000,250,6008|1"
+        ]
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|6000,250,6008"
+          },
+          "radius": 1,
+          "includeNested": false,
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": null,
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 75,
+        "maxRecordBytes": 0,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": []
+      }
+    ]
+  },
+  "world-unloaded-scope": {
+    "requestId": "68ce5169-d374-48b0-a1e3-d5bdf459e471",
+    "conversationId": "201ccc22-98ca-4f0f-abcf-cefe3df92157",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "21324",
+    "calls": [
+      {
+        "name": "inspect_area",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|10000,250,10008"
+          },
+          "radius": 1
+        },
+        "coverage": "PARTIAL",
+        "detail": "2 chunks in range were not loaded and were not fully read",
+        "records": 1,
+        "recordBytes": 976,
+        "resultBytes": 1116,
+        "maxRecordBytes": 974,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:area|block:minecraft:overworld|10000,250,10008|1"
+        ]
+      },
+      {
+        "name": "find_items",
+        "arguments": {
+          "filter": {
+            "ids": [
+              "minecraft:dragon_egg"
+            ],
+            "tags": null,
+            "text": null,
+            "tooltip": null
+          },
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|10000,250,10008"
+          },
+          "radius": 1,
+          "includeNested": false,
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "2 chunks in range were not loaded and were not searched",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 140,
+        "maxRecordBytes": 0,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": []
+      }
+    ]
+  },
+  "world-stale-cursor-setup": {
+    "requestId": "c818f4ca-05cb-487f-83be-8a107f13cb9a",
+    "conversationId": "46ca672e-6a65-43db-a3eb-767678ed451d",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "13605",
+    "calls": [
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed",
+        "records": 9,
+        "recordBytes": 93097,
+        "resultBytes": 93482,
+        "maxRecordBytes": 10343,
+        "nextCursor": "progress:f8dff9e8-5ecb-4b23-9509-161d4af6ee07",
+        "nextCall": {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": "Advance",
+            "cursor": "progress:f8dff9e8-5ecb-4b23-9509-161d4af6ee07"
+          }
+        },
+        "refs": [
+          "progress:tree|minecraft/packsage_retest:long_00",
+          "progress:tree|minecraft/packsage_retest:long_01",
+          "progress:tree|minecraft/packsage_retest:long_02",
+          "progress:tree|minecraft/packsage_retest:long_03",
+          "progress:tree|minecraft/packsage_retest:long_04",
+          "progress:tree|minecraft/packsage_retest:long_05",
+          "progress:tree|minecraft/packsage_retest:long_06",
+          "progress:tree|minecraft/packsage_retest:long_07",
+          "progress:tree|minecraft/packsage_retest:long_08"
+        ]
+      }
+    ]
+  },
+  "world-output-cursor-setup": {
+    "requestId": "01386bf4-afab-4d04-bfb9-bc763be52546",
+    "conversationId": "5f31c87c-532c-48da-870e-a88b09c2e933",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "16772",
+    "calls": [
+      {
+        "name": "search_recipe",
+        "arguments": {
+          "filter": {
+            "text": null,
+            "outputItem": "minecraft:barrier",
+            "provider": null
+          },
+          "limit": null,
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "native: scanned=0-63 of 1948 (ordinary recipes 1667, brewing candidates 281); phase=ordinary; matches=16",
+        "records": 16,
+        "recordBytes": 68257,
+        "resultBytes": 68661,
+        "maxRecordBytes": 4265,
+        "nextCursor": "2dfcf961-7410-4047-9137-aef952ebb6cc",
+        "nextCall": {
+          "name": "search_recipe",
+          "arguments": {
+            "filter": {
+              "text": null,
+              "outputItem": "minecraft:barrier",
+              "provider": null
+            },
+            "limit": null,
+            "cursor": "2dfcf961-7410-4047-9137-aef952ebb6cc"
+          }
+        },
+        "refs": [
+          "native:packsage_retest:route_000",
+          "native:packsage_retest:route_003",
+          "native:packsage_retest:route_004",
+          "native:packsage_retest:route_001",
+          "native:packsage_retest:route_002",
+          "native:packsage_retest:route_007",
+          "native:packsage_retest:route_008",
+          "native:packsage_retest:route_005",
+          "native:packsage_retest:route_006",
+          "native:packsage_retest:route_009",
+          "native:packsage_retest:route_010",
+          "native:packsage_retest:route_011",
+          "native:packsage_retest:route_014",
+          "native:packsage_retest:route_015",
+          "native:packsage_retest:route_012",
+          "native:packsage_retest:route_013"
+        ]
+      }
+    ]
+  },
+  "world-output-tail-setup": {
+    "requestId": "31b1176d-642c-4b0e-8a3d-55e400a47acc",
+    "conversationId": "43e3728c-cfda-4bdb-96ce-3e4ab34bb9ea",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "17448",
+    "calls": [
+      {
+        "name": "search_recipe",
+        "arguments": {
+          "filter": null,
+          "limit": 64,
+          "cursor": null
+        },
+        "coverage": "PARTIAL",
+        "detail": "encoded page byte or record budget reached; continue with nextCursor; native: scanned=0-64 of 1948 (ordinary recipes 1667, brewing candidates 281); phase=ordinary; matches=64",
+        "records": 53,
+        "recordBytes": 117357,
+        "resultBytes": 117785,
+        "maxRecordBytes": 4706,
+        "nextCursor": "output:20f99808-8434-4329-a1d0-ff86fafcbef7",
+        "nextCall": {
+          "name": "search_recipe",
+          "arguments": {
+            "filter": null,
+            "limit": 64,
+            "cursor": "output:20f99808-8434-4329-a1d0-ff86fafcbef7"
+          }
+        },
+        "refs": [
+          "native:naturesaura:altar/gold_powder",
+          "native:naturesaura:altar/infused_stone",
+          "native:naturesaura:altar/crimson_fungus",
+          "native:naturesaura:altar/milk",
+          "native:naturesaura:altar/tainted_gold",
+          "native:naturesaura:altar/fermented",
+          "native:naturesaura:altar/warped_fungus",
+          "native:naturesaura:altar/breath",
+          "native:naturesaura:altar/water",
+          "native:naturesaura:altar/nether_wart_crushing",
+          "native:naturesaura:altar/infused_iron",
+          "native:naturesaura:altar/soul_sand",
+          "native:naturesaura:altar/nether_wart",
+          "native:naturesaura:altar/mud",
+          "native:naturesaura:altar/sand",
+          "native:naturesaura:altar/egg",
+          "native:naturesaura:altar/rabbit_foot",
+          "native:naturesaura:altar/lead",
+          "native:naturesaura:altar/tainted_gold_block",
+          "native:naturesaura:altar/coal",
+          "native:naturesaura:altar/prismarine",
+          "native:naturesaura:altar/ender_pearl",
+          "native:naturesaura:altar/ghast_tear",
+          "native:naturesaura:altar/gilded_blackstone",
+          "native:naturesaura:altar/chorus",
+          "native:naturesaura:altar/bone",
+          "native:naturesaura:altar/leather",
+          "native:naturesaura:altar/sugar",
+          "native:naturesaura:altar/prismarine_crystal",
+          "native:naturesaura:altar/infused_iron_block",
+          "native:naturesaura:altar/soul_sand_crushing",
+          "native:naturesaura:altar/blaze",
+          "native:naturesaura:altar/amethyst",
+          "native:naturesaura:altar/potato",
+          "native:naturesaura:altar/arrow",
+          "native:naturesaura:altar/glowstone",
+          "native:minecraft:yellow_dye_from_dandelion",
+          "native:minecraft:gray_candle",
+          "native:minecraft:chiseled_tuff_bricks",
+          "native:minecraft:stripped_dark_oak_wood",
+          "native:packsage_retest:route_000",
+          "native:minecraft:stonecutter",
+          "native:packsage_retest:route_003",
+          "native:minecraft:waxed_oxidized_copper_trapdoor_from_honeycomb",
+          "native:packsage_retest:route_004",
+          "native:packsage_retest:route_001",
+          "native:packsage_retest:route_002",
+          "native:minecraft:bone_block",
+          "native:packsage_retest:route_007",
+          "native:packsage_retest:route_008",
+          "native:packsage_retest:route_005",
+          "native:minecraft:eye_armor_trim_smithing_template",
+          "native:packsage_retest:route_006"
+        ]
+      }
+    ]
+  },
+  "world-stale-replay": {
+    "requestId": "6263854f-f218-4f5b-9f03-123396dc8b00",
+    "conversationId": "cb728931-d289-4ad4-b3b0-077bccee0ff9",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "16101",
+    "calls": [
+      {
+        "name": "list_progress",
+        "arguments": {
+          "tree": null,
+          "status": null,
+          "text": "Advance",
+          "cursor": "progress:f8dff9e8-5ecb-4b23-9509-161d4af6ee07"
+        },
+        "coverage": "ERROR",
+        "detail": "INVALID_CURSOR: cursor does not match this query or was consumed or evicted; restart without a cursor",
+        "records": 0,
+        "recordBytes": 2,
+        "resultBytes": 298,
+        "maxRecordBytes": 0,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": []
+      }
+    ]
+  },
+  "entity-tail-corrected": {
+    "requestId": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+    "conversationId": "6c0db8dc-1ba5-4e56-8d68-b668f50ddd9f",
+    "status": "completed",
+    "saved": true,
+    "modelMs": "18461",
+    "calls": [
+      {
+        "name": "list_entities",
+        "arguments": {
+          "center": {
+            "type": "block",
+            "id": null,
+            "place": "minecraft:overworld|4808,250,4808"
+          },
+          "radius": 1,
+          "filter": {
+            "ids": null,
+            "tags": null,
+            "text": "WorldTail4097"
+          },
+          "cursor": null
+        },
+        "coverage": "COMPLETE",
+        "detail": "The read spanned multiple server ticks; game-time span: 2856593..2856594",
+        "records": 1,
+        "recordBytes": 981,
+        "resultBytes": 1138,
+        "maxRecordBytes": 979,
+        "nextCursor": null,
+        "nextCall": null,
+        "refs": [
+          "world:entity|7fffffff-7fff-ffff-7fff-ffff7fffffff"
+        ]
+      }
+    ]
+  }
+}

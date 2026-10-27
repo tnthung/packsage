@@ -1,0 +1,568 @@
+{
+  "requestId": "69b7f848-2482-4c07-90a4-92b12722c061",
+  "conversationId": "7a77f919-22f9-4bec-9ebe-0d14b1b33695",
+  "saved": true,
+  "status": "completed",
+  "reply": "Inspection result for the [Librarian at (4840.5, 250, 4808.5)](world:entity|00000002-0000-0000-0000-000000000001):\n\n| Requested field | Result |\n|---|---|\n| Coverage | Overall **PARTIAL**; record and Minecraft section also **PARTIAL**. |\n| `offerCount` | **65** |\n| `offersStatus` | **`bounded`** |\n| Truncation/omission notes | Trade offers are bounded to **64**. Inspection exceeded the **64 KiB byte budget**, so the largest facts were omitted; specifically, **offers were omitted for the byte budget**. No offer entries or shared offer-item facts survived in this response. |\n| Name truncation | `nameTruncated: false` for the entity name. |\n| Health survives? | **Yes:** health **20.0**, max health **20.0**. |\n| Location survives? | **Yes:** Overworld, **(4840.5, 250.0, 4808.5)**; navigable. |\n\nAll values above come from the returned inspection. [world:entity|00000002-0000-0000-0000-000000000001]",
+  "detail": null,
+  "errors": [],
+  "activities": [
+    {
+      "id": "tool:call_b4aXIpG1bcbS3A0Ipq3qYWIa",
+      "title": "Using tool: inspect_entity (step 1)",
+      "detail": "Completed",
+      "status": "COMPLETED",
+      "serializedArguments": "{\"id\":\"00000002-0000-0000-0000-000000000001\"}",
+      "toolName": "inspect_entity",
+      "resultSummary": "Coverage: PARTIAL; records: 1",
+      "durationMillis": 98,
+      "resultDetail": "coverage: PARTIAL | outcome: PARTIAL\nEntity 00000002-0000-0000-0000-000000000001\n  gameTime: 2830471\n  dayTime: 1244272\n  inventories: inventory: minecraft/inventory; label: Inventory; slots: 8, ...",
+      "durationNanos": 98151400
+    }
+  ],
+  "navigationTargets": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "0:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-3",
+        "requestGeneration": 10
+      },
+      "providerId": "world",
+      "sourceHandle": "entity|00000002-0000-0000-0000-000000000001",
+      "targetId": "world-entity|00000002-0000-0000-0000-000000000001"
+    }
+  ],
+  "toolCalls": [
+    {
+      "callId": "call_b4aXIpG1bcbS3A0Ipq3qYWIa",
+      "name": "inspect_entity",
+      "arguments": {
+        "id": "00000002-0000-0000-0000-000000000001"
+      },
+      "error": false,
+      "result": {
+        "coverage": "PARTIAL",
+        "outcome": "PARTIAL",
+        "nextCursor": null,
+        "records": [
+          {
+            "reference": "world:entity|00000002-0000-0000-0000-000000000001",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "0:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-3",
+                "requestGeneration": 10
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "entity|00000002-0000-0000-0000-000000000001",
+              "observedGeneration": 10,
+              "observedAt": "2026-10-27T03:00:30.497172400Z",
+              "activity": "ACTIVE",
+              "coverage": "PARTIAL",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "OTHER",
+            "navigable": true,
+            "title": "Entity 00000002-0000-0000-0000-000000000001",
+            "payload": {
+              "gameTime": 2830471,
+              "dayTime": 1244272,
+              "inventories": [
+                {
+                  "inventory": "minecraft/inventory",
+                  "label": "Inventory",
+                  "slots": 8,
+                  "role": "storage"
+                }
+              ],
+              "name": "Librarian",
+              "nameTruncated": false,
+              "holder": "entity:00000002-0000-0000-0000-000000000001",
+              "note": "Entity inspection details exceed the 64 KiB byte budget; the largest facts were omitted, coverage is partial",
+              "id": "00000002-0000-0000-0000-000000000001",
+              "entity": "minecraft:villager",
+              "dimension": "minecraft:overworld",
+              "sections": {
+                "minecraft": {
+                  "coverage": "PARTIAL",
+                  "facts": {
+                    "xp": 0,
+                    "health": 20,
+                    "timeUnits": "lastSlept, lastWorkedAtPoi and golemDetectedUntil are game times in ticks (20 per second); compare them with the record's gameTime",
+                    "playerReputation": 0,
+                    "pricesNote": "costA.count already includes demand; costForPlayer adds this player's reputation and Hero of the Village discounts, which the game applies when trading starts",
+                    "wantsToSpawnGolem": false,
+                    "leashed": false,
+                    "attributes": [
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.armor"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.armor_toughness"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.attack_knockback"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 1,
+                        "value": 1,
+                        "id": "minecraft:generic.burning_time"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.explosion_knockback_resistance"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 1,
+                        "value": 1,
+                        "id": "minecraft:generic.fall_damage_multiplier"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 48,
+                        "value": 48,
+                        "id": "minecraft:generic.follow_range"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0.08,
+                        "value": 0.08,
+                        "id": "minecraft:generic.gravity"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0.41999998688697815,
+                        "value": 0.41999998688697815,
+                        "id": "minecraft:generic.jump_strength"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.knockback_resistance"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.max_absorption"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 20,
+                        "value": 20,
+                        "id": "minecraft:generic.max_health"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.movement_efficiency"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0.5,
+                        "value": 0.5,
+                        "id": "minecraft:generic.movement_speed"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.oxygen_bonus"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 3,
+                        "value": 3,
+                        "id": "minecraft:generic.safe_fall_distance"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 1,
+                        "value": 1,
+                        "id": "minecraft:generic.scale"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0.6,
+                        "value": 0.6,
+                        "id": "minecraft:generic.step_height"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 0,
+                        "value": 0,
+                        "id": "minecraft:generic.water_movement_efficiency"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 64,
+                        "value": 64,
+                        "id": "neoforge:nametag_distance"
+                      },
+                      {
+                        "modifiers": [],
+                        "base": 1,
+                        "value": 1,
+                        "id": "neoforge:swim_speed"
+                      }
+                    ],
+                    "profession": "minecraft:librarian",
+                    "age": 0,
+                    "trading": false,
+                    "restocksToday": 0,
+                    "offersStatus": "bounded",
+                    "gossip": {},
+                    "maxHealth": 20,
+                    "effects": [],
+                    "offerCount": 65,
+                    "level": 5
+                  },
+                  "note": "Trade offers are bounded to 64; offers omitted for the byte budget"
+                }
+              },
+              "x": 4840.5,
+              "y": 250,
+              "z": 4808.5
+            },
+            "recipe": null
+          }
+        ]
+      },
+      "coverage": "PARTIAL",
+      "detail": null,
+      "recordCount": 1
+    }
+  ],
+  "citations": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "0:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-3",
+        "requestGeneration": 10
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "entity|00000002-0000-0000-0000-000000000001",
+      "observedGeneration": 10,
+      "observedAt": "2026-10-27T03:00:30.497172400Z",
+      "activity": "ACTIVE",
+      "coverage": "PARTIAL",
+      "authority": "SERVER_READ",
+      "provenance": []
+    }
+  ],
+  "timing": [
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "runtime_dispatch",
+      "start_ns": "295110619086300",
+      "event_ns": "295110619129500",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "accepted",
+      "start_ns": "295110619339200",
+      "event_ns": "295110619339200",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "context_capture_start",
+      "start_ns": "295110619400200",
+      "screenshot": "true"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "history_ready",
+      "event_ns": "295110619411100",
+      "elapsed_ms": "0",
+      "conversationTurns": "0"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "observation_ready",
+      "event_ns": "295110619575800",
+      "queueMs": "0",
+      "observationMs": "0"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "frame_image",
+      "event_ns": "295110668033300",
+      "frameMs": "41",
+      "frameBytes": "154051"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "frame_ready",
+      "event_ns": "295110668206100",
+      "waitMs": "48",
+      "frameBytes": "154051"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "capture_ready",
+      "event_ns": "295110668427300",
+      "elapsed_ms": "49",
+      "screenshotBytes": "154051"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "history_selected",
+      "event_ns": "295110668447700",
+      "preparationMs": "0",
+      "historyTurns": "0",
+      "historyTokens": "0",
+      "historyErrors": "0"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "request_built",
+      "event_ns": "295110669390300",
+      "buildMs": "0",
+      "inputItems": "2",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "backend_start",
+      "event_ns": "295110669823400",
+      "elapsed_ms": "50",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "backend_entry",
+      "event_ns": "295110669876000",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "295110669935500",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "295110670702600",
+      "serializationMs": "0",
+      "bodyBytes": "259909",
+      "bodyChars": "259909",
+      "inputItems": "2",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "295110670971600",
+      "requestToDispatchMs": "1"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "295115846241000",
+      "dispatchToHeadersMs": "5175",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "295115869147000",
+      "headersToFirstBytesMs": "22",
+      "dispatchToFirstBytesMs": "5198",
+      "bytes": "24"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "295119548301300",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "8877"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "tool_received",
+      "call": "call_b4aXIpG1bcbS3A0Ipq3qYWIa",
+      "tool": "inspect_entity",
+      "step": "1",
+      "event_ns": "295119548507000",
+      "elapsed_ms": "8929"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "tool_result_sent",
+      "call": "call_b4aXIpG1bcbS3A0Ipq3qYWIa",
+      "tool": "inspect_entity",
+      "event_ns": "295119646745400",
+      "toolMs": "98",
+      "resultBytes": "3712",
+      "error": "false"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "auth_ready",
+      "event_ns": "295119647006300",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "body_ready",
+      "event_ns": "295119647696600",
+      "serializationMs": "0",
+      "bodyBytes": "264229",
+      "bodyChars": "264229",
+      "inputItems": "4",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_dispatch",
+      "event_ns": "295119647802100",
+      "requestToDispatchMs": "0"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_headers",
+      "event_ns": "295122280789900",
+      "dispatchToHeadersMs": "2632",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_stream_bytes",
+      "event_ns": "295122280998400",
+      "headersToFirstBytesMs": "0",
+      "dispatchToFirstBytesMs": "2633",
+      "bytes": "24"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_text",
+      "event_ns": "295123843733300",
+      "roundToFirstTextMs": "4196",
+      "dispatchToFirstTextMs": "4195",
+      "deltaChars": "10"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "first_text",
+      "event_ns": "295123843906700",
+      "elapsed_ms": "13224",
+      "backendMs": "13174",
+      "deltaChars": "10"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "provider_terminal",
+      "event_ns": "295131927338000",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "12279"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "tool_summary",
+      "toolCalls": "1",
+      "toolWallMs": "98",
+      "event_ns": "295131927802000"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "model_terminal",
+      "event_ns": "295131927802000",
+      "elapsed_ms": "21308",
+      "backendMs": "21257",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "persist_start",
+      "event_ns": "295131928213700",
+      "elapsed_ms": "21308",
+      "screenshotBytes": "154051"
+    },
+    {
+      "request": "69b7f848-2482-4c07-90a4-92b12722c061",
+      "phase": "persist_done",
+      "event_ns": "295131951676000",
+      "elapsed_ms": "21332",
+      "persistMs": "23"
+    }
+  ]
+}

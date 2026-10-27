@@ -231,3 +231,32 @@ The player used this build in game and reported that everything works as intende
 
 - **Missing and custom ingredient tooltips.** These have no live evidence; only unit tests cover them.
 - **Cold-opening timings.** Cold openings remain recorded exceptions to the warm 11–50 ms target.
+
+## 2026-10-27 sidebar and popup retest
+
+**Sidebar stability: PASS. Popup layering: PASS for the observed cases.** Tested main checkout `feat/packsage-v2` at `cb8d068ac8eaa114710783991c72ebb7a0df636c`, installed JAR SHA-256 `EF7A93C49913B32491435525FC4F35B80C0CCFFB00A340740A6BF093893A8B8A`. Same CurseForge instance/test world, Minecraft 1.21.1 / NeoForge 21.1.259, JEI 19.27.0.340 retained. No code/prompt/mod changes. GPT-6.1-Sol medium; Answer detail Normal; saved Detailed chats retain their own presentation. [Metadata](assets/2026-10-27-v2-retest/run-metadata.json).
+
+### Sidebar — PASS
+
+The five-row list exposes **Show more**. Click it, scroll the sidebar, then select three revealed chats in succession: the dense-world chat, POI/statistics chat and J8 chat. Wait at least three seconds on each. Row order, expansion and sidebar thumb/scroll position stay put; selection/highlight changes. The original relative visible order stays item probe → frozen probe → long-cow probe → dense probe → POI probe → J8.
+
+[Collapsed](assets/2026-10-27-v2-retest/sidebar-collapsed.png), [expanded](assets/2026-10-27-v2-retest/sidebar-expanded.png), [scrolled baseline](assets/2026-10-27-v2-retest/sidebar-scrolled-baseline.png), [dense after wait](assets/2026-10-27-v2-retest/sidebar-selected-dense-delayed.png), [POI after wait](assets/2026-10-27-v2-retest/sidebar-selected-poi-delayed.png), [J8 after wait](assets/2026-10-27-v2-retest/sidebar-selected-j8-delayed.png).
+
+Send **thanks** in that revealed J8 chat. Request `cad0cd96-d997-49e8-beba-0fe7f22e7275`, completed/saved in 8,055 ms; reply “You’re welcome!”. After completion, scrolling to the top confirms only J8 was promoted; other chats retain their relative order and revealed rows remain available. Promotion was already visible while the request was active; this is the final-order verdict, not a claim that promotion waits for completion.
+
+[Active request](assets/2026-10-27-v2-retest/sidebar-send-active.png), [completed at retained scroll](assets/2026-10-27-v2-retest/sidebar-send-completed-scrolled.png), [completed top order](assets/2026-10-27-v2-retest/sidebar-send-completed-top.png), [saved request](assets/2026-10-27-v2-retest/sidebar-send.json).
+
+### Popup layering — PASS for observed cases
+
+Used saved Normal beacon/glass chat `e5dab5e5-3156-4efc-ad84-914278dccb84` and Detailed beacon chat `262c501b-abc6-48fc-8c4e-94c693e5b120`. Normal/medium selections were retained; pickers were opened and dismissed without selecting another value.
+
+- **Model picker:** drawn over ingredient chips and the beacon's input item sprites. [Baseline chips/card](assets/2026-10-27-v2-retest/layer-chips-and-card.png), [picker](assets/2026-10-27-v2-retest/layer-model-chips-card.png). The separate glass-card view also overlaps the model rows: [screenshot](assets/2026-10-27-v2-retest/layer-model-picker.png).
+- **Effort picker:** rows cover the glass output and beacon output region above the underlying items; no item renders in front of the popup. [Glass](assets/2026-10-27-v2-retest/layer-effort-picker.png), [chips/beacon](assets/2026-10-27-v2-retest/layer-effort-chips-card.png).
+- **Toolbar tooltip:** moved the card under Current gameplay, then hovered the toolbar icon using a drag from empty content, without toggling controls. The tooltip occludes the glass card's item region. [Before](assets/2026-10-27-v2-retest/layer-tooltip-card-position.png), [tooltip](assets/2026-10-27-v2-retest/layer-toolbar-tooltip.png).
+- **Source tooltip:** hovered the saved Detailed Beacon source chip; the source panel draws over the lower glass-card region with clean text and surface. [Before](assets/2026-10-27-v2-retest/layer-source-baseline.png), [hover](assets/2026-10-27-v2-retest/layer-source-tooltip.png). This source capture overlaps the lower card/fuel-slot region; the toolbar capture above supplies direct sprite occlusion evidence.
+
+No layering or selection-stability bug was observed. This does not reopen or close cold-opening timing exceptions or earlier unrelated checks. Main captures use the original 1024×768 client / GUI scale 2. A later maximized view was inspected and restored; an attempted outward resize was rejected by the computer-use API before a resize, and is not acceptance evidence.
+
+### Final state
+
+Original window restored. Minecraft running/unpaused in PackSage Adapter Filter Live Test, chat/settings closed, Answer detail **Normal**, developer override null and effective prompt unchanged. [Settings](assets/2026-10-27-v2-retest/final-settings-normal.png), [world](assets/2026-10-27-v2-retest/final-world.png). No mod changes, formatter, push or merge.

@@ -1,0 +1,455 @@
+{
+  "requestId": "b5846699-9a44-4156-be0a-7421d0a030b6",
+  "conversationId": "3cd7d3a4-aed0-48b1-a1f2-448bbac32d98",
+  "saved": true,
+  "status": "completed",
+  "reply": "Today, **October 27** (your local time), the journal shows **no withdrawals from chest blocks**.\n\nIt records one withdrawal from another inventory:\n- **17 gold ingots** taken from a donkey at **(1605, 250, 1602)** at **10:55 a.m.** [View event](journal:event:329)",
+  "detail": null,
+  "errors": [],
+  "activities": [
+    {
+      "id": "tool:call_UEfatIWcrzVAbfd7aGleRj4z",
+      "title": "Using tool: search_journal (step 1)",
+      "detail": "Completed",
+      "status": "COMPLETED",
+      "serializedArguments": "{\"filter\":{\"time\":{\"after\":\"2026-10-27T00:00:00+08:00\",\"before\":\"2026-10-27T10:55:38+08:00\",\"lastMinutes\":null},\"area\":null,\"dimension\":null,\"types\":[\"withdraw\"],\"subjects\":null,\"text\":null,\"notesOnly\":null},\"cursor\":null}",
+      "toolName": "search_journal",
+      "resultSummary": "Coverage: COMPLETE; records: 1\nrecording since 2026-10-25T10:23:33.174Z",
+      "durationMillis": 19,
+      "resultDetail": "coverage: COMPLETE | outcome: COMPLETE\nrecording since 2026-10-25T10:23:33.174Z\nTNThung took 17 minecraft:gold_ingot from minecraft:donkey in minecraft:overworld at 1605,250,1602 a...\n  count: 1\n  amount: 17\n  fromGameTime: 2826672",
+      "durationNanos": 19656400
+    },
+    {
+      "id": "reasoning:rs_0b9b92cb4949de49016ae012b6286887d0b5cb53ae10739506",
+      "title": "Thinking…",
+      "detail": "",
+      "status": "COMPLETED",
+      "serializedArguments": null,
+      "toolName": null,
+      "resultSummary": null,
+      "durationMillis": null,
+      "resultDetail": null,
+      "durationNanos": null
+    }
+  ],
+  "navigationTargets": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "0:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-3",
+        "requestGeneration": 3
+      },
+      "providerId": "journal",
+      "sourceHandle": "event:329",
+      "targetId": "journal-place|minecraft:overworld|1605,250,1602"
+    }
+  ],
+  "toolCalls": [
+    {
+      "callId": "call_UEfatIWcrzVAbfd7aGleRj4z",
+      "name": "search_journal",
+      "arguments": {
+        "filter": {
+          "time": {
+            "after": "2026-10-27T00:00:00+08:00",
+            "before": "2026-10-27T10:55:38+08:00",
+            "lastMinutes": null
+          },
+          "area": null,
+          "dimension": null,
+          "types": [
+            "withdraw"
+          ],
+          "subjects": null,
+          "text": null,
+          "notesOnly": null
+        },
+        "cursor": null
+      },
+      "error": false,
+      "result": {
+        "coverage": "COMPLETE",
+        "outcome": "COMPLETE",
+        "detail": "recording since 2026-10-25T10:23:33.174Z",
+        "nextCursor": null,
+        "records": [
+          {
+            "reference": "journal:event:329",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+                "resourcesLocale": "0:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-3",
+                "requestGeneration": 3
+              },
+              "providerId": "journal",
+              "providerVersion": "1",
+              "sourceHandle": "event:329",
+              "observedGeneration": 3,
+              "observedAt": "2026-10-27T02:55:45.723Z",
+              "activity": "INACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "OTHER",
+            "navigable": true,
+            "title": "TNThung took 17 minecraft:gold_ingot from minecraft:donkey in minecraft:overworld at 1605,250,1602 at 2026-10-27T02:55:09.025Z",
+            "payload": {
+              "count": 1,
+              "amount": 17,
+              "fromGameTime": 2826672,
+              "from": "2026-10-27T02:55:09.025Z",
+              "summary": "TNThung took 17 minecraft:gold_ingot from minecraft:donkey in minecraft:overworld at 1605,250,1602 at 2026-10-27T02:55:09.025Z",
+              "box": {
+                "min": [
+                  1605,
+                  250,
+                  1602
+                ],
+                "max": [
+                  1605,
+                  250,
+                  1602
+                ]
+              },
+              "minutesAgo": 0.6116333333333334,
+              "actor": "player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+              "dimension": "minecraft:overworld",
+              "detail": {
+                "container": "minecraft:donkey",
+                "entity": "11111111-1111-1111-1111-111111111111",
+                "actorName": "TNThung"
+              },
+              "at": "minecraft:overworld|1605,250,1602",
+              "type": "withdraw",
+              "subject": "minecraft:gold_ingot",
+              "to": "2026-10-27T02:55:09.025Z",
+              "countOnly": false,
+              "actorName": "TNThung",
+              "toGameTime": 2826672
+            },
+            "recipe": null
+          }
+        ]
+      },
+      "coverage": "COMPLETE",
+      "detail": "recording since 2026-10-25T10:23:33.174Z",
+      "recordCount": 1
+    }
+  ],
+  "citations": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:d15f0c71-3379-41f1-b25b-d9f6c16a1e9e",
+        "resourcesLocale": "0:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-3",
+        "requestGeneration": 3
+      },
+      "providerId": "journal",
+      "providerVersion": "1",
+      "sourceHandle": "event:329",
+      "observedGeneration": 3,
+      "observedAt": "2026-10-27T02:55:45.723Z",
+      "activity": "INACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    }
+  ],
+  "timing": [
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "runtime_dispatch",
+      "start_ns": "294827742178100",
+      "event_ns": "294827742249900",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "accepted",
+      "start_ns": "294827742519300",
+      "event_ns": "294827742519300",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "context_capture_start",
+      "start_ns": "294827742628000",
+      "screenshot": "true"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "history_ready",
+      "event_ns": "294827742643100",
+      "elapsed_ms": "0",
+      "conversationTurns": "0"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "observation_ready",
+      "event_ns": "294827746612000",
+      "queueMs": "0",
+      "observationMs": "3"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "frame_image",
+      "event_ns": "294827799950200",
+      "frameMs": "48",
+      "frameBytes": "62427"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "frame_ready",
+      "event_ns": "294827800182000",
+      "waitMs": "53",
+      "frameBytes": "62427"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "capture_ready",
+      "event_ns": "294827800374700",
+      "elapsed_ms": "57",
+      "screenshotBytes": "62427"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "history_selected",
+      "event_ns": "294827800393500",
+      "preparationMs": "0",
+      "historyTurns": "0",
+      "historyTokens": "0",
+      "historyErrors": "0"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "request_built",
+      "event_ns": "294827801224900",
+      "buildMs": "0",
+      "inputItems": "2",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "backend_start",
+      "event_ns": "294827801506200",
+      "elapsed_ms": "58",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "backend_entry",
+      "event_ns": "294827801560000",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "294827801609200",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "294827802154200",
+      "serializationMs": "0",
+      "bodyBytes": "137712",
+      "bodyChars": "137712",
+      "inputItems": "2",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "294827802324800",
+      "requestToDispatchMs": "0"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "294830495837500",
+      "dispatchToHeadersMs": "2693",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "294830644399600",
+      "headersToFirstBytesMs": "148",
+      "dispatchToFirstBytesMs": "2842",
+      "bytes": "1360"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "294834867806700",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "7065"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "tool_received",
+      "call": "call_UEfatIWcrzVAbfd7aGleRj4z",
+      "tool": "search_journal",
+      "step": "1",
+      "event_ns": "294834868063200",
+      "elapsed_ms": "7125"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "tool_result_sent",
+      "call": "call_UEfatIWcrzVAbfd7aGleRj4z",
+      "tool": "search_journal",
+      "event_ns": "294834887922900",
+      "toolMs": "19",
+      "resultBytes": "1541",
+      "error": "false"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "auth_ready",
+      "event_ns": "294834888349500",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "body_ready",
+      "event_ns": "294834889638200",
+      "serializationMs": "1",
+      "bodyBytes": "139876",
+      "bodyChars": "139876",
+      "inputItems": "4",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_dispatch",
+      "event_ns": "294834889887900",
+      "requestToDispatchMs": "1"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_headers",
+      "event_ns": "294837309341100",
+      "dispatchToHeadersMs": "2419",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_stream_bytes",
+      "event_ns": "294837492946300",
+      "headersToFirstBytesMs": "183",
+      "dispatchToFirstBytesMs": "2603",
+      "bytes": "4096"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_text",
+      "event_ns": "294840469416200",
+      "roundToFirstTextMs": "5581",
+      "dispatchToFirstTextMs": "5579",
+      "deltaChars": "5"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "first_text",
+      "event_ns": "294840470317200",
+      "elapsed_ms": "12727",
+      "backendMs": "12668",
+      "deltaChars": "5"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "provider_terminal",
+      "event_ns": "294842015838000",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "7125"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "tool_summary",
+      "toolCalls": "1",
+      "toolWallMs": "19",
+      "event_ns": "294842016945000"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "model_terminal",
+      "event_ns": "294842016945000",
+      "elapsed_ms": "14274",
+      "backendMs": "14215",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "persist_start",
+      "event_ns": "294842018300100",
+      "elapsed_ms": "14275",
+      "screenshotBytes": "62427"
+    },
+    {
+      "request": "b5846699-9a44-4156-be0a-7421d0a030b6",
+      "phase": "persist_done",
+      "event_ns": "294842057098500",
+      "elapsed_ms": "14314",
+      "persistMs": "38"
+    }
+  ]
+}

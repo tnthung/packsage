@@ -1,0 +1,419 @@
+{
+  "requestId": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+  "conversationId": "6c0db8dc-1ba5-4e56-8d68-b668f50ddd9f",
+  "saved": true,
+  "status": "completed",
+  "reply": "Found **[WorldTail4097](world:entity|7fffffff-7fff-ffff-7fff-ffff7fffffff)**, a `minecraft:marker` at **(4808.5, 250, 4808.5)** in the Overworld, UUID `7fffffff-7fff-ffff-7fff-ffff7fffffff`. [world:entity|7fffffff-7fff-ffff-7fff-ffff7fffffff]\n\n- **Match:** 1 result for `WorldTail4097` within radius 1 of (4808, 250, 4808).\n- **Coverage:** Complete; no continuation remains.\n- **Read span:** Game ticks **2,856,593–2,856,594**. The read crossed server ticks, so it was not a single-tick snapshot. [world:entity|7fffffff-7fff-ffff-7fff-ffff7fffffff]",
+  "detail": null,
+  "errors": [],
+  "activities": [
+    {
+      "id": "tool:call_YfkSw11nBzPDmyNlP2TCMWWx",
+      "title": "Using tool: list_entities (step 1)",
+      "detail": "Completed",
+      "status": "COMPLETED",
+      "serializedArguments": "{\"center\":{\"type\":\"block\",\"id\":null,\"place\":\"minecraft:overworld|4808,250,4808\"},\"radius\":1,\"filter\":{\"ids\":null,\"tags\":null,\"text\":\"WorldTail4097\"},\"cursor\":null}",
+      "toolName": "list_entities",
+      "resultSummary": "Coverage: COMPLETE; records: 1\nThe read spanned multiple server ticks; game-time span: 2856593..2856594",
+      "durationMillis": 68,
+      "resultDetail": "coverage: COMPLETE | outcome: COMPLETE\nThe read spanned multiple server ticks; game-time span: 2856593..2856594\nWorldTail4097 (minecraft:marker) at minecraft:overworld|4808,250,4808\n  id: 7fffffff-7fff-ffff-7fff-ffff7fffffff\n  dimension: minecraft:overworld\n  x: 4808.5",
+      "durationNanos": 68048600
+    }
+  ],
+  "navigationTargets": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:043ad494-d39d-43ef-bb04-80bc4525bd55",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-16",
+        "requestGeneration": 26
+      },
+      "providerId": "world",
+      "sourceHandle": "entity|7fffffff-7fff-ffff-7fff-ffff7fffffff",
+      "targetId": "world-entity|7fffffff-7fff-ffff-7fff-ffff7fffffff"
+    }
+  ],
+  "toolCalls": [
+    {
+      "callId": "call_YfkSw11nBzPDmyNlP2TCMWWx",
+      "name": "list_entities",
+      "arguments": {
+        "center": {
+          "type": "block",
+          "id": null,
+          "place": "minecraft:overworld|4808,250,4808"
+        },
+        "radius": 1,
+        "filter": {
+          "ids": null,
+          "tags": null,
+          "text": "WorldTail4097"
+        },
+        "cursor": null
+      },
+      "error": false,
+      "result": {
+        "coverage": "COMPLETE",
+        "outcome": "COMPLETE",
+        "detail": "The read spanned multiple server ticks; game-time span: 2856593..2856594",
+        "nextCursor": null,
+        "records": [
+          {
+            "reference": "world:entity|7fffffff-7fff-ffff-7fff-ffff7fffffff",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:043ad494-d39d-43ef-bb04-80bc4525bd55",
+                "resourcesLocale": "5:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-16",
+                "requestGeneration": 26
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "entity|7fffffff-7fff-ffff-7fff-ffff7fffffff",
+              "observedGeneration": 26,
+              "observedAt": "2026-10-27T03:25:00.821703300Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "OTHER",
+            "navigable": true,
+            "title": "WorldTail4097 (minecraft:marker) at minecraft:overworld|4808,250,4808",
+            "payload": {
+              "id": "7fffffff-7fff-ffff-7fff-ffff7fffffff",
+              "dimension": "minecraft:overworld",
+              "x": 4808.5,
+              "y": 250,
+              "z": 4808.5,
+              "nameTruncated": false,
+              "readSpan": {
+                "toGameTime": 2856594,
+                "fromGameTime": 2856593
+              },
+              "name": "WorldTail4097",
+              "entity": "minecraft:marker"
+            },
+            "recipe": null
+          }
+        ]
+      },
+      "coverage": "COMPLETE",
+      "detail": "The read spanned multiple server ticks; game-time span: 2856593..2856594",
+      "recordCount": 1
+    }
+  ],
+  "citations": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:043ad494-d39d-43ef-bb04-80bc4525bd55",
+        "resourcesLocale": "5:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-16",
+        "requestGeneration": 26
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "entity|7fffffff-7fff-ffff-7fff-ffff7fffffff",
+      "observedGeneration": 26,
+      "observedAt": "2026-10-27T03:25:00.821703300Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    }
+  ],
+  "timing": [
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "runtime_dispatch",
+      "start_ns": "296582622002200",
+      "event_ns": "296582622064900",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "accepted",
+      "start_ns": "296582622201700",
+      "event_ns": "296582622201700",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "context_capture_start",
+      "start_ns": "296582622306000",
+      "screenshot": "true"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "history_ready",
+      "event_ns": "296582622316300",
+      "elapsed_ms": "0",
+      "conversationTurns": "0"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "observation_ready",
+      "event_ns": "296582622441700",
+      "queueMs": "0",
+      "observationMs": "0"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "frame_image",
+      "event_ns": "296582719907500",
+      "frameMs": "92",
+      "frameBytes": "855140"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "frame_ready",
+      "event_ns": "296582720128000",
+      "waitMs": "97",
+      "frameBytes": "855140"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "capture_ready",
+      "event_ns": "296582720394800",
+      "elapsed_ms": "98",
+      "screenshotBytes": "855140"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "history_selected",
+      "event_ns": "296582720419100",
+      "preparationMs": "0",
+      "historyTurns": "0",
+      "historyTokens": "0",
+      "historyErrors": "0"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "request_built",
+      "event_ns": "296582722118300",
+      "buildMs": "1",
+      "inputItems": "2",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "backend_start",
+      "event_ns": "296582722258700",
+      "elapsed_ms": "100",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "backend_entry",
+      "event_ns": "296582722297700",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "296582722342200",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "296582725112300",
+      "serializationMs": "2",
+      "bodyBytes": "1194708",
+      "bodyChars": "1194708",
+      "inputItems": "2",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "296582725259700",
+      "requestToDispatchMs": "2"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "296585433621600",
+      "dispatchToHeadersMs": "2708",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "296585439144300",
+      "headersToFirstBytesMs": "5",
+      "dispatchToFirstBytesMs": "2713",
+      "bytes": "24"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "296589902809400",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "7177"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "tool_received",
+      "call": "call_YfkSw11nBzPDmyNlP2TCMWWx",
+      "tool": "list_entities",
+      "step": "1",
+      "event_ns": "296589903064800",
+      "elapsed_ms": "7280"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "tool_result_sent",
+      "call": "call_YfkSw11nBzPDmyNlP2TCMWWx",
+      "tool": "list_entities",
+      "event_ns": "296589971218600",
+      "toolMs": "68",
+      "resultBytes": "1140",
+      "error": "false"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "auth_ready",
+      "event_ns": "296589971409300",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "body_ready",
+      "event_ns": "296589974531400",
+      "serializationMs": "3",
+      "bodyBytes": "1196309",
+      "bodyChars": "1196309",
+      "inputItems": "4",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_dispatch",
+      "event_ns": "296589974722300",
+      "requestToDispatchMs": "3"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_headers",
+      "event_ns": "296594099562200",
+      "dispatchToHeadersMs": "4124",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_stream_bytes",
+      "event_ns": "296594112737900",
+      "headersToFirstBytesMs": "13",
+      "dispatchToFirstBytesMs": "4138",
+      "bytes": "24"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_text",
+      "event_ns": "296595868160500",
+      "roundToFirstTextMs": "5896",
+      "dispatchToFirstTextMs": "5893",
+      "deltaChars": "5"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "first_text",
+      "event_ns": "296595868266200",
+      "elapsed_ms": "13246",
+      "backendMs": "13146",
+      "deltaChars": "5"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "provider_terminal",
+      "event_ns": "296601083786200",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "11109"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "tool_summary",
+      "toolCalls": "1",
+      "toolWallMs": "68",
+      "event_ns": "296601084107000"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "model_terminal",
+      "event_ns": "296601084107000",
+      "elapsed_ms": "18461",
+      "backendMs": "18361",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "persist_start",
+      "event_ns": "296601084464300",
+      "elapsed_ms": "18462",
+      "screenshotBytes": "855140"
+    },
+    {
+      "request": "235a290e-20c5-47a7-8ade-00d1ed0110c5",
+      "phase": "persist_done",
+      "event_ns": "296601111913000",
+      "elapsed_ms": "18489",
+      "persistMs": "27"
+    }
+  ]
+}

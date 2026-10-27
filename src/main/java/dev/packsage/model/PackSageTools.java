@@ -336,7 +336,8 @@ public final class PackSageTools {
         if (json.isJsonObject()) {
             var object = json.getAsJsonObject();
             var fields = rule.getAsJsonObject("properties");
-            for (var key : object.keySet()) if (fields == null || !fields.has(key) && rule.has("additionalProperties") && !rule.get("additionalProperties").getAsBoolean()) {
+            var closed = rule.has("additionalProperties") && !rule.get("additionalProperties").getAsBoolean();
+            for (var key : object.keySet()) if (fields == null ? closed : !fields.has(key) && closed) {
                 throw new IllegalArgumentException("unknown field: " + key);
             }
             if (fields != null) for (var key : fields.keySet()) if (object.has(key)) validateValue(object.get(key), fields.getAsJsonObject(key), name + "." + key);

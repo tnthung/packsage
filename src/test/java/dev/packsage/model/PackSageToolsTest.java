@@ -188,6 +188,21 @@ class PackSageToolsTest {
     }
 
     @Test
+    void bookmarkComponentsReachDispatchUnchanged() throws Exception {
+        var seen = new AtomicReference<PackSageTools.ReadRequest>();
+        var tools = new PackSageTools(request -> { seen.set(request); return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)); });
+        var response = tools.execute(new ModelBackend.ToolCall("bm", "bookmark",
+                "{\"action\":\"add\",\"item\":{\"id\":\"minecraft:potion\",\"components\":{\"minecraft:potion_contents\":{\"potion\":\"minecraft:healing\"}}}}"), SCOPE)
+                .toCompletableFuture().get();
+        assertFalse(response.result().error(), response.result().serializedResult());
+        var item = (Evidence.JsonObject) seen.get().arguments().values().get("item");
+        assertEquals("{\"potion\":\"minecraft:healing\"}", Evidence.serialize(((Evidence.JsonObject) item.values().get("components")).values().get("minecraft:potion_contents")));
+        var closed = tools.execute(new ModelBackend.ToolCall("bm2", "bookmark",
+                "{\"action\":\"add\",\"item\":{\"id\":\"minecraft:potion\",\"extra\":1}}"), SCOPE).toCompletableFuture().get();
+        assertTrue(closed.result().error());
+    }
+
+    @Test
     void searchInventoryIsNoLongerOffered() throws Exception {
         assertTrue(PackSageTools.definitions().stream().noneMatch(value -> value.name().equals("search_inventory")));
         var calls = new AtomicInteger();

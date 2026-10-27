@@ -86,15 +86,10 @@ final class NativeRecipeReader {
                 ordinary.scanned(), ordinary.partial(), progressDetail(startOffset, recipeCount, recipeCount, brewingCount,
                 ordinary.records().size(), true));
         var brewing = NativeBrewingReader.searchCandidates(client.level.potionBrewing(), client.level.registryAccess(),
-                itemRegistry, client.getResourceManager(), outputItem, text, Math.max(0, startOffset - recipeCount),
+                itemRegistry, client.getResourceManager(), outputItem, inputItem, text, Math.max(0, startOffset - recipeCount),
                 limit - ordinary.records().size(), scope);
         var combined = new ArrayList<Evidence.Record>(ordinary.records());
-        var inputHolder = inputItem == null ? null : itemRegistry.getHolder(ResourceLocation.parse(inputItem)).orElse(null);
-        combined.addAll(brewing.records().stream().filter(record -> inputItem == null || record.recipePayload().inputs().stream()
-                .flatMap(slot -> slot.alternatives().stream()).anyMatch(alternative -> inputItem.equals(alternative.comparisonIdentity())
-                        || (inputHolder != null && alternative.type().equals("tag") && alternative.comparisonIdentity().startsWith("#")
-                        && inputHolder.is(net.minecraft.tags.TagKey.create(Registries.ITEM,
-                        ResourceLocation.parse(alternative.comparisonIdentity().substring(1))))))).toList());
+        combined.addAll(brewing.records());
         int nextOffset = recipeCount + brewing.nextOffset();
         return new Page(combined, nextOffset, brewing.exhausted(), ordinary.scanned() + brewing.scanned(),
                 ordinary.partial() || brewing.partial(), progressDetail(startOffset, nextOffset, recipeCount, brewingCount,

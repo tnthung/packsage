@@ -1,6 +1,7 @@
 package dev.packsage.client;
 
 import dev.packsage.PackSageLog;
+import dev.packsage.client.recipe.ItemViewer;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import net.minecraft.client.Minecraft;
@@ -68,6 +69,17 @@ public final class JeiSupport {
             }
         }
         return List.copyOf(providers);
+    }
+
+    public Optional<ItemViewer> viewer() {
+        if (installedVersion().filter(JeiSupport::supported).isEmpty()) return Optional.empty();
+        String name = "dev.packsage.jei.JeiItemViewer";
+        try {
+            return Optional.of((ItemViewer) Class.forName(name).getConstructor().newInstance());
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            if (reportedFailures.add(name)) PackSageLog.LOGGER.warn("Could not load JEI integration {}", name, failure);
+            return Optional.empty();
+        }
     }
 
     public long runtimeGeneration() {

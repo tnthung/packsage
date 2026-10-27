@@ -1535,7 +1535,10 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
         var model = new dev.packsage.client.recipe.RecipeCardModel(
-                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(), "Furnace", List.of());
+                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(
+                        new dev.packsage.client.recipe.RecipeCardModel.Slot("output", 0, 0, true, List.of(
+                                new dev.packsage.client.recipe.RecipeCardModel.Stack(dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.ITEM,
+                                        "minecraft:glass", "{}", 1, "")))), "Furnace", List.of());
         var card = new dev.packsage.client.recipe.RecipeCard() {
             @Override public int width() { return 88; }
             @Override public int height() { return 63; }

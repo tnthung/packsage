@@ -586,14 +586,7 @@ public final class PackSageTools {
                 error.addProperty("detail", boundedString(failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage()));
                 if (failure instanceof Toolbox.Failure typed) {
                     error.addProperty("code", typed.code().name());
-                    if (typed.code() == Toolbox.Code.INVALID_CURSOR && properties.has("cursor")) {
-                        var restart = new JsonObject();
-                        restart.addProperty("name", call.name());
-                        var restartArguments = JsonParser.parseString(call.serializedArguments()).getAsJsonObject();
-                        restartArguments.add("cursor", com.google.gson.JsonNull.INSTANCE);
-                        restart.add("arguments", restartArguments);
-                        error.add("restartCall", restart);
-                    }
+                    if (typed.code() == Toolbox.Code.INVALID_CURSOR && properties.has("cursor")) error.add("restartCall", restartCall(call));
                 }
                 error.add("records", new JsonArray());
                 return new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of());
@@ -603,9 +596,22 @@ public final class PackSageTools {
             error.addProperty("coverage", "ERROR");
             error.addProperty("outcome", "ERROR");
             error.addProperty("detail", failure instanceof IllegalArgumentException || failure instanceof Toolbox.Failure ? boundedString(failure.getMessage()) : "invalid read tool arguments");
-            if (failure instanceof Toolbox.Failure typed) error.addProperty("code", typed.code().name());
+            if (failure instanceof Toolbox.Failure typed) {
+                error.addProperty("code", typed.code().name());
+                // Only tools whose schema accepts a cursor get past argument validation with one.
+                if (typed.code() == Toolbox.Code.INVALID_CURSOR) error.add("restartCall", restartCall(call));
+            }
             return CompletableFuture.completedFuture(new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of()));
         }
+    }
+
+    private static JsonObject restartCall(ModelBackend.ToolCall call) {
+        var restart = new JsonObject();
+        restart.addProperty("name", call.name());
+        var restartArguments = JsonParser.parseString(call.serializedArguments()).getAsJsonObject();
+        restartArguments.add("cursor", com.google.gson.JsonNull.INSTANCE);
+        restart.add("arguments", restartArguments);
+        return restart;
     }
 
     /** The wire representation shared by tool output and provider page budgets. */

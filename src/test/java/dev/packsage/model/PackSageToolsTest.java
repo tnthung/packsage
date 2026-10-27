@@ -620,10 +620,12 @@ class PackSageToolsTest {
         var json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("plan", "plan_recipe", arguments), SCOPE)
                 .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
         int pages = 1;
+        String firstCursorArguments = null;
         while (true) {
             json.getAsJsonArray("records").forEach(value -> delivered.add(value.getAsJsonObject().get("title").getAsString()));
             if (!json.has("nextCall")) break;
             var next = json.getAsJsonObject("nextCall");
+            if (firstCursorArguments == null) firstCursorArguments = next.get("arguments").toString();
             assertEquals("plan_recipe", next.get("name").getAsString());
             assertTrue(next.getAsJsonObject("arguments").get("cursor").getAsString().startsWith("output:"));
             json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("next", "plan_recipe", next.get("arguments").toString()), SCOPE)
@@ -638,6 +640,17 @@ class PackSageToolsTest {
         var foreign = tools.execute(new ModelBackend.ToolCall("foreign", "plan_recipe",
                 "{\"identity\":\"minecraft:result\",\"quantity\":8,\"depth\":1,\"cursor\":\"provider-cursor\"}"), SCOPE).toCompletableFuture().get();
         assertTrue(foreign.result().serializedResult().contains("INVALID_CURSOR"), foreign.result().serializedResult());
+        var consumed = tools.execute(new ModelBackend.ToolCall("consumed", "plan_recipe", firstCursorArguments), SCOPE).toCompletableFuture().get();
+        assertTrue(consumed.result().serializedResult().contains("INVALID_CURSOR"), consumed.result().serializedResult());
+        for (var rejected : List.of(foreign, consumed)) {
+            var restart = JsonParser.parseString(rejected.result().serializedResult()).getAsJsonObject().getAsJsonObject("restartCall");
+            assertNotNull(restart, rejected.result().serializedResult());
+            assertEquals("plan_recipe", restart.get("name").getAsString());
+            var restartArguments = restart.getAsJsonObject("arguments");
+            assertTrue(restartArguments.get("cursor").isJsonNull());
+            assertEquals("minecraft:result", restartArguments.get("identity").getAsString());
+            assertEquals(8, restartArguments.get("quantity").getAsInt());
+        }
         assertEquals(1, plans.get());
     }
 

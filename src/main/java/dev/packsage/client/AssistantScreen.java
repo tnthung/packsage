@@ -809,7 +809,8 @@ public final class AssistantScreen extends Screen {
 
     private MessageLayout assistantLayout(String answer, MessageSegment segment, ChatContracts.Turn turn,
                                           List<Evidence.NavigationTarget> targets, int width, Map<Evidence.Source, RecipeCardModel> models,
-                                          Map<RecipeCardModel, RecipeCard> cards, Map<String, ItemStack> items, StringBuilder copy) {
+                                          Map<RecipeCardModel, RecipeCard> cards, Map<RecipeCardModel, ItemStack> outputs,
+                                          Map<String, ItemStack> items, StringBuilder copy) {
         List<ModelBackend.UrlCitation> citations = new ArrayList<>();
         int searchFrom = 0;
         int segmentEnd = segment.answerOffset() + segment.text().length();
@@ -833,8 +834,9 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
-        List<ScreenText.InlineLine> lines = ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(),
-                sourceLabels(turn), turn.verbosity(), models);
+        List<ScreenText.InlineLine> lines = turn.verbosity() == null
+                ? ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(), sourceLabels(turn))
+                : ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(), sourceLabels(turn), turn.verbosity(), models);
         if (turn.verbosity() != null) {
             for (int index = 0; index < lines.size(); index++) {
                 if (index > 0) copy.append('\n');
@@ -844,11 +846,11 @@ public final class AssistantScreen extends Screen {
                     var id = ResourceLocation.tryParse(span.itemId());
                     var item = id == null ? null : minecraft.level.registryAccess().lookupOrThrow(Registries.ITEM)
                             .get(ResourceKey.create(Registries.ITEM, id)).orElse(null);
-                    if (item != null) items.put(span.itemId(), new ItemStack(item, 1));
+                    items.put(span.itemId(), item == null ? null : new ItemStack(item, 1));
                 }
             }
         }
-        return messageLayout(lines, width, cards, items);
+        return messageLayout(lines, width, cards, outputs, items);
     }
 
     /** Shared by rendering and the headless profile; visits only the requested history window, newest first. */
@@ -883,17 +885,35 @@ public final class AssistantScreen extends Screen {
         userLines(turn.question(), width);
         List<Evidence.NavigationTarget> targets = turnTargets(turn);
         Map<MessageSegment, MessageLayout> answers = new HashMap<>();
-        Map<Evidence.Source, RecipeCardModel> models = turn.verbosity() == null ? Map.of() : ScreenText.recipeCards(turn);
-        Map<RecipeCardModel, RecipeCard> cards = new HashMap<>();
-        if (!models.isEmpty()) {
-            var source = new NativeRecipeCardSource();
-            for (var model : new HashSet<>(models.values())) source.card(model).ifPresent(card -> cards.put(model, card));
+        Map<Evidence.Source, RecipeCardModel> models = Map.of();
+        Map<RecipeCardModel, RecipeCard> cards = Map.of();
+        Map<RecipeCardModel, ItemStack> outputs = Map.of();
+        Map<String, ItemStack> items = Map.of();
+        StringBuilder copy = null;
+        if (turn.verbosity() != null) {
+            models = ScreenText.recipeCards(turn);
+            cards = new HashMap<>();
+            outputs = new HashMap<>();
+            items = new HashMap<>();
+            copy = new StringBuilder();
+            if (!models.isEmpty()) {
+                var source = new NativeRecipeCardSource();
+                for (var model : new HashSet<>(models.values())) {
+                    var card = source.card(model).orElse(null);
+                    if (card == null) continue;
+                    cards.put(model, card);
+                    if (minecraft != null && minecraft.level != null) for (var slot : model.slots()) {
+                        if (!slot.output() || slot.stacks().isEmpty()) continue;
+                        var resolved = SlotStacks.resolve(slot.stacks().getFirst(), minecraft.level.registryAccess());
+                        outputs.put(model, resolved.stacks().isEmpty() ? new ItemStack(Items.BARRIER) : resolved.stacks().getFirst());
+                        break;
+                    }
+                }
+            }
         }
-        Map<String, ItemStack> items = new HashMap<>();
-        StringBuilder copy = new StringBuilder();
         for (MessageSegment segment : answerSegments(turn.answer(), turn.steeringMessages())) {
             if (segment.player()) userLines(segment.text(), width);
-            else answers.put(segment, assistantLayout(turn.answer(), segment, turn, targets, width, models, cards, items, copy));
+            else answers.put(segment, assistantLayout(turn.answer(), segment, turn, targets, width, models, cards, outputs, items, copy));
         }
         PreparedTurn prepared = new PreparedTurn(turn, width, GroundingInstructions.historyTokenCounts(turn), Map.copyOf(answers),
                 turn.verbosity() == null ? turn.answer() : copy.toString());
@@ -982,10 +1002,10 @@ public final class AssistantScreen extends Screen {
             boolean reference = span.target() != null || span.source() != null || span.externalUrl() != null;
             if (item) {
                 int chipTop = top + (run.height() - 18) / 2;
-                ModernUi.surface(graphics, x, chipTop, x + run.width(), chipTop + 18,
-                        run.card() != null ? ModernUi.ACCENT : ModernUi.SURFACE_HOVER);
-                if (run.card() != null) ModernUi.surface(graphics, x + 1, chipTop + 1, x + run.width() - 1,
-                        chipTop + 17, ModernUi.ACCENT_DARK);
+                if (run.card() != null) {
+                    graphics.fill(x, chipTop, x + run.width(), chipTop + 18, ModernUi.ACCENT);
+                    graphics.fill(x + 1, chipTop + 1, x + run.width() - 1, chipTop + 17, ModernUi.ACCENT_DARK);
+                } else ModernUi.surface(graphics, x, chipTop, x + run.width(), chipTop + 18, ModernUi.SURFACE_HOVER);
                 graphics.renderItem(run.stack(), x + 1, chipTop + 1);
                 graphics.renderItemDecorations(font, run.stack(), x + 1, chipTop + 1);
                 var rect = new PinnedCardState.Rect(x, chipTop, x + run.width(), chipTop + 18);
@@ -1018,11 +1038,17 @@ public final class AssistantScreen extends Screen {
     }
 
     MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth) {
-        return messageLayout(lines, maxWidth, Map.of(), Map.of());
+        return messageLayout(lines, maxWidth, Map.of(), Map.of(), Map.of());
     }
 
     MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth,
                                 Map<RecipeCardModel, RecipeCard> cards, Map<String, ItemStack> items) {
+        return messageLayout(lines, maxWidth, cards, Map.of(), items);
+    }
+
+    MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth,
+                                Map<RecipeCardModel, RecipeCard> cards, Map<RecipeCardModel, ItemStack> outputs,
+                                Map<String, ItemStack> items) {
         int width = Math.max(1, maxWidth);
         List<MessageRun> runs = new ArrayList<>();
         int y = 0;
@@ -1042,13 +1068,7 @@ public final class AssistantScreen extends Screen {
             for (ScreenText.InlineSpan span : line.spans()) {
                 RecipeCard result = span.resultCard() == null ? null : cards.get(span.resultCard());
                 ItemStack stack = span.itemId() == null ? null : items.get(span.itemId());
-                if (result != null && span.resultCard() != null && minecraft != null && minecraft.level != null) {
-                    for (var slot : span.resultCard().slots()) if (slot.output() && !slot.stacks().isEmpty()) {
-                        var resolved = SlotStacks.resolve(slot.stacks().getFirst(), minecraft.level.registryAccess());
-                        stack = resolved.missing() ? new ItemStack(Items.BARRIER) : resolved.stacks().isEmpty() ? null : resolved.stacks().getFirst();
-                        break;
-                    }
-                }
+                if (result != null) stack = outputs.get(span.resultCard());
                 boolean item = stack != null;
                 if (item || span.target() != null || span.source() != null || span.externalUrl() != null) {
                     boolean navigation = !item && (span.target() != null || span.externalUrl() != null);
@@ -1061,7 +1081,7 @@ public final class AssistantScreen extends Screen {
                     int padding = item ? 24 : 12;
                     int chipWidth = Math.min(Math.max(1, width - indent), font.width(label) + padding);
                     if (x > indent && x + chipWidth > width) {
-                        for (int i = rowStart; i < runs.size(); i++) {
+                        if (rowHeight != ModernUi.MESSAGE_LINE_HEIGHT) for (int i = rowStart; i < runs.size(); i++) {
                             var r = runs.get(i);
                             runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
                         }
@@ -1082,7 +1102,7 @@ public final class AssistantScreen extends Screen {
                     int tokenWidth = font.width(Component.literal(token).withStyle(style ->
                             style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)));
                     if (x > indent && x + tokenWidth > width) {
-                        for (int i = rowStart; i < runs.size(); i++) {
+                        if (rowHeight != ModernUi.MESSAGE_LINE_HEIGHT) for (int i = rowStart; i < runs.size(); i++) {
                             var r = runs.get(i);
                             runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
                         }
@@ -1101,7 +1121,7 @@ public final class AssistantScreen extends Screen {
                         x += pieceWidth;
                         token = token.substring(take);
                         if (!token.isEmpty()) {
-                            for (int i = rowStart; i < runs.size(); i++) {
+                            if (rowHeight != ModernUi.MESSAGE_LINE_HEIGHT) for (int i = rowStart; i < runs.size(); i++) {
                                 var r = runs.get(i);
                                 runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
                             }
@@ -1110,7 +1130,7 @@ public final class AssistantScreen extends Screen {
                     }
                 }
             }
-            for (int i = rowStart; i < runs.size(); i++) {
+            if (rowHeight != ModernUi.MESSAGE_LINE_HEIGHT) for (int i = rowStart; i < runs.size(); i++) {
                 var r = runs.get(i);
                 runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
             }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### 2026-10-28
+
+- Run the non-JEI test suite without JEI on the runtime classpath, including optional loading and native recipe discovery, whenever tests run.
+
 ### 2026-10-27
 
 - Recorded the JEI planner-fix recheck, stable mod-machine plan navigation, explicit native selection and remaining acceptance limits.

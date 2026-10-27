@@ -1000,14 +1000,17 @@ public final class AssistantScreen extends Screen {
             boolean item = run.stack() != null;
             boolean reference = span.target() != null || span.source() != null || span.externalUrl() != null;
             if (item) {
-                int chipTop = top + (run.height() - 18) / 2;
-                if (run.card() != null) {
-                    graphics.fill(x, chipTop, x + run.width(), chipTop + 18, ModernUi.ACCENT);
-                    graphics.fill(x + 1, chipTop + 1, x + run.width() - 1, chipTop + 17, ModernUi.ACCENT_DARK);
-                } else ModernUi.surface(graphics, x, chipTop, x + run.width(), chipTop + 18, ModernUi.SURFACE_HOVER);
-                graphics.renderItem(run.stack(), x + 1, chipTop + 1);
-                graphics.renderItemDecorations(font, run.stack(), x + 1, chipTop + 1);
-                var rect = new PinnedCardState.Rect(x, chipTop, x + run.width(), chipTop + 18);
+                int chipTop = top + (run.height() - ModernUi.MESSAGE_LINE_HEIGHT) / 2;
+                ModernUi.surface(graphics, x, chipTop, x + run.width(), chipTop + ModernUi.MESSAGE_LINE_HEIGHT,
+                        run.card() != null ? ModernUi.ACCENT_DARK : 0xd03a4552,
+                        run.card() != null ? ModernUi.ACCENT : ModernUi.BORDER);
+                graphics.pose().pushPose();
+                graphics.pose().translate(x + 1, chipTop, 0);
+                graphics.pose().scale(0.75f, 0.75f, 1);
+                graphics.renderItem(run.stack(), 0, 0);
+                graphics.renderItemDecorations(font, run.stack(), 0, 0);
+                graphics.pose().popPose();
+                var rect = new PinnedCardState.Rect(x, chipTop, x + run.width(), chipTop + ModernUi.MESSAGE_LINE_HEIGHT);
                 if (run.card() != null) cardHits.add(new CardHit(run.card(), run.stack(), rect));
                 else itemHits.add(new ItemHit(run.stack(), rect));
             } else if (reference) {
@@ -1021,7 +1024,7 @@ public final class AssistantScreen extends Screen {
             }
             graphics.drawString(font, Component.literal(span.text()).withStyle(style -> style
                             .withFont(span.bold() || span.target() != null || span.externalUrl() != null ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
-                    x + (item ? 20 : reference ? 6 : 0), top + (run.height() - font.lineHeight) / 2 + 1, span.color(), false);
+                    x + (item ? 16 : reference ? 6 : 0), top + (run.height() - font.lineHeight) / 2 + 1, span.color(), false);
         }
         return y + layout.height();
     }
@@ -1029,10 +1032,6 @@ public final class AssistantScreen extends Screen {
     record MessageRun(ScreenText.InlineSpan span, int x, int y, int width, boolean quoted,
                       RecipeCard card, ItemStack stack, int height) { }
     record MessageLayout(List<MessageRun> runs, int height) { }
-
-    static int lineHeight(RecipeCard card, boolean item) {
-        return card != null ? card.height() + 8 : item ? 18 : ModernUi.MESSAGE_LINE_HEIGHT;
-    }
 
     MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth) {
         return messageLayout(lines, maxWidth, Map.of(), Map.of(), Map.of());
@@ -1048,13 +1047,12 @@ public final class AssistantScreen extends Screen {
             int indent = line.quote() ? 10 : 0;
             RecipeCard block = line.card() == null ? null : cards.get(line.card());
             if (block != null && block.width() <= width - indent) {
-                runs.add(new MessageRun(line.spans().getFirst(), indent, y, block.width(), line.quote(), block, null, lineHeight(block, false)));
-                y += lineHeight(block, false);
+                runs.add(new MessageRun(line.spans().getFirst(), indent, y, block.width(), line.quote(), block, null, block.height() + 8));
+                y += block.height() + 8;
                 continue;
             }
             int x = indent;
             int rowHeight = ModernUi.MESSAGE_LINE_HEIGHT;
-            int rowStart = runs.size();
             if (line.spans().isEmpty() && line.quote()) runs.add(new MessageRun(
                     new ScreenText.InlineSpan("", null, ModernUi.TEXT, false, false), x, y, 0, true, null, null, rowHeight));
             for (ScreenText.InlineSpan span : line.spans()) {
@@ -1075,20 +1073,15 @@ public final class AssistantScreen extends Screen {
                     else if (!item && !navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;
                     boolean bold = navigation;
                     Component label = Component.literal(labelText).withStyle(style -> style.withFont(bold ? ModernUi.BOLD_FONT : ModernUi.FONT));
-                    int padding = item ? 24 : 12;
+                    int padding = item ? 20 : 12;
                     int chipWidth = Math.min(Math.max(1, width - indent), font.width(label) + padding);
                     if (x > indent && x + chipWidth > width) {
-                        if (rowHeight != ModernUi.MESSAGE_LINE_HEIGHT) for (int i = rowStart; i < runs.size(); i++) {
-                            var r = runs.get(i);
-                            runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
-                        }
-                        x = indent; y += rowHeight; rowHeight = ModernUi.MESSAGE_LINE_HEIGHT; rowStart = runs.size();
+                        x = indent; y += rowHeight;
                     }
                     String clipped = font.substrByWidth(label, Math.max(1, chipWidth - padding)).getString();
                     runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, item || line.card() != null ? null : span.target(),
                             navigation ? ModernUi.ACCENT : ModernUi.TEXT, bold, false, item ? null : span.source(),
-                            item || line.card() != null ? null : span.externalUrl()), x, y, chipWidth, line.quote(), item ? result : null, stack, item ? lineHeight(null, true) : rowHeight));
-                    if (item) rowHeight = lineHeight(null, true);
+                            item || line.card() != null ? null : span.externalUrl()), x, y, chipWidth, line.quote(), item ? result : null, stack, rowHeight));
                     x += chipWidth + 4;
                     continue;
                 }
@@ -1099,11 +1092,7 @@ public final class AssistantScreen extends Screen {
                     int tokenWidth = font.width(Component.literal(token).withStyle(style ->
                             style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)));
                     if (x > indent && x + tokenWidth > width) {
-                        if (rowHeight != ModernUi.MESSAGE_LINE_HEIGHT) for (int i = rowStart; i < runs.size(); i++) {
-                            var r = runs.get(i);
-                            runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
-                        }
-                        x = indent; y += rowHeight; rowHeight = ModernUi.MESSAGE_LINE_HEIGHT; rowStart = runs.size();
+                        x = indent; y += rowHeight;
                         if (space) continue;
                     }
                     while (!token.isEmpty()) {
@@ -1118,18 +1107,10 @@ public final class AssistantScreen extends Screen {
                         x += pieceWidth;
                         token = token.substring(take);
                         if (!token.isEmpty()) {
-                            if (rowHeight != ModernUi.MESSAGE_LINE_HEIGHT) for (int i = rowStart; i < runs.size(); i++) {
-                                var r = runs.get(i);
-                                runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
-                            }
-                            x = indent; y += rowHeight; rowHeight = ModernUi.MESSAGE_LINE_HEIGHT; rowStart = runs.size();
+                            x = indent; y += rowHeight;
                         }
                     }
                 }
-            }
-            if (rowHeight != ModernUi.MESSAGE_LINE_HEIGHT) for (int i = rowStart; i < runs.size(); i++) {
-                var r = runs.get(i);
-                runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
             }
             y += rowHeight;
         }

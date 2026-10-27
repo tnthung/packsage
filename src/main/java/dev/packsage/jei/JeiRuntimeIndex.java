@@ -3,6 +3,7 @@ package dev.packsage.jei;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.Toolbox;
 import dev.packsage.knowledge.nativegame.NativeSnapshot;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -45,13 +46,13 @@ public final class JeiRuntimeIndex implements JeiIndex {
     }
 
     @Override public long generation() {
-        if (!Minecraft.getInstance().isSameThread()) throw new IllegalStateException("JEI index must run on the client thread");
         long current = JeiRuntimeHolder.generation();
         if (current != generation) {
             generation = current;
             categories.clear();
         }
-        if (current != createdGeneration) throw new IllegalStateException("JEI runtime generation changed");
+        if (current != createdGeneration) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "JEI runtime generation changed");
+        if (!Minecraft.getInstance().isSameThread()) throw new IllegalStateException("JEI index must run on the client thread");
         return generation;
     }
 
@@ -60,7 +61,7 @@ public final class JeiRuntimeIndex implements JeiIndex {
         var id = ResourceLocation.tryParse(itemId);
         if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) return List.of();
         var stack = BuiltInRegistries.ITEM.get(id).getDefaultInstance();
-        var stacks = runtime.getIngredientManager().getIngredientHelper(VanillaTypes.ITEM_STACK).hasSubtypes(stack)
+        var stacks = hasSubtypes(itemId)
                 ? runtime.getIngredientManager().getAllItemStacks().stream().filter(value -> value.getItem() == stack.getItem()).toList()
                 : List.of(stack);
         var focuses = stacks.stream().map(value -> runtime.getJeiHelpers().getFocusFactory().createFocus(
@@ -69,6 +70,14 @@ public final class JeiRuntimeIndex implements JeiIndex {
         if (!focuses.isEmpty()) runtime.getRecipeManager().createRecipeCategoryLookup().limitFocus(focuses).includeHidden().get()
                 .forEach(category -> refs.addAll(lookup(category, focuses)));
         return List.copyOf(refs);
+    }
+
+    @Override public boolean hasSubtypes(String itemId) {
+        generation();
+        var id = ResourceLocation.tryParse(itemId);
+        return id != null && BuiltInRegistries.ITEM.containsKey(id)
+                && runtime.getIngredientManager().getIngredientHelper(VanillaTypes.ITEM_STACK)
+                .hasSubtypes(BuiltInRegistries.ITEM.get(id).getDefaultInstance());
     }
 
     @Override public List<RecipeRef> byVariant(JeiLayout.Role role, ItemVariant variant) {

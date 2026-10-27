@@ -2,7 +2,7 @@
 
 Date: 2026-10-27. Tasks 8b and 9 of the [implementation plan](../plans/2026-10-27-recipe-cards.md). Player steps: [testing checklist](../testing/2026-10-27-recipe-cards.md).
 
-Status: in progress. Category comparisons and the candidate 14 matrix are recorded below. Candidate 15 is being tested; it has not been promoted. The remaining failures and unverified interactions are separate from the passes.
+Status: in progress. Category comparisons and the candidate 14 matrix are recorded below. Candidate 15 failed; candidate 16 is being tested. Neither has been promoted. The remaining failures and unverified interactions are separate from the passes.
 
 ## Installation and method
 
@@ -61,6 +61,14 @@ Each row used the exact question from the plan in a separate conversation. All n
 
 The Concise Swiftness status poll timed out while the native Windows sizing menu suspended the render thread. The same request was recovered after sizing ended; the question was not resubmitted. No gameplay command or fixture mutation was used.
 
+## Prompt iteration
+
+Candidate files are whole prompts under `build/prompt-candidates`. Each replacement was applied through the in-game editor opened by middle-clicking the settings gear. GET /prompt verified the saved text exactly matched its candidate before new questions were submitted. Minecraft stayed open between candidates.
+
+Candidate 15 integrates result-name ownership into citation policy: an inline labelled recipe citation supplies the output name, with no extra item link or repeated citation; component-dependent items use their exact variant record. Its Concise beacon and Swiftness checks pass. Concise glass still fails: after the correct chips it says “Put the sand in the input slot and fuel below it,” repeating an ingredient and describing placement. Candidate 15 was not promoted. Evidence: [beacon](../../build/recipe-cards-live/c15-concise-beacon.json), [glass](../../build/recipe-cards-live/c15-concise-glass.json), [Swiftness](../../build/recipe-cards-live/c15-concise-swiftness.json); [beacon screenshot](assets/2026-10-27-recipe-cards/c15-concise-beacon.png), [glass screenshot](assets/2026-10-27-recipe-cards/c15-concise-glass-read-error.png), [Swiftness screenshot](assets/2026-10-27-recipe-cards/c15-concise-swiftness.png).
+
+Candidate 16 strengthens the existing spatial-information rule for all recipes and integrates a Concise final check for repeated names/citations across explanation and caveat sentences. Its first Concise glass check passes: one name per ingredient/output, one inline result chip and a short processing-time sentence. The remaining matrix is in progress.
+
 ## Chat-opening timings
 
 Used P from gameplay, with the completed six-card conversation `2a562715-dbe3-4598-8273-e1290f4146a7` selected. The five warm samples are consecutive logged opening requests at 08:26:41, 08:26:44, 08:26:46, 08:26:49 and 08:26:51. From `client_open_request.start_ns` to `first_frame_rendered.event_ns`: **34.6892, 45.0522, 36.2778, 37.4595 and 32.9329 ms**. All have `loading=false`. PASS against the prior approximately 11–50 ms range for these warm samples. First-frame logging measures render-call completion, not GPU presentation or time before the common key handler.
@@ -73,9 +81,13 @@ The first real P opening after launch was **55.5631 ms** (08:19:36); its screen-
 
 FAIL. Reproduce with the candidate 14 Concise beacon answer above: hover its green result chip, then scroll one wheel step while the pointer remains on the chip. Expected: scrolling dismisses the floating card. Actual: the card remains visible after the wheel event and in a later stationary capture. This short chat has no overflowing history, so the content does not move. Evidence: [before](assets/2026-10-27-recipe-cards/result-hover.png), [after](assets/2026-10-27-recipe-cards/result-after-scroll.png). No rendering code was changed.
 
+### UI-2: read-marking failure exposes a Java exception and local file path
+
+FAIL, observed once on candidate 15's Concise glass completion, request `4c839feb-8810-423c-99e1-941201198bb0`, conversation `20ba7cef-eadc-49f9-895d-a4cf59538b0a`. Steps: ask the glass question in a fresh Concise chat and view the completed answer. Expected: completion is marked read, or a bounded player-facing error is shown. Actual: a red multi-line “Completion state could not be marked as read” message exposes `java.nio.file.AccessDeniedException` and the temporary/target `.state.json` paths. The answer itself is completed and saved. [Screenshot](assets/2026-10-27-recipe-cards/c15-concise-glass-read-error.png). Later questions completed without the message; the filesystem failure was not deliberately reproduced or fixed.
+
 ### Unverified interactions
 
 - NOT RUN: sustained Shift for three seconds, freeze without a release jump, pinned panel slot tooltips, release outside chip/panel, and pinned panel click-through protection. The available computer-use API exposes complete key chords but no key-down/key-up or timed hold operation. An ordinary Shift tap cannot establish these behaviors.
 - NOT RUN: missing-item barrier and `Missing:` tooltip. No naturally missing registry item was present in these recorded recipes.
 - NOT RUN: custom-ingredient `?` tooltip. The trim unknown-output placeholder was exercised, but it is a different case. No loaded recognized native recipe with a custom ingredient was found in the selected checks; unsupported Nature's Aura recipes remain source-only by design.
-- Candidate 14 prompt failures are retained above. Candidate 15 and installed-default acceptance are pending.
+- Candidate 14 and 15 prompt failures are retained above. Candidate 16 and installed-default acceptance are pending.

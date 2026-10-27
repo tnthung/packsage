@@ -67,6 +67,19 @@ class JeiNavigationTest {
     }
 
     @Test
+    void temporaryLinkFromEarlierProcessNeverOpensAnotherRecipe() {
+        long earlier = JeiRuntimeHolder.firstGeneration(1_000_000L) + 1;
+        long restarted = JeiRuntimeHolder.firstGeneration(1_000_001L) + 1;
+        var saved = new Evidence.NavigationTarget(OLD, "jei", "mod:machine|#0@" + earlier, "temporary");
+        var current = new Fake(restarted, 0, null);
+        var provider = new JeiProvider(() -> Optional.of(current), Runnable::run, () -> CURRENT);
+
+        assertNull(provider.refreshNavigation(saved, CURRENT).toCompletableFuture().join());
+        assertTrue(JeiRecipeCardSource.ref(current, new dev.packsage.client.recipe.RecipeCardModel(
+                dev.packsage.client.recipe.RecipeCardModel.Category.VIEWER, 0, 0, List.of(), "", List.of(), 0, null, saved.sourceHandle())).isEmpty());
+    }
+
+    @Test
     void removedRecipeFailsExplicitly() {
         var provider = new JeiProvider(() -> Optional.of(new Fake(2, 0, "mod:replacement")), Runnable::run, () -> CURRENT);
         var saved = new Evidence.NavigationTarget(CURRENT, "jei", "mod:machine|mod:recipe", "recipe");

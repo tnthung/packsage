@@ -6,9 +6,17 @@ import java.util.Optional;
 
 public final class JeiRuntimeHolder {
     private static IJeiRuntime runtime;
-    private static long generation;
+    private static long generation = firstGeneration(System.currentTimeMillis());
 
     private JeiRuntimeHolder() {
+    }
+
+    /**
+     * The generation a process started at {@code millis} counts up from. Temporary recipe handles carry the generation, so a later
+     * process must never reach a value an earlier one used; each millisecond leaves room for 2^20 runtime changes.
+     */
+    static long firstGeneration(long millis) {
+        return millis << 20;
     }
 
     public static synchronized Optional<IJeiRuntime> current() {

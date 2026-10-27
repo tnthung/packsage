@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Temporary JEI recipe links saved before a Minecraft restart no longer open or draw a different recipe; JEI runtime generations now never repeat across processes.
 - The assistant instructions now cover JEI recipes, mod machine plans and bookmarks, as an unvalidated candidate awaiting live acceptance.
 - Recipe plans list `possibleExtras` as a step's outputs other than the planned item for every multi-output step, and JEI recipe search records no longer carry the field.
 - JEI brewing recipes are planned as shared bottle batches like native brewing, so the planner no longer reports one reagent per bottle.

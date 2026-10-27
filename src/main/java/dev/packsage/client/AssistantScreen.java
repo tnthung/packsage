@@ -809,7 +809,7 @@ public final class AssistantScreen extends Screen {
 
     private MessageLayout assistantLayout(String answer, MessageSegment segment, ChatContracts.Turn turn,
                                           List<Evidence.NavigationTarget> targets, int width, Map<Evidence.Source, RecipeCardModel> models,
-                                          Map<RecipeCardModel, RecipeCard> cards, Map<RecipeCardModel, ItemStack> outputs,
+                                          Map<RecipeCardModel, RecipeCard> cards, Map<RecipeCardModel, SlotStacks.ResolvedSlot> outputs,
                                           Map<String, ItemStack> items, StringBuilder copy) {
         List<ModelBackend.UrlCitation> citations = new ArrayList<>();
         int searchFrom = 0;
@@ -887,7 +887,7 @@ public final class AssistantScreen extends Screen {
         Map<MessageSegment, MessageLayout> answers = new HashMap<>();
         Map<Evidence.Source, RecipeCardModel> models = Map.of();
         Map<RecipeCardModel, RecipeCard> cards = Map.of();
-        Map<RecipeCardModel, ItemStack> outputs = Map.of();
+        Map<RecipeCardModel, SlotStacks.ResolvedSlot> outputs = Map.of();
         Map<String, ItemStack> items = Map.of();
         StringBuilder copy = null;
         if (turn.verbosity() != null) {
@@ -904,8 +904,7 @@ public final class AssistantScreen extends Screen {
                     cards.put(model, card);
                     if (turn.verbosity() != PackSageSettings.Verbosity.DETAILED && minecraft != null && minecraft.level != null) for (var slot : model.slots()) {
                         if (!slot.output() || slot.stacks().isEmpty()) continue;
-                        var resolved = SlotStacks.resolve(slot.stacks().getFirst(), minecraft.level.registryAccess());
-                        outputs.put(model, resolved.stacks().isEmpty() ? new ItemStack(Items.BARRIER) : resolved.stacks().getFirst());
+                        outputs.put(model, SlotStacks.resolve(slot.stacks().getFirst(), minecraft.level.registryAccess()));
                         break;
                     }
                 }
@@ -1040,7 +1039,7 @@ public final class AssistantScreen extends Screen {
     }
 
     MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth,
-                                Map<RecipeCardModel, RecipeCard> cards, Map<RecipeCardModel, ItemStack> outputs,
+                                Map<RecipeCardModel, RecipeCard> cards, Map<RecipeCardModel, SlotStacks.ResolvedSlot> outputs,
                                 Map<String, ItemStack> items) {
         int width = Math.max(1, maxWidth);
         List<MessageRun> runs = new ArrayList<>();
@@ -1061,11 +1060,16 @@ public final class AssistantScreen extends Screen {
             for (ScreenText.InlineSpan span : line.spans()) {
                 RecipeCard result = span.resultCard() == null ? null : cards.get(span.resultCard());
                 ItemStack stack = span.itemId() == null ? null : items.get(span.itemId());
-                if (result != null) stack = outputs.get(span.resultCard());
+                var output = result == null ? null : outputs.get(span.resultCard());
+                var recordedOutput = output == null ? null : span.resultCard().slots().stream()
+                        .filter(slot -> slot.output() && !slot.stacks().isEmpty()).findFirst().orElseThrow().stacks().getFirst();
+                if (output != null) stack = output.stacks().isEmpty() ? new ItemStack(Items.BARRIER) : output.stacks().getFirst();
                 boolean item = stack != null;
                 if (item || span.target() != null || span.source() != null || span.externalUrl() != null) {
                     boolean navigation = !item && line.card() == null && (span.target() != null || span.externalUrl() != null);
-                    String labelText = item && result != null ? stack.getHoverName().getString() : span.text();
+                    String labelText = output == null ? span.text() : output.missing() ? "Missing: " + recordedOutput.identity()
+                            : output.stacks().isEmpty() || recordedOutput.kind() == RecipeCardModel.Stack.Kind.UNKNOWN ? "Unknown result"
+                            : stack.getHoverName().getString();
                     String verb = span.target() == null ? "Open" : ScreenText.navigationVerb(span.target());
                     if (navigation && !labelText.regionMatches(true, 0, verb + " ", 0, verb.length() + 1)) labelText = verb + " " + labelText;
                     else if (!item && !navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;

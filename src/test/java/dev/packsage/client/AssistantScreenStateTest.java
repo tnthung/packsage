@@ -1535,7 +1535,10 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
         var model = new dev.packsage.client.recipe.RecipeCardModel(
-                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(), "Furnace", List.of());
+                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(
+                        new dev.packsage.client.recipe.RecipeCardModel.Slot("output", 0, 0, true, List.of(
+                                new dev.packsage.client.recipe.RecipeCardModel.Stack(dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.ITEM,
+                                        "minecraft:glass", "{}", 1, "")))), "Furnace", List.of());
         var card = new dev.packsage.client.recipe.RecipeCard() {
             @Override public int width() { return 88; }
             @Override public int height() { return 63; }
@@ -1549,12 +1552,42 @@ class AssistantScreenStateTest {
                 SOURCE, null, model, null)));
         var block = new ScreenText.InlineLine(result.spans(), false, model);
         var layout = screen.messageLayout(List.of(plain, item, result, block, plain), 200, java.util.Map.of(model, card),
-                java.util.Map.of(model, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)),
+                java.util.Map.of(model, new dev.packsage.client.recipe.SlotStacks.ResolvedSlot(
+                        List.of(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)), false)),
                 java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
         assertEquals(List.of(0, 12, 30, 48, 119), layout.runs().stream().map(AssistantScreen.MessageRun::y).toList());
         assertEquals(List.of(12, 18, 18, 71, 12), layout.runs().stream().map(AssistantScreen.MessageRun::height).toList());
         assertEquals(131, layout.height());
         assertEquals(71, layout.runs().get(3).height());
+    }
+
+    @Test
+    void resultChipsNameMissingAndUnknownOutputsInsteadOfTheBarrier() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var card = new dev.packsage.client.recipe.RecipeCard() {
+            @Override public int width() { return 88; }
+            @Override public int height() { return 63; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
+        };
+        var missing = new dev.packsage.client.recipe.RecipeCardModel.Stack(
+                dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.ITEM, "missingmod:lost_item", "{}", 1, "");
+        var unknown = new dev.packsage.client.recipe.RecipeCardModel.Stack(
+                dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.UNKNOWN, "unknown:output:test:trim", "{}", 1, "");
+        for (var output : List.of(missing, unknown)) {
+            var model = new dev.packsage.client.recipe.RecipeCardModel(
+                    dev.packsage.client.recipe.RecipeCardModel.Category.SMITHING, 80, 50,
+                    List.of(new dev.packsage.client.recipe.RecipeCardModel.Slot("output", 0, 0, true, List.of(output))), "Smithing table", List.of());
+            var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Recipe", null, ModernUi.TEXT, false, false,
+                    SOURCE, null, model, null)));
+            var layout = screen.messageLayout(List.of(line), 300, java.util.Map.of(model, card),
+                    java.util.Map.of(model, dev.packsage.client.recipe.SlotStacks.resolve(output,
+                            net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY))), java.util.Map.of());
+            assertEquals(output == missing ? "Missing: missingmod:lost_item" : "Unknown result", layout.runs().getFirst().span().text());
+        }
     }
 
     @Test

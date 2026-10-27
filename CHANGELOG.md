@@ -4,6 +4,8 @@
 
 ### 2026-10-27
 
+- Blank positions of a vanilla JEI crafting grid no longer appear as empty inputs or make a plan partial when the game's own recipe confirms they are blank; an input JEI could not resolve, such as an empty tag, still does.
+- Recipe plans list every route for the planned item before the routes for its inputs, and a plan longer than one output page continues with nextCall instead of dropping the rest, so a large pack no longer hides the requested route; JEI plans also draw each recipe only when the planner reads it and once per plan.
 - Recorded JEI 19.27 and 19.64 live acceptance checks, ATM10 compatibility evidence and remaining planning limitations.
 
 - JEI recipe cards can draw from a bounded record's retained typed recipe when its display payload was trimmed.

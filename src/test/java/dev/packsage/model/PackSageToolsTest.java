@@ -605,6 +605,43 @@ class PackSageToolsTest {
     }
 
     @Test
+    void aPlanLongerThanOnePageContinuesWithoutReplanning() throws Exception {
+        var records = java.util.stream.IntStream.range(0, 256).mapToObj(i -> new Evidence.Record(new Evidence.Source(
+                SCOPE, "native", "1", "plan|route_" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.RECIPE, "Route " + i,
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("x".repeat(4_000)))), List.of())).toList();
+        var plans = new AtomicInteger();
+        var tools = new PackSageTools(request -> {
+            plans.incrementAndGet();
+            return CompletableFuture.completedFuture(new Evidence.Result(records, Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, null, "node-cap=256"));
+        });
+        var arguments = "{\"identity\":\"minecraft:result\",\"quantity\":8,\"depth\":1}";
+        var delivered = new java.util.ArrayList<String>();
+        var json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("plan", "plan_recipe", arguments), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        int pages = 1;
+        while (true) {
+            json.getAsJsonArray("records").forEach(value -> delivered.add(value.getAsJsonObject().get("title").getAsString()));
+            if (!json.has("nextCall")) break;
+            var next = json.getAsJsonObject("nextCall");
+            assertEquals("plan_recipe", next.get("name").getAsString());
+            assertTrue(next.getAsJsonObject("arguments").get("cursor").getAsString().startsWith("output:"));
+            json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("next", "plan_recipe", next.get("arguments").toString()), SCOPE)
+                    .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+            pages++;
+        }
+        assertTrue(pages > 2, "pages=" + pages);
+        assertEquals(java.util.stream.IntStream.range(0, 256).mapToObj(i -> "Route " + i).toList(), delivered);
+        assertEquals(1, plans.get());
+        assertTrue(json.get("detail").getAsString().contains("node-cap=256"));
+
+        var foreign = tools.execute(new ModelBackend.ToolCall("foreign", "plan_recipe",
+                "{\"identity\":\"minecraft:result\",\"quantity\":8,\"depth\":1,\"cursor\":\"provider-cursor\"}"), SCOPE).toCompletableFuture().get();
+        assertTrue(foreign.result().serializedResult().contains("INVALID_CURSOR"), foreign.result().serializedResult());
+        assertEquals(1, plans.get());
+    }
+
+    @Test
     void exactRecordCapAndUnshrinkableIdentitiesNeverOverflowTheResponse() throws Exception {
         for (var handle : List.of("route", "x".repeat(140_000))) {
             var records = java.util.stream.IntStream.range(0, 256).mapToObj(i -> new Evidence.Record(new Evidence.Source(
@@ -618,7 +655,8 @@ class PackSageToolsTest {
             assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
             var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
             assertEquals(handle.equals("route") ? 64 : 0, json.getAsJsonArray("records").size());
-            assertTrue(json.get("detail").getAsString().contains((256 - response.records().size()) + " records omitted"));
+            if (handle.equals("route")) assertTrue(json.has("nextCall"));
+            else assertTrue(json.get("detail").getAsString().contains((256 - response.records().size()) + " records omitted"));
         }
     }
 

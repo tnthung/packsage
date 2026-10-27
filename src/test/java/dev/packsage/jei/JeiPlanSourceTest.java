@@ -64,6 +64,38 @@ class JeiPlanSourceTest {
     }
 
     @Test
+    void recipesAreDrawnOnlyWhenReadAndOncePerPlan() {
+        var scope = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
+        var index = new JeiSearchTest.Fake();
+        for (int i = 0; i < 300; i++) index.add(i, "mod:machine", "Machine", true);
+        index.focuses.put("OUTPUT:mod:product", List.copyOf(index.layouts.keySet()));
+        index.focuses.put("OUTPUT:mod:other", List.copyOf(index.layouts.keySet()).subList(0, 2));
+        var source = new JeiPlanSource(index, scope, "19.27", Instant.EPOCH);
+
+        var records = source.recipeOutputs("mod:product", new Evidence.JsonObject(Map.of()), scope);
+        assertEquals(300, records.size());
+        assertEquals(0, index.layoutCalls);
+        assertEquals("test:recipe1", records.get(1).recipePayload().canonicalRecipeId());
+        assertEquals("test:recipe1", source.recipeOutputs("mod:product", new Evidence.JsonObject(Map.of()), scope).get(1).recipePayload().canonicalRecipeId());
+        source.recipeOutputs("mod:other", new Evidence.JsonObject(Map.of()), scope).forEach(record -> { });
+        assertEquals(2, index.layoutCalls);
+    }
+
+    @Test
+    void aManyRoutePlanDrawsOnlyTheRoutesItReads() {
+        var scope = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
+        var index = new JeiSearchTest.Fake();
+        for (int i = 0; i < 300; i++) index.add(i, "mod:machine", "Machine", true);
+        index.focuses.put("OUTPUT:mod:product", List.copyOf(index.layouts.keySet()));
+
+        var result = new dev.packsage.knowledge.RecipePlanner(new JeiPlanSource(index, scope, "19.27", Instant.EPOCH))
+                .plan("mod:product", 1, scope, 1);
+
+        assertEquals(64, result.records().size());
+        assertEquals(64, index.layoutCalls);
+    }
+
+    @Test
     void focusLookupIsReusedAcrossReadAndCompleteness() {
         var scope = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
         var calls = new java.util.concurrent.atomic.AtomicInteger();

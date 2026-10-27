@@ -123,6 +123,8 @@ public final class PackSageTools {
                     properties.add("identity", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}"));
                     properties.add("quantity", JsonParser.parseString("{\"type\":\"integer\",\"minimum\":1,\"maximum\":1000000}"));
                     properties.add("depth", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":0,\"maximum\":8}"));
+                    // Only continues a plan whose routes exceeded one output page; plans have no provider cursor.
+                    properties.add("cursor", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":1024}"));
                     required.add("identity");
                     required.add("quantity");
                 }
@@ -270,7 +272,7 @@ public final class PackSageTools {
                 case "search_registry" -> "Find identities in one registry catalog. active_effect lists the player's current effect instances (durationTicks, amplifier, ambient, attributeModifiers), with description when the mod provides one; descriptionStatus reports not_provided, unknown, or bounded for a truncated description; one read shows a duration, not whether it refreshes. player_attribute lists current attribute base and value with modifiers whose IDs name their sources, such as minecraft:effect.luck or an item's modifier ID. Runtime dimensions differ from dimension-type definitions, client-known lists can be partial, dimension tags are unsupported, and searches do not create or load worlds.";
                 case "search_config" -> "Find accessible config keys and comments, including machine speed, energy and upgrade settings. Read values with read_config, passing a returned config reference.";
                 case "read_config" -> "Read a discovered config key or section at call time, with its authority and scope. A file value is not necessarily the effective server setting.";
-                case "plan_recipe" -> "Plan recipe routes for an item identity and quantity from the same default recipe source as search_recipe, including brewing routes and mod machine routes, with unresolved dependencies and coverage. It does not read owned materials or establish affordability. Routes cover every component variant of the identity; match output components. The live recipe scan is bounded, so a missing route is not absence. A mod machine step is marked assumed and credits only the planned item; a step's other outputs are possibleExtras that never count. unexpandedNeeds lists fluids and container contents to supply, with oneOf naming alternatives for one input; the coverage detail lists equipment, needed once for the whole plan. Brewing routes withhold operation counts (batches null) and report operationSemantics instead.";
+                case "plan_recipe" -> "Plan recipe routes for an item identity and quantity from the same default recipe source as search_recipe, including brewing routes and mod machine routes, with unresolved dependencies and coverage. It does not read owned materials or establish affordability. Routes cover every component variant of the identity; match output components. Each item's routes are listed before its inputs' routes, so the planned item's own routes come first; a plan longer than one page returns nextCall for the rest. The live recipe scan is bounded, so a missing route is not absence. A mod machine step is marked assumed and credits only the planned item; a step's other outputs are possibleExtras that never count. unexpandedNeeds lists fluids and container contents to supply, with oneOf naming alternatives for one input; the coverage detail lists equipment, needed once for the whole plan. Brewing routes withhold operation counts (batches null) and report operationSemantics instead.";
                 case "read_evidence" -> "Reread current evidence for returned record references only. Do not pass search cursors, labels or guessed references. An item record's reference rereads that item's current record, including enchantmentEligibility.";
                 case "inspect_area" -> "Summarize the loaded world around center (default the player, radius 16): block counts, notable blocks such as containers, workstations, beds and spawners grouped by role and block, and nearby entities. Then list_blocks or list_entities with a filter for linkable places, and inspect_block or inspect_entity what matters.";
                 case "list_blocks" -> "List blocks matching filter (ids, tags or name text) within radius of center, 64 per page, each with its place and a highlight link. Inspect what matters with inspect_block.";
@@ -397,6 +399,8 @@ public final class PackSageTools {
                 pendingRecords = pending.encoded();
                 read = CompletableFuture.completedFuture(pending.result());
             } else {
+                if (call.name().equals("plan_recipe") && arguments.values().get("cursor") instanceof Evidence.JsonString)
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "plan cursor was not returned by plan_recipe; restart without a cursor");
                 pendingRecords = null;
                 read = dispatch.apply(request);
             }

@@ -583,6 +583,24 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void blankPositionsAreNotInputsButAnEmptyTagIs() {
+        var emptyTag = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM,
+                net.minecraft.resources.ResourceLocation.parse("test:nothing"));
+        var pattern = new net.minecraft.world.item.crafting.ShapedRecipePattern(3, 2, NonNullList.of(Ingredient.EMPTY,
+                Ingredient.of(Items.COAL), Ingredient.EMPTY, Ingredient.of(emptyTag), Ingredient.EMPTY, Ingredient.of(Items.STICK), Ingredient.EMPTY),
+                java.util.Optional.empty());
+        var recipe = new net.minecraft.world.item.crafting.ShapedRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                pattern, new ItemStack(Items.TORCH));
+
+        var payload = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:grid"), recipe),
+                registries, ITEMS, null, SCOPE, null).recipePayload();
+
+        // A JEI layout of this recipe has six grid slots but only two filled ones, so its empty slots are not all blank.
+        assertEquals(List.of("slot-0", "slot-2", "slot-4"), payload.inputs().stream().map(Evidence.RecipeSlot::groupId).toList());
+        assertEquals("#test:nothing", payload.inputs().get(1).alternatives().getFirst().comparisonIdentity());
+    }
+
+    @Test
     void smeltingConsumesMilkBucketWithoutCraftingRemainder() {
         var recipe = new net.minecraft.world.item.crafting.SmeltingRecipe("", net.minecraft.world.item.crafting.CookingBookCategory.MISC,
                 Ingredient.of(Items.MILK_BUCKET), new ItemStack(Items.STONE), 0, 200);

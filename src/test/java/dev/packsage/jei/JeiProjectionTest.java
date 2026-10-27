@@ -132,6 +132,44 @@ class JeiProjectionTest {
         assertEquals(Evidence.Coverage.PARTIAL, modded.source().coverage());
     }
     @Test
+    void blankCraftingGridPositionsAreNotInputsWhenNativeCountsMatch() {
+        // A 3x3 grid showing a 2x1 recipe: two filled positions, seven blank. Native read two non-blank ingredients.
+        var record = JeiProjection.record(crafting(2), SCOPE, "19.27", NOW);
+        assertEquals(List.of("slot-1", "slot-4"), record.recipePayload().inputs().stream().map(Evidence.RecipeSlot::groupId).toList());
+        assertEquals(2, JsonParser.parseString(Evidence.serialize(record.payload())).getAsJsonObject().getAsJsonArray("inputs").size());
+        assertEquals(Evidence.Coverage.COMPLETE, record.source().coverage());
+
+        var plan = new dev.packsage.knowledge.RecipePlanner(new dev.packsage.knowledge.RecipePlanner.Source() {
+            @Override public boolean available(Evidence.Scope scope) { return true; }
+            @Override public List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope scope) {
+                return identity.equals("minecraft:torch") ? List.of(record) : List.of();
+            }
+        }).plan("minecraft:torch", 4, SCOPE, 1);
+        assertFalse(plan.detail().contains("empty-input-slot"), plan.detail());
+    }
+
+    @Test
+    void emptyInputSlotStaysAGapWhenNativeHasMoreIngredients() {
+        // Native read three non-blank ingredients, one an empty tag JEI shows as an empty slot, so no empty slot can be told blank.
+        var record = JeiProjection.record(crafting(3), SCOPE, "19.27", NOW);
+        assertEquals(9, record.recipePayload().inputs().size());
+        var unknown = JeiProjection.record(new JeiLayout("minecraft:crafting", "Crafting", "minecraft:torch", 0, 7, false, true,
+                Evidence.DecodingStatus.VERIFIED, crafting(2).slots(), List.of()), SCOPE, "19.27", NOW);
+        assertEquals(9, unknown.recipePayload().inputs().size());
+        var modded = JeiProjection.record(new JeiLayout("create:mechanical_crafting", "Mechanical Crafting", "mod:test", 0, 7, false, true,
+                Evidence.DecodingStatus.VERIFIED, crafting(2).slots(), List.of(), 2), SCOPE, "19.27", NOW);
+        assertEquals(9, modded.recipePayload().inputs().size());
+    }
+
+    private static JeiLayout crafting(int nativeInputs) {
+        var slots = new java.util.ArrayList<JeiLayout.Slot>();
+        slots.add(new JeiLayout.Slot(0, JeiLayout.Role.OUTPUT, List.of(new JeiLayout.Ingredient("item", "minecraft:torch", "{}", 4, null)), List.of()));
+        for (int i = 1; i <= 9; i++) slots.add(new JeiLayout.Slot(i, JeiLayout.Role.INPUT, i == 1 ? List.of(new JeiLayout.Ingredient("item", "minecraft:coal", "{}", 1, null))
+                : i == 4 ? List.of(new JeiLayout.Ingredient("item", "minecraft:stick", "{}", 1, null)) : List.of(), List.of()));
+        return new JeiLayout("minecraft:crafting", "Crafting", "minecraft:torch", 0, 7, false, true, Evidence.DecodingStatus.VERIFIED, slots, List.of(), nativeInputs);
+    }
+
+    @Test
     void hiddenRecipeIsMarked() {
         assertTrue(JeiProjection.record(new JeiLayout("minecraft:crafting", "Title", "mod:recipe", 3, 7, true, true, null, List.of(), List.of()), SCOPE, "19.27", NOW).recipePayload().constraints().contains("hidden"));
     }

@@ -86,7 +86,10 @@ public final class RecipePlanner {
         boolean anyIncomplete = candidates.size() > MAX_BRANCHES;
         if (anyIncomplete) state.reasons.add("recipe-branch-cap=" + MAX_BRANCHES);
         int branchCount = 0;
-        for (Evidence.Record candidate : candidates) {
+        // Every route for this item is listed before any of its inputs is expanded, so the planned item's own routes lead the
+        // result and an input's large subtree can neither push them past the output budget nor exhaust the node cap before them.
+        var steps = new ArrayList<Step>();
+        for (int position = 0; position < candidates.size(); position++) {
             if (branchCount >= MAX_BRANCHES || state.nodes >= MAX_NODES || state.routes.size() >= MAX_NODES) {
                 anyIncomplete = true;
                 state.partial = true;
@@ -95,6 +98,8 @@ public final class RecipePlanner {
                 break;
             }
             branchCount++;
+            // Read by position, so a source that projects recipes lazily never projects one beyond the caps.
+            var candidate = candidates.get(position);
             var output = candidate.recipePayload().outputs().stream().filter(value -> itemIdentity.equals(value.comparisonIdentity())
                     && (components.values().isEmpty() || components.equals(value.components()))).findFirst().orElse(null);
             var rules = MachineRules.of(candidate);
@@ -123,7 +128,17 @@ public final class RecipePlanner {
             if (candidate.recipePayload().decodingStatus() != Evidence.DecodingStatus.VERIFIED)
                 state.reasons.add("decoding-status=" + candidate.recipePayload().decodingStatus() + ":" + candidate.source().sourceHandle());
             state.routes.add(route(candidate, rules, output, quantity, batches, depth <= 0 ? "bounded-depth" : null, state));
-            if (chance != null) {
+            // Stated with the route, as before expansion was deferred, so it stays among the first reasons the detail keeps.
+            if (chance == null && depth <= 0) state.reasons.add("bounded-depth:" + itemIdentity);
+            steps.add(new Step(candidate, output, rules, chance, batches, candidateComplete));
+        }
+        for (Step step : steps) {
+            var candidate = step.candidate();
+            var output = step.output();
+            var rules = step.rules();
+            var batches = step.batches();
+            boolean candidateComplete = step.complete();
+            if (step.chance() != null) {
                 // A chance output cannot be planned for, so its inputs are not expanded.
                 anyIncomplete = true;
                 state.partial = true;
@@ -132,7 +147,6 @@ public final class RecipePlanner {
             if (depth <= 0) {
                 anyIncomplete = true;
                 state.partial = true;
-                state.reasons.add("bounded-depth:" + itemIdentity);
                 continue;
             }
             if (output == null || batches == null) candidateComplete = false;
@@ -361,6 +375,11 @@ public final class RecipePlanner {
     }
 
     private record RequirementKey(String type, String identity, Evidence.JsonObject components) {
+    }
+
+    /** A listed route whose inputs are expanded after all routes for the same item are listed. */
+    private record Step(Evidence.Record candidate, Evidence.RecipeOutput output, MachineRules rules, String chance, Long batches,
+                        boolean complete) {
     }
 
     /** Planning conventions a mod machine record declares through its constraints; native records declare none. */

@@ -902,7 +902,7 @@ public final class AssistantScreen extends Screen {
                     var card = source.card(model).orElse(null);
                     if (card == null) continue;
                     cards.put(model, card);
-                    if (turn.verbosity() == PackSageSettings.Verbosity.CONCISE && minecraft != null && minecraft.level != null) for (var slot : model.slots()) {
+                    if (turn.verbosity() != PackSageSettings.Verbosity.DETAILED && minecraft != null && minecraft.level != null) for (var slot : model.slots()) {
                         if (!slot.output() || slot.stacks().isEmpty()) continue;
                         var resolved = SlotStacks.resolve(slot.stacks().getFirst(), minecraft.level.registryAccess());
                         outputs.put(model, resolved.stacks().isEmpty() ? new ItemStack(Items.BARRIER) : resolved.stacks().getFirst());

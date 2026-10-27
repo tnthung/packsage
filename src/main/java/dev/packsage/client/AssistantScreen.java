@@ -1042,11 +1042,6 @@ public final class AssistantScreen extends Screen {
     }
 
     MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth,
-                                Map<RecipeCardModel, RecipeCard> cards, Map<String, ItemStack> items) {
-        return messageLayout(lines, maxWidth, cards, Map.of(), items);
-    }
-
-    MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth,
                                 Map<RecipeCardModel, RecipeCard> cards, Map<RecipeCardModel, ItemStack> outputs,
                                 Map<String, ItemStack> items) {
         int width = Math.max(1, maxWidth);

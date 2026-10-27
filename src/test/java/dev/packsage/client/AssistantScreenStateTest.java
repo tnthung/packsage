@@ -1558,11 +1558,11 @@ class AssistantScreenStateTest {
             @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
         };
         var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", TARGET, ModernUi.TEXT, false, false, SOURCE)), false, model);
-        var narrow = screen.messageLayout(List.of(line), 87, java.util.Map.of(model, card), java.util.Map.of());
+        var narrow = screen.messageLayout(List.of(line), 87, java.util.Map.of(model, card), java.util.Map.of(), java.util.Map.of());
         assertEquals("Source: Glass", narrow.runs().getFirst().span().text());
         assertNull(narrow.runs().getFirst().card());
         assertEquals(12, narrow.height());
-        var wide = screen.messageLayout(List.of(line), 88, java.util.Map.of(model, card), java.util.Map.of());
+        var wide = screen.messageLayout(List.of(line), 88, java.util.Map.of(model, card), java.util.Map.of(), java.util.Map.of());
         assertSame(card, wide.runs().getFirst().card());
         assertEquals(79, wide.height());
     }
@@ -1616,7 +1616,7 @@ class AssistantScreenStateTest {
         var item = new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, null, null, null, "minecraft:glass");
         var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("hello ", null, ModernUi.TEXT, false, false), item,
                 new ScreenText.InlineSpan(" world", null, ModernUi.TEXT, false, false)));
-        var layout = screen.messageLayout(List.of(line), 55, java.util.Map.of(),
+        var layout = screen.messageLayout(List.of(line), 55, java.util.Map.of(), java.util.Map.of(),
                 java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
         var chip = layout.runs().stream().filter(run -> run.stack() != null).findFirst().orElseThrow();
         assertEquals(12, chip.y());

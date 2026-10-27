@@ -1837,7 +1837,8 @@ public final class AssistantScreen extends Screen {
             if (editingRequest != null) { editingRequest = null; history = null; setInput(""); }
             return true;
         }
-        if (picker == null && (modifiers & (org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL | org.lwjgl.glfw.GLFW.GLFW_MOD_ALT)) == 0
+        boolean editing = inputEditor != null && inputEditor.isFocused() || sessionSearchEditor != null && sessionSearchEditor.isFocused();
+        if (picker == null && !editing && (modifiers & (org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL | org.lwjgl.glfw.GLFW.GLFW_MOD_ALT)) == 0
                 && viewerKey(keyCode, scanCode)) return true;
         if (inputEditor != null && inputEditor.isFocused() && inputEditor.keyPressed(keyCode, scanCode, modifiers)) return true;
         if (sessionSearchEditor != null && sessionSearchEditor.isFocused() && sessionSearchEditor.keyPressed(keyCode, scanCode, modifiers)) return true;

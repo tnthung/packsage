@@ -82,6 +82,7 @@ class CardInteractionTest {
             ScreenTestHost.initialize(screen);
             screen.refresh(view);
             if (withViewer) screen.setItemViewer(viewer);
+            screen.setFocused(null);
             set("readableLeft", 20);
             set("readableWidth", 400);
             set("toggleY", 400);
@@ -111,6 +112,12 @@ class CardInteractionTest {
 
         void mouse(int x, int y) throws Exception { set("drawMouseX", x); set("drawMouseY", y); }
         boolean key(int code) { return screen.keyPressed(code, 0, 0); }
+
+        void focus(String editor) throws Exception {
+            var field = AssistantScreen.class.getDeclaredField(editor);
+            field.setAccessible(true);
+            screen.setFocused((net.minecraft.client.gui.components.events.GuiEventListener) field.get(screen));
+        }
     }
 
     @Test
@@ -180,6 +187,18 @@ class CardInteractionTest {
         assertTrue(h.screen.mouseClicked(330, 66, 0));
         assertEquals(List.of("navigate"), h.actions.navigated);
         assertEquals(List.of(), h.viewer.calls);
+    }
+
+    @Test
+    void shortcutsIgnoredWhileATextEditorIsFocused() throws Exception {
+        for (String editor : List.of("inputEditor", "sessionSearchEditor")) {
+            var h = new Harness(true);
+            h.card();
+            h.mouse(60, 110);
+            h.focus(editor);
+            for (int key : new int[]{GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_U, GLFW.GLFW_KEY_A}) h.key(key);
+            assertEquals(List.of(), h.viewer.calls, editor);
+        }
     }
 
     @Test

@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Chat cards and item chips can now hand items to an external item viewer: left click shows recipes, right click shows uses, and R, U and A act on the hovered item when no text field is focused. The JEI-backed viewer comes later; nothing changes without one.
 - World listing page details no longer mistake scan limits for the number of matches delivered or the total.
 - The model and effort pickers and chat tooltips draw above recipe card and chip items instead of under them.
 - The assistant receives the local player's name and UUID and uses that identity for first-person requests and command targets.

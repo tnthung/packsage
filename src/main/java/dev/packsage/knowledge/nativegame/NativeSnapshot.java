@@ -110,7 +110,6 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 || recipe.getClass() == net.minecraft.world.item.crafting.StonecutterRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTrimRecipe.class;
-        if (!knownRecipe) decoding = Evidence.DecodingStatus.UNKNOWN;
         List<Ingredient> ingredients = recipe.getIngredients();
         if (recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTrimRecipe.class) {
@@ -199,6 +198,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         if (constraints.contains("components=unknown:stack-encoding-failed") && decoding == Evidence.DecodingStatus.VERIFIED)
             decoding = Evidence.DecodingStatus.PARTIAL;
         if (ambiguousRemainders && decoding == Evidence.DecodingStatus.VERIFIED) decoding = Evidence.DecodingStatus.PARTIAL;
+        if (!knownRecipe) decoding = Evidence.DecodingStatus.UNKNOWN;
         constraints.add("recipeType=" + recipe.getType());
         constraints.add("serializer=" + recipe.getSerializer());
         if (!knownRecipe || decoding == Evidence.DecodingStatus.OPAQUE) constraints.add("catalysts=unknown");

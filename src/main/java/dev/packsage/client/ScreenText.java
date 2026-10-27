@@ -271,6 +271,7 @@ final class ScreenText {
             String line = rawLine;
             boolean quote = false;
             boolean bold = false;
+            boolean listItem = false;
             List<InlineSpan> spans = new ArrayList<>();
             if (inCode) {
                 spans.add(new InlineSpan(UNRESOLVED_MODEL_ALIAS.matcher(line).replaceAll(""), null, CODE_COLOR, false, true));
@@ -289,6 +290,7 @@ final class ScreenText {
                 } else {
                     Matcher item = LIST_ITEM.matcher(line);
                     if (item.matches()) {
+                        listItem = true;
                         String prefix = item.group(1) + BULLET;
                         spans.add(new InlineSpan(prefix, null, TEXT_COLOR, false, false));
                         line = item.group(2);
@@ -340,6 +342,7 @@ final class ScreenText {
                             span.source(), span.externalUrl(), card, span.itemId(), span.bareCitation()));
                 }
             } else if (verbosity == PackSageSettings.Verbosity.NORMAL || verbosity == PackSageSettings.Verbosity.CONCISE) {
+                boolean removed = false;
                 for (int index = 0; index < spans.size(); index++) {
                     InlineSpan span = spans.get(index);
                     if (span.source() == null || span.target() != null || span.externalUrl() != null || span.resultCard() != null) continue;
@@ -348,6 +351,15 @@ final class ScreenText {
                         continue;
                     }
                     spans.remove(index);
+                    removed = true;
+                    if (index == 0 && !spans.isEmpty()) {
+                        InlineSpan next = spans.getFirst();
+                        if (next.target() == null && next.source() == null && next.externalUrl() == null
+                                && next.resultCard() == null && next.itemId() == null) {
+                            spans.set(0, new InlineSpan(next.text().replaceFirst("^ +", ""), null,
+                                    next.color(), next.bold(), next.code()));
+                        }
+                    }
                     if (index > 0 && (index == spans.size() || spans.get(index).text().isEmpty()
                             || Character.isWhitespace(spans.get(index).text().charAt(0))
                             || ".,;:!?)".indexOf(spans.get(index).text().charAt(0)) >= 0)) {
@@ -360,6 +372,9 @@ final class ScreenText {
                     }
                     index--;
                 }
+                if (removed && spans.stream().skip(listItem ? 1 : 0).allMatch(span -> span.text().isBlank()
+                        && span.target() == null && span.source() == null && span.externalUrl() == null
+                        && span.resultCard() == null && span.itemId() == null)) continue;
             }
             lines.add(new InlineLine(spans.isEmpty() ? List.of(new InlineSpan("", null, TEXT_COLOR, false, false)) : spans, quote, card));
         }

@@ -908,6 +908,47 @@ class ScreenTextTest {
     }
 
     @Test
+    void hiddenStandaloneSourceDoesNotLeaveAnEmptyLine() {
+        var source = recipeSource("x", 0);
+        var lines = ScreenText.inlineLines("before\n[native:x]\n\nafter", List.of(), List.of(), List.of(source),
+                java.util.Map.of(), dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, java.util.Map.of());
+        assertEquals(List.of("before", "", "after"), lines.stream()
+                .map(line -> line.spans().stream().map(ScreenText.InlineSpan::text).collect(java.util.stream.Collectors.joining())).toList());
+    }
+
+    @Test
+    void hiddenSourceOnlyListItemIsDropped() {
+        var source = recipeSource("x", 0);
+        var lines = ScreenText.inlineLines("before\n- [native:x]\nafter", List.of(), List.of(), List.of(source),
+                java.util.Map.of(), dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, java.util.Map.of());
+        assertEquals(2, lines.size());
+    }
+
+    @Test
+    void hiddenSourceOnlyQuoteIsDropped() {
+        var source = recipeSource("x", 0);
+        var lines = ScreenText.inlineLines("before\n> [native:x]\nafter", List.of(), List.of(), List.of(source),
+                java.util.Map.of(), dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, java.util.Map.of());
+        assertEquals(2, lines.size());
+    }
+
+    @Test
+    void hiddenSourceAtLineStartDoesNotLeaveLeadingSpace() {
+        var source = recipeSource("x", 0);
+        var line = ScreenText.inlineLines("[native:x] foo", List.of(), List.of(), List.of(source),
+                java.util.Map.of(), dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, java.util.Map.of()).getFirst();
+        assertEquals("foo", line.spans().stream().map(ScreenText.InlineSpan::text).collect(java.util.stream.Collectors.joining()));
+    }
+
+    @Test
+    void hiddenSourceAtListItemStartKeepsBulletSpacing() {
+        var source = recipeSource("x", 0);
+        var line = ScreenText.inlineLines("- [native:x] foo", List.of(), List.of(), List.of(source),
+                java.util.Map.of(), dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, java.util.Map.of()).getFirst();
+        assertEquals("• foo", line.spans().stream().map(ScreenText.InlineSpan::text).collect(java.util.stream.Collectors.joining()));
+    }
+
+    @Test
     void itemLinksAndLegacyTurnsKeepTheirDisplaySemantics() {
         var source = recipeSource("minecraft:stone", 0);
         var turn = recipeTurn(List.of(source), recipeRecord(source, "stone"));

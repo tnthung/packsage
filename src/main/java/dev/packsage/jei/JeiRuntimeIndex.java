@@ -176,7 +176,8 @@ public final class JeiRuntimeIndex implements JeiIndex {
 
     @Override public Optional<RecipeRef> byRecipeId(String categoryUid, String recipeId) {
         generation();
-        return runtime.getRecipeManager().createRecipeCategoryLookup().get()
+        // Hidden recipes stay readable, drawable and bookmarkable; navigation checks visibility separately in resolveVisible.
+        return runtime.getRecipeManager().createRecipeCategoryLookup().includeHidden().get()
                 .filter(category -> category.getRecipeType().getUid().toString().equals(categoryUid))
                 .findFirst().flatMap(category -> byRecipeId(category, recipeId));
     }

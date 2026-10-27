@@ -115,6 +115,22 @@ class JeiBookmarkProviderTest {
     }
 
     @Test
+    void hiddenStableRecipeCanBeBookmarked() {
+        var fake = new dev.packsage.jei.FakeJeiRuntime();
+        var recipe = new Object();
+        fake.category("mod:hidden_machine", true, recipe);
+        fake.registryNames.put(recipe, net.minecraft.resources.ResourceLocation.parse("mod:secret"));
+        var bookmarks = new FakeBookmarks();
+        var provider = provider(bookmarks, fake.index());
+        var observed = new Toolbox.Reference("jei", "mod:hidden_machine|mod:secret", Evidence.RecordKind.RECIPE, SCOPE);
+
+        var result = provider.handle(request(Map.of("action", text("add"), "recipe", text("jei:mod:hidden_machine|mod:secret"))),
+                context(Map.of("jei:mod:hidden_machine|mod:secret", observed))).toCompletableFuture().join();
+        assertEquals(new Evidence.JsonBoolean(true), result.records().getFirst().payload().values().get("bookmarked"));
+        assertEquals(Set.of("recipe:" + new JeiIndex.RecipeRef("mod:hidden_machine", 0)), bookmarks.held);
+    }
+
+    @Test
     void notReadyIsUnavailable() {
         var provider = new JeiBookmarkProvider(Optional::empty, Runnable::run, () -> SCOPE);
         assertFalse(provider.enabled());

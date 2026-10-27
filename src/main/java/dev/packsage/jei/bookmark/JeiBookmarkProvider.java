@@ -128,7 +128,7 @@ public final class JeiBookmarkProvider implements KnowledgeProvider {
     }
 
     private static JeiIndex.RecipeRef resolve(JeiIndex index, String handle) {
-        var parsed = JeiProjection.parseHandle(handle)
+        var parsed = JeiProjection.destination(handle).flatMap(JeiProjection::parseHandle)
                 .orElseThrow(() -> new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "invalid JEI recipe reference"));
         JeiIndex.RecipeRef ref = null;
         if (parsed.recipeId() != null) ref = index.byRecipeId(parsed.categoryUid(), parsed.recipeId()).orElse(null);

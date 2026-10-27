@@ -115,6 +115,22 @@ class JeiBookmarkProviderTest {
     }
 
     @Test
+    void planRouteReferenceBookmarksTheRecipeItWraps() {
+        var index = new JeiSearchTest.Fake() {
+            @Override public Optional<RecipeRef> byRecipeId(String category, String id) {
+                return id.equals("test:recipe0") ? Optional.of(new RecipeRef(category, 0)) : Optional.empty();
+            }
+        };
+        var bookmarks = new FakeBookmarks();
+        var handle = "plan|mod:product|1|4|0|mod:machine|test:recipe0";
+        var observed = new Toolbox.Reference("jei", handle, Evidence.RecordKind.RECIPE, SCOPE);
+
+        provider(bookmarks, index).handle(request(Map.of("action", text("add"), "recipe", text("jei:" + handle))),
+                context(Map.of("jei:" + handle, observed))).toCompletableFuture().join();
+        assertEquals(Set.of("recipe:" + new JeiIndex.RecipeRef("mod:machine", 0)), bookmarks.held);
+    }
+
+    @Test
     void hiddenStableRecipeCanBeBookmarked() {
         var fake = new dev.packsage.jei.FakeJeiRuntime();
         var recipe = new Object();

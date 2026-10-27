@@ -203,4 +203,52 @@ class JeiProviderTest {
         assertEquals(Toolbox.Code.NOT_HANDLED, failure(provider.planRecipe(request("plan_recipe", SCOPE,
                 Map.of("provider", new Evidence.JsonString("native"))), context(SCOPE))));
     }
+
+    static final class PlannedIndex extends JeiSearchTest.Fake {
+        final long generation;
+
+        PlannedIndex(long generation, int ordinal, String recipeId) {
+            this.generation = generation;
+            var ref = new JeiIndex.RecipeRef("mod:machine", ordinal);
+            layouts.put(ref, new JeiLayout("mod:machine", "Machine", recipeId, ordinal, generation, false, true, null,
+                    List.of(new JeiLayout.Slot(0, JeiLayout.Role.OUTPUT, List.of(new JeiLayout.Ingredient("item", "mod:product", "{}", 1, null)), List.of())), List.of()));
+            categories.put("mod:machine", java.util.stream.IntStream.rangeClosed(0, ordinal).mapToObj(n -> new JeiIndex.RecipeRef("mod:machine", n)).toList());
+            focuses.put("OUTPUT:mod:product", List.of(ref));
+        }
+
+        @Override public long generation() { return generation; }
+        @Override public Optional<RecipeRef> byRecipeId(String category, String id) {
+            return layouts.keySet().stream().filter(ref -> ref.categoryUid().equals(category) && id.equals(layouts.get(ref).recipeId())).findFirst();
+        }
+    }
+
+    @Test
+    void plannedRoutesDrawAndOpenTheirRecipeAndSurviveARestart() {
+        for (var recipeId : new String[] { "mod:recipe", null }) {
+            var index = new PlannedIndex(7, 0, recipeId);
+            var provider = new JeiProvider(() -> Optional.of(index), Runnable::run, () -> SCOPE);
+            var plan = new KnowledgeService(List.of(provider), () -> SCOPE)
+                    .execute(request("plan_recipe", SCOPE, Map.of("identity", new Evidence.JsonString("mod:product")))).toCompletableFuture().join();
+            var route = plan.records().getFirst();
+            var target = route.targets().getFirst();
+            assertTrue(target.sourceHandle().startsWith("plan|"), target.sourceHandle());
+            assertEquals(route.source().sourceHandle(), target.sourceHandle());
+
+            var model = dev.packsage.client.recipe.RecipeCardModels.fromRecord(PackSageTools.encodeRecord(route)).orElseThrow();
+            assertEquals(Optional.of(new JeiIndex.RecipeRef("mod:machine", 0)), JeiRecipeCardSource.ref(index, model), String.valueOf(recipeId));
+            assertEquals(new Evidence.NavigationTarget(SCOPE, "jei", target.sourceHandle(), target.targetId()),
+                    provider.refreshNavigation(target, SCOPE).toCompletableFuture().join(), String.valueOf(recipeId));
+
+            // After a restart the recipe sits at another ordinal; only the stable route still resolves.
+            var restarted = new PlannedIndex(9, 2, recipeId);
+            var after = new Evidence.Scope("world", "en_us", "team", "runtime-2", 2);
+            var reopened = new JeiProvider(() -> Optional.of(restarted), Runnable::run, () -> after)
+                    .refreshNavigation(target, after).toCompletableFuture().join();
+            if (recipeId == null) assertNull(reopened);
+            else {
+                assertEquals(new Evidence.NavigationTarget(after, "jei", target.sourceHandle(), "recipe"), reopened);
+                assertEquals(Optional.of(new JeiIndex.RecipeRef("mod:machine", 2)), JeiRecipeCardSource.ref(restarted, model));
+            }
+        }
+    }
 }

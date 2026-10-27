@@ -255,7 +255,9 @@ public final class JeiProvider implements KnowledgeProvider {
 
     private Optional<JeiIndex.RecipeRef> resolveNavigation(JeiIndex current, Evidence.NavigationTarget target) {
         if (!id().equals(target.providerId())) return Optional.empty();
-        var parsed = JeiProjection.parseHandle(target.sourceHandle()).orElse(null);
+        // A plan route link keeps its plan handle for evidence membership and opens the recipe that the route wraps.
+        var destination = JeiProjection.destination(target.sourceHandle()).orElse(null);
+        var parsed = JeiProjection.parseHandle(destination).orElse(null);
         if (parsed == null) return Optional.empty();
         var category = ResourceLocation.tryParse(parsed.categoryUid());
         if (category == null || !category.toString().equals(parsed.categoryUid())) return Optional.empty();
@@ -272,7 +274,7 @@ public final class JeiProvider implements KnowledgeProvider {
         }
         if (ref.isEmpty()) return Optional.empty();
         var layout = current.layout(ref.get());
-        return layout != null && layout.readable() && !layout.hidden() && JeiProjection.handle(layout).equals(target.sourceHandle())
+        return layout != null && layout.readable() && !layout.hidden() && JeiProjection.handle(layout).equals(destination)
                 ? ref : Optional.empty();
     }
 

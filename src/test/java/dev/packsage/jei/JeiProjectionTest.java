@@ -163,4 +163,14 @@ class JeiProjectionTest {
         assertTrue(JeiProjection.parseHandle("naturesaura:altar|#bad@7").isEmpty());
     }
 
+    @Test
+    void planRouteHandlesOpenTheRecipeTheyWrap() {
+        assertEquals(java.util.Optional.of("mod:machine|mod:recipe"), JeiProjection.destination("plan|mod:product|3|4|0|mod:machine|mod:recipe"));
+        assertEquals(java.util.Optional.of("mod:machine|#2@7"), JeiProjection.destination("plan|mod:product|3|4|1|mod:machine|#2@7"));
+        assertEquals(java.util.Optional.of("mod:machine|mod:recipe"), JeiProjection.destination("mod:machine|mod:recipe"));
+        for (var malformed : List.of("plan|mod:product|3|4|0", "plan||3|4|0|mod:machine|mod:recipe", "plan|mod:product|0|4|0|mod:machine|mod:recipe",
+                "plan|mod:product|3|9|0|mod:machine|mod:recipe", "plan|mod:product|3|4|-1|mod:machine|mod:recipe", "plan|mod:product|x|4|0|mod:machine|mod:recipe"))
+            assertTrue(JeiProjection.destination(malformed).isEmpty(), malformed);
+        assertTrue(JeiProjection.destination("plan|mod:product|3|4|0|plan|mod:product|3|4|0|mod:machine|mod:recipe").flatMap(JeiProjection::parseHandle).isEmpty());
+    }
 }

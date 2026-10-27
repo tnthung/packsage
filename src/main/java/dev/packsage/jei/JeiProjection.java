@@ -23,6 +23,25 @@ public final class JeiProjection {
         return layout.categoryUid() + "|" + (layout.recipeId() == null ? "#" + layout.ordinal() + "@" + layout.generation() : layout.recipeId());
     }
 
+    /**
+     * The recipe handle a reference draws and opens: the handle itself, or for a plan route, the recipe handle the route wraps.
+     * The plan handle stays the evidence and link identity; empty when a plan handle is malformed.
+     */
+    public static Optional<String> destination(String value) {
+        if (value == null || !value.startsWith("plan|")) return Optional.ofNullable(value);
+        var parts = value.split("\\|", 6);
+        if (parts.length != 6 || parts[1].isEmpty()) return Optional.empty();
+        try {
+            long quantity = Long.parseLong(parts[2]);
+            int depth = Integer.parseInt(parts[3]);
+            int route = Integer.parseInt(parts[4]);
+            if (quantity < 1 || quantity > 1_000_000 || depth < 0 || depth > 8 || route < 0) return Optional.empty();
+        } catch (NumberFormatException failure) {
+            return Optional.empty();
+        }
+        return Optional.of(parts[5]);
+    }
+
     public static Optional<Handle> parseHandle(String value) {
         if (value == null) return Optional.empty();
         int separator = value.indexOf('|');

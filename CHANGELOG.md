@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Recipe routes from a JEI plan now draw as JEI cards and open, bookmark and reopen after a restart as the recipe they planned; temporary routes still expire with their runtime.
 - JEI mod machine records include the machines JEI registers for the whole category, such as the Nature's Aura altar, as catalysts, and plans list them once as equipment; a catalyst slot with several machines is listed as "one of [...]".
 - JEI recipes that mods register as raw native recipe objects, such as Nature's Aura altar recipes, now carry their native recipe ID, so their saved links reopen after a restart; ambiguous, missing or over-large native data keeps them temporary.
 - Hidden JEI recipes returned by search can be reread, drawn as cards and bookmarked by their recipe ID; links still never open them.

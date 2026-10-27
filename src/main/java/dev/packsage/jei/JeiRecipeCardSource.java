@@ -74,7 +74,7 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
         } catch (RuntimeException | LinkageError failure) {
             // Missing recipes return empty above; anything thrown is a broken category or API, so fall back and say so once.
             cache.put(key, Optional.empty());
-            var category = JeiProjection.parseHandle(handle).map(JeiProjection.Handle::categoryUid).orElse(handle);
+            var category = JeiProjection.destination(handle).flatMap(JeiProjection::parseHandle).map(JeiProjection.Handle::categoryUid).orElse(handle);
             if (reported.size() < REPORT_LIMIT && reported.add(category))
                 PackSageLog.LOGGER.warn("Could not draw JEI recipe card for category {} (recipe {}); using the fallback", category, handle, failure);
             return Optional.empty();
@@ -98,7 +98,7 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
     /** The JEI reference for a model: viewer handles directly, native models through their vanilla category. */
     static Optional<JeiIndex.RecipeRef> ref(JeiIndex index, RecipeCardModel model) {
         if (model.category() == RecipeCardModel.Category.VIEWER) {
-            return JeiProjection.parseHandle(model.viewerHandle()).flatMap(handle -> handle.recipeId() != null
+            return JeiProjection.destination(model.viewerHandle()).flatMap(JeiProjection::parseHandle).flatMap(handle -> handle.recipeId() != null
                     ? index.byRecipeId(handle.categoryUid(), handle.recipeId())
                     : handle.generation() == index.generation() ? Optional.of(new JeiIndex.RecipeRef(handle.categoryUid(), handle.ordinal()))
                     : Optional.empty());

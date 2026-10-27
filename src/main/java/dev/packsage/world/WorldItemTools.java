@@ -272,7 +272,7 @@ final class WorldItemTools {
         var next = rest.isEmpty() && state.search() == null ? null
                 : world.paging.remember(request, new EntriesState(rest, state.search(), sticky, merged, state.span(), null, state.slotFacts()));
         if (bound != null) notes.add(bound);
-        if (!rest.isEmpty()) notes.add("This page shows " + shownCount + " entries, the page limit with their holders and encoded byte budget; continue with the cursor");
+        if (!rest.isEmpty()) notes.add("Entry page limit or encoded byte budget reached; follow nextCursor if present");
         // One record per block or entity holder on the page, so each holder has its own highlight link.
         records.addAll(holders);
         var linked = holders.size();

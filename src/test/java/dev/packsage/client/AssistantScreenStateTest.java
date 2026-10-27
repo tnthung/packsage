@@ -1578,6 +1578,9 @@ class AssistantScreenStateTest {
         screen.width = 640;
         screen.height = 480;
         ScreenTestHost.initialize(screen);
+        var font = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        font.setAccessible(true);
+        font.set(screen, new ScreenPreparationFont());
         var prior = screen.view().conversation().turns().getFirst();
         var turn = new ChatContracts.Turn(prior.requestId(), prior.question(), "[Glass](item:minecraft:glass)", List.of(),
                 prior.context(), prior.sources(), List.of(), prior.outcome(), 1, null, List.of(), List.of(), null, null,

@@ -1,5 +1,6 @@
 package dev.packsage.jei;
 
+import dev.packsage.client.JeiSupport;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.RecipePlanSupport;
@@ -31,11 +32,15 @@ public final class JeiProvider implements KnowledgeProvider {
     private final LinkedHashMap<String, Cursor> cursors = new LinkedHashMap<>();
 
     public JeiProvider(Supplier<Optional<JeiIndex>> index, Executor clientExecutor, Supplier<Evidence.Scope> scope) {
+        this(index, clientExecutor, scope, "19.27");
+    }
+
+    JeiProvider(Supplier<Optional<JeiIndex>> index, Executor clientExecutor, Supplier<Evidence.Scope> scope, String version) {
         this.index = index;
         this.client = null;
         this.executor = clientExecutor;
         this.currentScope = scope;
-        this.version = "19.27";
+        this.version = version;
     }
 
     public JeiProvider(Minecraft client, Executor clientExecutor, Supplier<Evidence.Scope> scope) {
@@ -133,7 +138,9 @@ public final class JeiProvider implements KnowledgeProvider {
         var selected = request.arguments().values().get("provider");
         if (selected != null && !(selected instanceof Evidence.JsonNull) && (!(selected instanceof Evidence.JsonString string) || !string.value().equals("jei")))
             return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "different recipe source"));
-        if (!enabled()) return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "JEI recipe source unavailable"));
+        // Unqualified planning falls through to native silently; a plan asked of JEI says why it cannot run.
+        if (!enabled()) return CompletableFuture.failedFuture(new Toolbox.Failure(selected == null || selected instanceof Evidence.JsonNull
+                ? Toolbox.Code.NOT_HANDLED : Toolbox.Code.UNAVAILABLE, "JEI recipe source unavailable: JEI is not ready"));
         try {
             var args = RecipePlanSupport.arguments(request);
             return plan(args.identity(), args.quantity(), args.depth(), request.scope());
@@ -157,6 +164,14 @@ public final class JeiProvider implements KnowledgeProvider {
                 throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "JEI scope or runtime changed");
             return result;
         }, executor);
+    }
+
+    /** A saved bookmark call reaches this provider only when no bookmark provider is registered, as on JEI before 19.53. */
+    @Override public CompletionStage<Evidence.Result> handle(PackSageTools.ReadRequest request, Toolbox.Context context) {
+        if (!request.tool().equals("bookmark") || JeiSupport.bookmarksSupported(version))
+            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, request.tool()));
+        return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
+                "JEI bookmarks need JEI 19.53 or newer; the installed JEI is " + version));
     }
 
     @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {

@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- A plan explicitly asked of JEI while JEI is not ready, and a saved bookmark call on JEI older than 19.53, now report that JEI is unavailable and why instead of a generic unhandled-request error.
 - The adapter list shows JEI with its availability.
 - Card and chip clicks and the R, U and A keys do nothing in a read-only chat from another world, so it cannot open JEI or change bookmarks in the current world.
 - Recipe plans no longer list every container of alternative inputs as needed equipment; a container that depends on the chosen alternative is named on that choice's need instead.

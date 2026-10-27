@@ -111,12 +111,26 @@ class JeiProviderTest {
     }
 
     @Test
-    void unavailablePlanningIsNotHandled() {
+    void unavailablePlanningFallsThroughUnlessJeiWasRequested() {
         var provider = new JeiProvider(Optional::empty, Runnable::run, () -> SCOPE);
-        for (var args : List.of(Map.<String, Evidence.JsonValue>of(),
-                Map.<String, Evidence.JsonValue>of("provider", new Evidence.JsonString("jei")))) {
-            assertEquals(Toolbox.Code.NOT_HANDLED, failure(provider.planRecipe(request("plan_recipe", SCOPE, args), context(SCOPE))));
-        }
+        assertEquals(Toolbox.Code.NOT_HANDLED, failure(provider.planRecipe(request("plan_recipe", SCOPE, Map.of()), context(SCOPE))));
+        assertEquals(Toolbox.Code.UNAVAILABLE, failure(provider.planRecipe(request("plan_recipe", SCOPE,
+                Map.of("provider", new Evidence.JsonString("jei"))), context(SCOPE))));
+    }
+
+    @Test
+    void savedBookmarkCallOnOlderJeiReportsWhyItIsUnavailable() {
+        var bookmark = request("bookmark", SCOPE, Map.of("action", new Evidence.JsonString("check"),
+                "item", new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("minecraft:glass")))));
+        var older = new JeiProvider(() -> Optional.of(new JeiSearchTest.Fake()), Runnable::run, () -> SCOPE);
+        var failure = (Toolbox.Failure) assertThrows(CompletionException.class, () -> older.handle(bookmark, context(SCOPE))
+                .toCompletableFuture().join()).getCause();
+        assertEquals(Toolbox.Code.UNAVAILABLE, failure.code());
+        assertTrue(failure.getMessage().contains("19.53"), failure.getMessage());
+
+        var newer = new JeiProvider(() -> Optional.of(new JeiSearchTest.Fake()), Runnable::run, () -> SCOPE, "19.64.0.454");
+        assertEquals(Toolbox.Code.NOT_HANDLED, failure(newer.handle(bookmark, context(SCOPE))));
+        assertEquals(Toolbox.Code.NOT_HANDLED, failure(older.handle(request("other", SCOPE, Map.of()), context(SCOPE))));
     }
 
     @Test

@@ -1,0 +1,235 @@
+{
+  "item": [
+    {
+      "tool": "list_items",
+      "arguments": {
+        "holder": "block:minecraft:overworld|4800,248,4800",
+        "inventory": null,
+        "filter": null,
+        "cursor": null
+      },
+      "coverage": "PARTIAL",
+      "detail": "Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entry page limit or encoded byte budget reached; follow nextCursor if present",
+      "recordCount": 17,
+      "recordBytes": 62774,
+      "resultBytes": 63243,
+      "refs": [
+        "world:block|minecraft:overworld|4800,248,4800",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#12@minecraft:apple",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#15@minecraft:baked_potato",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#16@minecraft:beetroot",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#19@minecraft:bone",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#13@minecraft:carrot",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#10@minecraft:charcoal",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#9@minecraft:coal",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#2@minecraft:cobblestone",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#8@minecraft:copper_ingot",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#3@minecraft:diamond",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#1@minecraft:dirt",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#4@minecraft:emerald",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#24@minecraft:flint",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#7@minecraft:gold_ingot",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#23@minecraft:gunpowder",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#6@minecraft:iron_ingot"
+      ],
+      "nextCursor": "393c0548-e79d-4ad0-b496-ec4dad6f719a"
+    },
+    {
+      "tool": "find_items",
+      "arguments": {
+        "filter": {
+          "ids": [
+            "minecraft:stone",
+            "minecraft:dirt",
+            "minecraft:cobblestone",
+            "minecraft:diamond",
+            "minecraft:emerald",
+            "minecraft:netherite_ingot",
+            "minecraft:iron_ingot",
+            "minecraft:gold_ingot",
+            "minecraft:copper_ingot",
+            "minecraft:coal",
+            "minecraft:charcoal",
+            "minecraft:stick",
+            "minecraft:apple",
+            "minecraft:carrot",
+            "minecraft:potato",
+            "minecraft:baked_potato",
+            "minecraft:beetroot",
+            "minecraft:wheat",
+            "minecraft:wheat_seeds",
+            "minecraft:bone",
+            "minecraft:rotten_flesh",
+            "minecraft:string",
+            "minecraft:spider_eye",
+            "minecraft:gunpowder",
+            "minecraft:flint",
+            "minecraft:leather",
+            "minecraft:paper"
+          ],
+          "tags": null,
+          "text": null,
+          "tooltip": null
+        },
+        "center": {
+          "type": "block",
+          "id": null,
+          "place": "minecraft:overworld|4800,248,4800"
+        },
+        "radius": 1,
+        "includeNested": false,
+        "cursor": null
+      },
+      "coverage": "PARTIAL",
+      "detail": "Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entry page limit or encoded byte budget reached; follow nextCursor if present",
+      "recordCount": 17,
+      "recordBytes": 62700,
+      "resultBytes": 63818,
+      "refs": [
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#12@minecraft:apple",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#15@minecraft:baked_potato",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#16@minecraft:beetroot",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#19@minecraft:bone",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#13@minecraft:carrot",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#10@minecraft:charcoal",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#9@minecraft:coal",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#2@minecraft:cobblestone",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#8@minecraft:copper_ingot",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#3@minecraft:diamond",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#1@minecraft:dirt",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#4@minecraft:emerald",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#24@minecraft:flint",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#7@minecraft:gold_ingot",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#23@minecraft:gunpowder",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#6@minecraft:iron_ingot",
+        "world:block|minecraft:overworld|4800,248,4800"
+      ],
+      "nextCursor": "6981fc52-a995-4556-9c67-cac090875892"
+    },
+    {
+      "tool": "list_items",
+      "arguments": {
+        "holder": "block:minecraft:overworld|4800,248,4800",
+        "inventory": null,
+        "filter": null,
+        "cursor": "393c0548-e79d-4ad0-b496-ec4dad6f719a"
+      },
+      "coverage": "PARTIAL",
+      "detail": "Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records",
+      "recordCount": 12,
+      "recordBytes": 43392,
+      "resultBytes": 43571,
+      "refs": [
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#25@minecraft:leather",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#5@minecraft:netherite_ingot",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#26@minecraft:paper",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#14@minecraft:potato",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#20@minecraft:rotten_flesh",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#22@minecraft:spider_eye",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#11@minecraft:stick",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#0@minecraft:stone",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#21@minecraft:string",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#17@minecraft:wheat",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#18@minecraft:wheat_seeds",
+        "world:block|minecraft:overworld|4800,248,4800"
+      ],
+      "nextCursor": null
+    },
+    {
+      "tool": "find_items",
+      "arguments": {
+        "filter": {
+          "ids": [
+            "minecraft:stone",
+            "minecraft:dirt",
+            "minecraft:cobblestone",
+            "minecraft:diamond",
+            "minecraft:emerald",
+            "minecraft:netherite_ingot",
+            "minecraft:iron_ingot",
+            "minecraft:gold_ingot",
+            "minecraft:copper_ingot",
+            "minecraft:coal",
+            "minecraft:charcoal",
+            "minecraft:stick",
+            "minecraft:apple",
+            "minecraft:carrot",
+            "minecraft:potato",
+            "minecraft:baked_potato",
+            "minecraft:beetroot",
+            "minecraft:wheat",
+            "minecraft:wheat_seeds",
+            "minecraft:bone",
+            "minecraft:rotten_flesh",
+            "minecraft:string",
+            "minecraft:spider_eye",
+            "minecraft:gunpowder",
+            "minecraft:flint",
+            "minecraft:leather",
+            "minecraft:paper"
+          ],
+          "tags": null,
+          "text": null,
+          "tooltip": null
+        },
+        "center": {
+          "type": "block",
+          "id": null,
+          "place": "minecraft:overworld|4800,248,4800"
+        },
+        "radius": 1,
+        "includeNested": false,
+        "cursor": "6981fc52-a995-4556-9c67-cac090875892"
+      },
+      "coverage": "PARTIAL",
+      "detail": "Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records",
+      "recordCount": 12,
+      "recordBytes": 43392,
+      "resultBytes": 43571,
+      "refs": [
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#25@minecraft:leather",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#5@minecraft:netherite_ingot",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#26@minecraft:paper",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#14@minecraft:potato",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#20@minecraft:rotten_flesh",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#22@minecraft:spider_eye",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#11@minecraft:stick",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#0@minecraft:stone",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#21@minecraft:string",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#17@minecraft:wheat",
+        "world:item|block:minecraft:overworld|4800,248,4800>minecraft/container#18@minecraft:wheat_seeds",
+        "world:block|minecraft:overworld|4800,248,4800"
+      ],
+      "nextCursor": null
+    }
+  ],
+  "block": [
+    {
+      "tool": "list_blocks",
+      "arguments": {
+        "center": {
+          "type": "block",
+          "id": null,
+          "place": "minecraft:overworld|4808,238,4808"
+        },
+        "radius": 1,
+        "filter": {
+          "ids": [
+            "minecraft:barrel"
+          ],
+          "tags": null,
+          "text": null
+        },
+        "cursor": null
+      },
+      "coverage": "COMPLETE",
+      "recordCount": 1,
+      "recordBytes": 844,
+      "resultBytes": 917,
+      "refs": [
+        "world:block|minecraft:overworld|4808,238,4808"
+      ],
+      "nextCursor": null
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "command": "kill @e[type=minecraft:cow,tag=v2_retest]",
+    "success": true,
+    "result": 65
+  },
+  {
+    "command": "execute positioned 4832 250 4808 if entity @e[type=minecraft:item,distance=..8]",
+    "success": true,
+    "result": 109
+  },
+  {
+    "command": "execute positioned 4832 250 4808 run kill @e[type=minecraft:item,distance=..8]",
+    "success": true,
+    "result": 109
+  },
+  {
+    "command": "execute if entity @e[type=minecraft:cow,tag=v2_retest]",
+    "success": false,
+    "result": 0
+  },
+  {
+    "command": "tp @s 4808.5 252 4808.5",
+    "success": true,
+    "result": 1
+  },
+  {
+    "command": "setblock 4800 248 4800 minecraft:chest",
+    "success": true,
+    "result": 1
+  },
+  {
+    "command": "setblock 4808 238 4808 minecraft:barrel",
+    "success": true,
+    "result": 1
+  },
+  {
+    "command": "27 item chest from prior fixture",
+    "success": true,
+    "result": 1
+  }
+]

@@ -1,0 +1,223 @@
+[
+  {
+    "arguments": {
+      "center": {
+        "type": "block",
+        "id": null,
+        "place": "minecraft:overworld|4832,250,4808"
+      },
+      "radius": 4,
+      "filter": {
+        "ids": [
+          "minecraft:cow"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "coverage": "PARTIAL",
+    "detail": "Scan page limit reached; follow nextCursor if present; The read spanned multiple server ticks; game-time span: 2886312..2886313; Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entity page byte budget reached; continue with the cursor",
+    "recordCount": 12,
+    "refs": [
+      "world:entity|00000001-0000-0000-0000-000000000001",
+      "world:entity|00000001-0000-0000-0000-000000000002",
+      "world:entity|00000001-0000-0000-0000-000000000003",
+      "world:entity|00000001-0000-0000-0000-000000000004",
+      "world:entity|00000001-0000-0000-0000-000000000005",
+      "world:entity|00000001-0000-0000-0000-000000000006",
+      "world:entity|00000001-0000-0000-0000-000000000007",
+      "world:entity|00000001-0000-0000-0000-000000000008",
+      "world:entity|00000001-0000-0000-0000-000000000009",
+      "world:entity|00000001-0000-0000-0000-00000000000a",
+      "world:entity|00000001-0000-0000-0000-00000000000b",
+      "world:entity|00000001-0000-0000-0000-00000000000c"
+    ],
+    "nextCursor": "b601cb5a-6801-429e-bd62-8c8ce414b6d7",
+    "recordBytes": 65125,
+    "resultBytes": 65800
+  },
+  {
+    "arguments": {
+      "center": {
+        "type": "block",
+        "id": null,
+        "place": "minecraft:overworld|4832,250,4808"
+      },
+      "radius": 4,
+      "filter": {
+        "ids": [
+          "minecraft:cow"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "b601cb5a-6801-429e-bd62-8c8ce414b6d7"
+    },
+    "coverage": "PARTIAL",
+    "detail": "Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entity page byte budget reached; continue with the cursor",
+    "recordCount": 12,
+    "refs": [
+      "world:entity|00000001-0000-0000-0000-00000000000d",
+      "world:entity|00000001-0000-0000-0000-00000000000e",
+      "world:entity|00000001-0000-0000-0000-00000000000f",
+      "world:entity|00000001-0000-0000-0000-000000000010",
+      "world:entity|00000001-0000-0000-0000-000000000011",
+      "world:entity|00000001-0000-0000-0000-000000000012",
+      "world:entity|00000001-0000-0000-0000-000000000013",
+      "world:entity|00000001-0000-0000-0000-000000000014",
+      "world:entity|00000001-0000-0000-0000-000000000015",
+      "world:entity|00000001-0000-0000-0000-000000000016",
+      "world:entity|00000001-0000-0000-0000-000000000017",
+      "world:entity|00000001-0000-0000-0000-000000000018"
+    ],
+    "nextCursor": "43757a5a-5c03-45f2-93df-2e8659297663",
+    "recordBytes": 65125,
+    "resultBytes": 65671
+  },
+  {
+    "arguments": {
+      "center": {
+        "type": "block",
+        "id": null,
+        "place": "minecraft:overworld|4832,250,4808"
+      },
+      "radius": 4,
+      "filter": {
+        "ids": [
+          "minecraft:cow"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "43757a5a-5c03-45f2-93df-2e8659297663"
+    },
+    "coverage": "PARTIAL",
+    "detail": "Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entity page byte budget reached; continue with the cursor",
+    "recordCount": 12,
+    "refs": [
+      "world:entity|00000001-0000-0000-0000-000000000019",
+      "world:entity|00000001-0000-0000-0000-00000000001a",
+      "world:entity|00000001-0000-0000-0000-00000000001b",
+      "world:entity|00000001-0000-0000-0000-00000000001c",
+      "world:entity|00000001-0000-0000-0000-00000000001d",
+      "world:entity|00000001-0000-0000-0000-00000000001e",
+      "world:entity|00000001-0000-0000-0000-00000000001f",
+      "world:entity|00000001-0000-0000-0000-000000000020",
+      "world:entity|00000001-0000-0000-0000-000000000021",
+      "world:entity|00000001-0000-0000-0000-000000000022",
+      "world:entity|00000001-0000-0000-0000-000000000023",
+      "world:entity|00000001-0000-0000-0000-000000000024"
+    ],
+    "nextCursor": "c90305d3-7c53-4108-9086-e275c222efad",
+    "recordBytes": 65122,
+    "resultBytes": 65668
+  },
+  {
+    "arguments": {
+      "center": {
+        "type": "block",
+        "id": null,
+        "place": "minecraft:overworld|4832,250,4808"
+      },
+      "radius": 4,
+      "filter": {
+        "ids": [
+          "minecraft:cow"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "c90305d3-7c53-4108-9086-e275c222efad"
+    },
+    "coverage": "PARTIAL",
+    "detail": "Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entity page byte budget reached; continue with the cursor",
+    "recordCount": 12,
+    "refs": [
+      "world:entity|00000001-0000-0000-0000-000000000025",
+      "world:entity|00000001-0000-0000-0000-000000000026",
+      "world:entity|00000001-0000-0000-0000-000000000027",
+      "world:entity|00000001-0000-0000-0000-000000000028",
+      "world:entity|00000001-0000-0000-0000-000000000029",
+      "world:entity|00000001-0000-0000-0000-00000000002a",
+      "world:entity|00000001-0000-0000-0000-00000000002b",
+      "world:entity|00000001-0000-0000-0000-00000000002c",
+      "world:entity|00000001-0000-0000-0000-00000000002d",
+      "world:entity|00000001-0000-0000-0000-00000000002e",
+      "world:entity|00000001-0000-0000-0000-00000000002f",
+      "world:entity|00000001-0000-0000-0000-000000000030"
+    ],
+    "nextCursor": "e96d1022-5524-4297-ae88-44d1f0b285ef",
+    "recordBytes": 65125,
+    "resultBytes": 65671
+  },
+  {
+    "arguments": {
+      "center": {
+        "type": "block",
+        "id": null,
+        "place": "minecraft:overworld|4832,250,4808"
+      },
+      "radius": 4,
+      "filter": {
+        "ids": [
+          "minecraft:cow"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "e96d1022-5524-4297-ae88-44d1f0b285ef"
+    },
+    "coverage": "PARTIAL",
+    "detail": "Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records; Entity page byte budget reached; continue with the cursor",
+    "recordCount": 12,
+    "refs": [
+      "world:entity|00000001-0000-0000-0000-000000000031",
+      "world:entity|00000001-0000-0000-0000-000000000032",
+      "world:entity|00000001-0000-0000-0000-000000000033",
+      "world:entity|00000001-0000-0000-0000-000000000034",
+      "world:entity|00000001-0000-0000-0000-000000000035",
+      "world:entity|00000001-0000-0000-0000-000000000036",
+      "world:entity|00000001-0000-0000-0000-000000000037",
+      "world:entity|00000001-0000-0000-0000-000000000038",
+      "world:entity|00000001-0000-0000-0000-000000000039",
+      "world:entity|00000001-0000-0000-0000-00000000003a",
+      "world:entity|00000001-0000-0000-0000-00000000003b",
+      "world:entity|00000001-0000-0000-0000-00000000003c"
+    ],
+    "nextCursor": "4769138b-96b4-479b-918c-859f5c06c807",
+    "recordBytes": 65125,
+    "resultBytes": 65671
+  },
+  {
+    "arguments": {
+      "center": {
+        "type": "block",
+        "id": null,
+        "place": "minecraft:overworld|4832,250,4808"
+      },
+      "radius": 4,
+      "filter": {
+        "ids": [
+          "minecraft:cow"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "4769138b-96b4-479b-918c-859f5c06c807"
+    },
+    "coverage": "PARTIAL",
+    "detail": "Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records",
+    "recordCount": 5,
+    "refs": [
+      "world:entity|00000001-0000-0000-0000-00000000003d",
+      "world:entity|00000001-0000-0000-0000-00000000003e",
+      "world:entity|00000001-0000-0000-0000-00000000003f",
+      "world:entity|00000001-0000-0000-0000-000000000040",
+      "world:entity|00000001-0000-0000-0000-000000000041"
+    ],
+    "nextCursor": null,
+    "recordBytes": 27136,
+    "resultBytes": 27327
+  }
+]

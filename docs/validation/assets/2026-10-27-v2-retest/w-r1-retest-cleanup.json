@@ -1,0 +1,97 @@
+{
+  "resource": {
+    "selected": [
+      "vanilla",
+      "mod_resources",
+      "file/packsage_resourcepack.zip"
+    ],
+    "reloaded": true
+  },
+  "commands": [
+    {
+      "command": "data merge block 4800 248 4800 {Items:[]}",
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Modified block data of 4800, 248, 4800"
+      ]
+    },
+    {
+      "command": "setblock 4800 248 4800 minecraft:air",
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Changed the block at 4800, 248, 4800"
+      ]
+    },
+    {
+      "command": "setblock 4808 238 4808 minecraft:air",
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Changed the block at 4808, 238, 4808"
+      ]
+    },
+    {
+      "command": "execute if entity @e[type=minecraft:cow,tag=v2_retest]",
+      "success": false,
+      "result": 0,
+      "feedback": [
+        "Test failed"
+      ]
+    },
+    {
+      "command": "execute positioned 4832 250 4808 if entity @e[type=minecraft:item,distance=..8]",
+      "success": false,
+      "result": 0,
+      "feedback": [
+        "Test failed"
+      ]
+    },
+    {
+      "command": "execute positioned 4832 250 4808 if entity @e[type=minecraft:experience_orb,distance=..8]",
+      "success": false,
+      "result": 0,
+      "feedback": [
+        "Test failed"
+      ]
+    },
+    {
+      "command": "tp @s 1583.394432834578 108.51250108506484 184.70977029085697 -93.45947 90",
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Teleported TNThung to 1583.394433, 108.512501, 184.709770"
+      ]
+    }
+  ],
+  "state": {
+    "world": "PackSage Adapter Filter Live Test",
+    "save": "PackSage Adapter Filter Live Test",
+    "paused": true,
+    "running": false,
+    "screen": null,
+    "dimension": "minecraft:overworld",
+    "position": [
+      1583.394432834578,
+      108.51250108506484,
+      184.70977029085697
+    ],
+    "yaw": -93.45947,
+    "pitch": 90,
+    "health": 20,
+    "gamemode": "creative",
+    "gameTime": 2890754,
+    "dayTime": 1304555,
+    "selectedHotbarSlot": 0,
+    "crosshairTarget": null,
+    "riddenEntity": null,
+    "menuId": 0
+  },
+  "settings": {
+    "commandConfirmation": "always",
+    "verbosity": "normal",
+    "showChatsFromOtherSessions": false
+  },
+  "promptOverrideNull": true
+}

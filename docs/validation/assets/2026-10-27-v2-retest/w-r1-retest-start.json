@@ -1,0 +1,14 @@
+{
+  "count": {
+    "success": true,
+    "result": 65,
+    "feedback": [
+      "Test passed, count: 65"
+    ]
+  },
+  "start": {
+    "conversationId": "6dfd34e0-b459-4b83-aaf6-d1a1f4c688c0",
+    "requestId": "080ed48f-ce27-490c-b238-b3824133ed9c"
+  },
+  "question": "Live fixture check: list all 65 cows within radius 4 of (4832,250,4808) in the Overworld using list_entities, follow every nextCall to the end, and inspect one returned cow. Summarize the unique count, coverage and truncation; do not repeat their long names in the answer and do not run commands."
+}

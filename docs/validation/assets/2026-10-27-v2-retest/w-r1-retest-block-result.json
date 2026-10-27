@@ -1,0 +1,414 @@
+{
+  "requestId": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+  "conversationId": "117d0fae-fb50-47f5-9750-b7a6c6860018",
+  "saved": true,
+  "status": "completed",
+  "reply": "- **Returned count:** 1 barrel.\n- **Page detail:** One record: a barrel in the Overworld at **(4808, 238, 4808)**. [Barrel](world:block|minecraft:overworld|4808,238,4808)\n- **Coverage:** `COMPLETE`; outcome `COMPLETE`. `nextCursor` is `null`, so there are no further pages.\n\nNo commands were run.",
+  "detail": null,
+  "errors": [],
+  "activities": [
+    {
+      "id": "tool:call_hRW3H8DF4eDdRZK8TKHruBjO",
+      "title": "Using tool: list_blocks (step 1)",
+      "detail": "Completed",
+      "status": "COMPLETED",
+      "serializedArguments": "{\"center\":{\"type\":\"block\",\"id\":null,\"place\":\"minecraft:overworld|4808,238,4808\"},\"radius\":1,\"filter\":{\"ids\":[\"minecraft:barrel\"],\"tags\":null,\"text\":null},\"cursor\":null}",
+      "toolName": "list_blocks",
+      "resultSummary": "Coverage: COMPLETE; records: 1",
+      "durationMillis": 50,
+      "resultDetail": "coverage: COMPLETE | outcome: COMPLETE\nminecraft:barrel at minecraft:overworld|4808,238,4808\n  block: minecraft:barrel\n  readSpan: toGameTime: 2888831; fromGameTime: 2888831\n  place: minecraft:overworld|4808,238,4808",
+      "durationNanos": 50627300
+    }
+  ],
+  "navigationTargets": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:9eda6e7b-c6fb-48ad-a4b2-cc1798c66124",
+        "resourcesLocale": "2:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-5",
+        "requestGeneration": 3
+      },
+      "providerId": "world",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4808",
+      "targetId": "world-block|minecraft:overworld|4808,238,4808"
+    }
+  ],
+  "toolCalls": [
+    {
+      "callId": "call_hRW3H8DF4eDdRZK8TKHruBjO",
+      "name": "list_blocks",
+      "arguments": {
+        "center": {
+          "type": "block",
+          "id": null,
+          "place": "minecraft:overworld|4808,238,4808"
+        },
+        "radius": 1,
+        "filter": {
+          "ids": [
+            "minecraft:barrel"
+          ],
+          "tags": null,
+          "text": null
+        },
+        "cursor": null
+      },
+      "error": false,
+      "result": {
+        "coverage": "COMPLETE",
+        "outcome": "COMPLETE",
+        "nextCursor": null,
+        "records": [
+          {
+            "reference": "world:block|minecraft:overworld|4808,238,4808",
+            "source": {
+              "scope": {
+                "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:9eda6e7b-c6fb-48ad-a4b2-cc1798c66124",
+                "resourcesLocale": "2:en_us",
+                "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+                "providerRuntime": "runtime-5",
+                "requestGeneration": 3
+              },
+              "providerId": "world",
+              "providerVersion": "1",
+              "sourceHandle": "block|minecraft:overworld|4808,238,4808",
+              "observedGeneration": 3,
+              "observedAt": "2026-10-27T03:53:46.417464500Z",
+              "activity": "ACTIVE",
+              "coverage": "COMPLETE",
+              "authority": "SERVER_READ",
+              "provenance": []
+            },
+            "kind": "BLOCK",
+            "navigable": true,
+            "title": "minecraft:barrel at minecraft:overworld|4808,238,4808",
+            "payload": {
+              "block": "minecraft:barrel",
+              "readSpan": {
+                "toGameTime": 2888831,
+                "fromGameTime": 2888831
+              },
+              "place": "minecraft:overworld|4808,238,4808"
+            },
+            "recipe": null
+          }
+        ]
+      },
+      "coverage": "COMPLETE",
+      "detail": null,
+      "recordCount": 1
+    }
+  ],
+  "citations": [
+    {
+      "scope": {
+        "worldSession": "world-073c42b0dfd369eeec68899b5f674208cefcc08cd128f20f091f191e65bfd4b4:9eda6e7b-c6fb-48ad-a4b2-cc1798c66124",
+        "resourcesLocale": "2:en_us",
+        "playerTeam": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+        "providerRuntime": "runtime-5",
+        "requestGeneration": 3
+      },
+      "providerId": "world",
+      "providerVersion": "1",
+      "sourceHandle": "block|minecraft:overworld|4808,238,4808",
+      "observedGeneration": 3,
+      "observedAt": "2026-10-27T03:53:46.417464500Z",
+      "activity": "ACTIVE",
+      "coverage": "COMPLETE",
+      "authority": "SERVER_READ",
+      "provenance": []
+    }
+  ],
+  "timing": [
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "runtime_dispatch",
+      "start_ns": "298306194578500",
+      "event_ns": "298306194619400",
+      "elapsed_ms": "0"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "accepted",
+      "start_ns": "298306194860000",
+      "event_ns": "298306194860000",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "screenshot": "true",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "context_capture_start",
+      "start_ns": "298306194979000",
+      "screenshot": "true"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "history_ready",
+      "event_ns": "298306194985300",
+      "elapsed_ms": "0",
+      "conversationTurns": "0"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "observation_ready",
+      "event_ns": "298306195120600",
+      "queueMs": "0",
+      "observationMs": "0"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "frame_image",
+      "event_ns": "298306320947700",
+      "frameMs": "122",
+      "frameBytes": "1077979"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "frame_ready",
+      "event_ns": "298306321223200",
+      "waitMs": "126",
+      "frameBytes": "1077979"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "capture_ready",
+      "event_ns": "298306321583600",
+      "elapsed_ms": "126",
+      "screenshotBytes": "1077979"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "history_selected",
+      "event_ns": "298306321603200",
+      "preparationMs": "0",
+      "historyTurns": "0",
+      "historyTokens": "0",
+      "historyErrors": "0"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "request_built",
+      "event_ns": "298306324105100",
+      "buildMs": "2",
+      "inputItems": "2",
+      "tools": "30",
+      "toolNames": "search_recipe,search_registry,read_evidence,plan_recipe,list_configs,search_config,read_config,search_history,read_history,inspect_area,list_blocks,list_entities,inspect_block,inspect_entity,list_items,inspect_item,find_items,list_progress,inspect_progress,list_statistics,read_loot,locate,search_commands,read_command,run_command,read_game_state,search_journal,remember,update_note,forget_note",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "backend_start",
+      "event_ns": "298306324379500",
+      "elapsed_ms": "129",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "backend_entry",
+      "event_ns": "298306324444600",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM",
+      "inputItems": "2",
+      "tools": "30",
+      "search": "AUTOMATIC"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "1",
+      "reason": "initial",
+      "phase": "auth_ready",
+      "event_ns": "298308160439700",
+      "authMs": "1835",
+      "outcome": "success"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "1",
+      "reason": "initial",
+      "phase": "body_ready",
+      "event_ns": "298308163539800",
+      "serializationMs": "2",
+      "bodyBytes": "1491749",
+      "bodyChars": "1491749",
+      "inputItems": "2",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_dispatch",
+      "event_ns": "298308163828600",
+      "requestToDispatchMs": "1839"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "1",
+      "reason": "initial",
+      "phase": "http_headers",
+      "event_ns": "298312149834100",
+      "dispatchToHeadersMs": "3986",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "1",
+      "reason": "initial",
+      "phase": "first_stream_bytes",
+      "event_ns": "298312157497100",
+      "headersToFirstBytesMs": "7",
+      "dispatchToFirstBytesMs": "3993",
+      "bytes": "4096"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "1",
+      "reason": "initial",
+      "phase": "provider_terminal",
+      "event_ns": "298315515706900",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "7351"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "tool_received",
+      "call": "call_hRW3H8DF4eDdRZK8TKHruBjO",
+      "tool": "list_blocks",
+      "step": "1",
+      "event_ns": "298315516040800",
+      "elapsed_ms": "9321"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "tool_result_sent",
+      "call": "call_hRW3H8DF4eDdRZK8TKHruBjO",
+      "tool": "list_blocks",
+      "event_ns": "298315566789100",
+      "toolMs": "50",
+      "resultBytes": "917",
+      "error": "false"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "auth_ready",
+      "event_ns": "298315566977700",
+      "authMs": "0",
+      "outcome": "success"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "body_ready",
+      "event_ns": "298315570229700",
+      "serializationMs": "3",
+      "bodyBytes": "1493118",
+      "bodyChars": "1493118",
+      "inputItems": "4",
+      "tools": "30",
+      "model": "gpt-6.1-sol",
+      "effort": "MEDIUM"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_dispatch",
+      "event_ns": "298315570751700",
+      "requestToDispatchMs": "3"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "http_headers",
+      "event_ns": "298318867559900",
+      "dispatchToHeadersMs": "3296",
+      "callbackQueueMs": "0",
+      "protocol": "HTTP_2",
+      "status": "200"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_stream_bytes",
+      "event_ns": "298318867972000",
+      "headersToFirstBytesMs": "0",
+      "dispatchToFirstBytesMs": "3297",
+      "bytes": "24"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "first_text",
+      "event_ns": "298320384620200",
+      "roundToFirstTextMs": "4817",
+      "dispatchToFirstTextMs": "4813",
+      "deltaChars": "1"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "first_text",
+      "event_ns": "298320384848200",
+      "elapsed_ms": "14189",
+      "backendMs": "14060",
+      "deltaChars": "1"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "round": "2",
+      "reason": "tool_continuation",
+      "phase": "provider_terminal",
+      "event_ns": "298323334011600",
+      "outcome": "COMPLETED",
+      "status": "200",
+      "dispatchToTerminalMs": "7763"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "tool_summary",
+      "toolCalls": "1",
+      "toolWallMs": "50",
+      "event_ns": "298323334393300"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "model_terminal",
+      "event_ns": "298323334393300",
+      "elapsed_ms": "17139",
+      "backendMs": "17010",
+      "outcome": "COMPLETED"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "persist_start",
+      "event_ns": "298323335153200",
+      "elapsed_ms": "17140",
+      "screenshotBytes": "1077979"
+    },
+    {
+      "request": "c286e2b8-fd6b-4db4-b2d1-bce98429f847",
+      "phase": "persist_done",
+      "event_ns": "298323366614400",
+      "elapsed_ms": "17171",
+      "persistMs": "31"
+    }
+  ]
+}

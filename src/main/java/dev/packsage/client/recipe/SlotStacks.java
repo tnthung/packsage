@@ -32,7 +32,7 @@ public final class SlotStacks {
                 var resolved = items.get(TagKey.create(Registries.ITEM, id)).stream().flatMap(tag -> tag.stream())
                         .map(holder -> {
                             var member = new ItemStack(holder, 1);
-                            member.setCount(Math.clamp(stack.count(), 1, member.getMaxStackSize()));
+                            member.setCount(Math.max(1, stack.count()));
                             return member;
                         }).toList();
                 return new ResolvedSlot(resolved, resolved.isEmpty());
@@ -42,7 +42,7 @@ public final class SlotStacks {
             var patch = DataComponentPatch.CODEC.parse(registries.createSerializationContext(JsonOps.INSTANCE),
                     JsonParser.parseString(stack.componentsJson())).result().orElseThrow();
             var resolved = new ItemStack(item, 1, patch);
-            resolved.setCount(Math.clamp(stack.count(), 1, resolved.getMaxStackSize()));
+            resolved.setCount(Math.max(1, stack.count()));
             return new ResolvedSlot(List.of(resolved), false);
         } catch (RuntimeException failure) {
             return new ResolvedSlot(List.of(), true);

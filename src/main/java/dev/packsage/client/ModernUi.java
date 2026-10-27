@@ -39,6 +39,10 @@ public final class ModernUi {
     }
 
     static void surface(GuiGraphics graphics, int left, int top, int right, int bottom, int color) {
+        surface(graphics, left, top, right, bottom, color, BORDER);
+    }
+
+    static void surface(GuiGraphics graphics, int left, int top, int right, int bottom, int color, int border) {
         if (right <= left || bottom <= top) return;
         float[] previousColor = RenderSystem.getShaderColor().clone();
         try {
@@ -47,8 +51,8 @@ public final class ModernUi {
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
             graphics.blitSprite(SURFACE_FILL, left, top, right - left, bottom - top);
-            graphics.setColor(((BORDER >> 16) & 0xff) / 255f, ((BORDER >> 8) & 0xff) / 255f,
-                    (BORDER & 0xff) / 255f, ((BORDER >>> 24) & 0xff) / 255f);
+            graphics.setColor(((border >> 16) & 0xff) / 255f, ((border >> 8) & 0xff) / 255f,
+                    (border & 0xff) / 255f, ((border >>> 24) & 0xff) / 255f);
             RenderSystem.enableBlend();
             graphics.blitSprite(SURFACE_OUTLINE, left, top, right - left, bottom - top);
         } finally {

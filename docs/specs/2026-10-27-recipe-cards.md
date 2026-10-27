@@ -10,13 +10,13 @@ Answers currently describe crafting layouts as text, for example a beacon grid w
 - **Concise answers stay short.** A Concise answer shows item names as inline item chips, each with a small icon and the normal item tooltip on hover. It adds one result chip for the recipe output. Hovering the result chip shows the same recipe card the Normal answer would show, as a floating tooltip.
 - **Shift pins the card.** While the result chip's card is showing, holding Shift keeps it open, so the mouse can move into it and hover each slot for that item's tooltip. Releasing Shift with the mouse off the chip and card closes it.
 - **One look with or without JEI.** PackSage draws native cards in JEI's layout and proportions for the vanilla categories, so a card looks the same whether PackSage or JEI drew it.
-- **Ready for JEI.** The card renderer sits behind a seam that a later JEI implementation can fill with JEI's own `IRecipeLayoutDrawable`. Mod recipes registered with JEI can then appear exactly as JEI draws them, and R and U over an item, plus left and right click, can open JEI's recipes and uses.
+- **Ready for JEI.** The card renderer sits behind a seam that a later JEI implementation can fill with JEI's own `IRecipeLayoutDrawable`. Mod recipes registered with JEI can then appear exactly as JEI draws them, and R and U over an item, plus left and right click, can open JEI's recipes and uses. Clicking an item chip or result chip opens that item's recipes in JEI (like R).
 
 ## Non-goals
 
 - JEI integration itself. JEI was removed from this branch (commits ec8057f2 and 1e8d3f77). This work builds only the native renderer and the seam. A later change adds the JEI implementation, restores the optional dependency and wires R, U and clicks.
 - Clicking an item in a card or chip. Without JEI, clicking does nothing; this work adds no click behavior.
-- Drawing recipe types the native adapter cannot decode. Those keep today's source chip.
+- Drawing recipe types the native adapter cannot decode. Their citations follow the source chip rules in Design.
 - Renaming the raw fallback source label (`Source: Beacon|1|3|0|minecraft:beacon`). That is a separate fix.
 
 ## Anti-goals
@@ -50,13 +50,17 @@ The facts below come from the code as of `a72eb9bd`.
 
 ## Design
 
+### Source chips by verbosity
+
+Detailed answers show source chips and their hover details as before. Normal and Concise answers hide source chips: labelled citations become plain label text, while bare citations and source-only citation groups disappear without leaving extra spaces. Copying uses the same labels or omissions. Navigation links, web links, item chips, result chips and recipe cards remain available. A Normal card that is too wide for its bubble falls back to a result chip with a floating card preview; Detailed keeps the source chip fallback. Legacy turns without a stored verbosity remain unchanged.
+
 ### Reference mockup
 
-The mockup below is the reference for how chips and cards look. It is drawn at GUI scale 2, so 1 GUI pixel equals 2 image pixels. The slot, output slot, arrow and panel art are JEI 19's own sprites; the chat colors are the `ModernUi` constants.
+The mockup below is the reference for the overall chip and card appearance; chip dimensions and fills follow the updated rules below. It is drawn at GUI scale 2, so 1 GUI pixel equals 2 image pixels. The slot, output slot, arrow and panel art are JEI 19's own sprites; the chat colors are the `ModernUi` constants.
 
 - **Fixed by the mockup:** the shape of each element and what tells them apart.
-  - **Item chip:** neutral fill, a 16 px item render on the left, then the label.
-  - **Result chip:** the output item's icon and label, with an accent fill and accent outline.
+  - **Item chip:** rounded, with a lighter neutral fill, a 12 px item render on the left, then the label.
+  - **Result chip:** rounded, with the output item's 12 px icon and label, an accent fill and accent outline.
   - **Card:** JEI's light gray panel, JEI's slots, arrow and output slot, and a muted caption below the panel.
   - **Floating panel:** a dark `ModernUi` surface around the card and caption.
 - **Not fixed by the mockup:**
@@ -68,7 +72,7 @@ The mockup below is the reference for how chips and cards look. It is drawn at G
 1. **Concise answer.** One result chip, Beacon, plus item chips for the ingredients, inline in the sentence.
 2. **Hovering the result chip.** The card appears as a floating panel next to the chip.
 3. **Shift pinned.** With Shift held, the panel stays in place. The mouse is over the Nether Star slot, which gets the vanilla slot highlight and the normal item tooltip.
-4. **Normal or Detailed answer.** The card is a block row inside the bubble, left-aligned with the text, with its caption underneath. Today's source chip is unchanged.
+4. **Normal or Detailed answer.** The card is a block row inside the bubble, left-aligned with the text, with its caption underneath. Source chips appear only in Detailed answers.
 5. **Edge cases.**
    - An unresolved item ID renders as plain text, with no chip.
    - A slot whose item is missing from the registries shows a barrier icon.
@@ -76,7 +80,7 @@ The mockup below is the reference for how chips and cards look. It is drawn at G
 
 ### What the model writes
 
-- **Recipe cards.** The model cites the recipe record where the card should appear, on a line of its own: `[native:<handle>]` or its alias. In a Normal or Detailed answer, a citation that stands alone on a line and resolves to a recipe record with a recognized layout (see below) becomes a card. A recipe citation inside a sentence stays a source chip. Plan citations resolve to the plan's step recipe through the `plan|…|<recipeHandle>` suffix.
+- **Recipe cards.** The model cites the recipe record where the card should appear, on a line of its own: `[native:<handle>]` or its alias. In a Normal or Detailed answer, a citation that stands alone on a line and resolves to a recipe record with a recognized layout (see below) becomes a card. A recipe citation inside a sentence follows the source chip rules in Design. Plan citations resolve to the plan's step recipe through the `plan|…|<recipeHandle>` suffix.
 - **Item chips.** The model writes `[Label](item:<registry id>)`, using item IDs it saw in tool results. The client resolves the ID against the current item registry and shows it as an item chip.
   - **Unknown IDs:** an ID that does not resolve renders as the plain label, with no icon.
   - **Components:** item chips carry no component data. When an item's components matter, for example a potion, the model cites the record instead.
@@ -91,7 +95,7 @@ The mockup below is the reference for how chips and cards look. It is drawn at G
 These rules were the designer's call:
 
 - **Recognized layouts.** A record gets a card or a result chip when its `recipeType=` constraint names a category from the layout table and its `decodingStatus` is not `UNKNOWN`. That includes `OPAQUE` records with custom ingredients, which show "?" slots, and `PARTIAL` smithing records. A smithing trim output that is unknown shows a "?" output slot.
-  - **Subclassed recipes.** Mod recipes that subclass vanilla classes are decoded as `UNKNOWN`. They keep the source chip, so the card never misrepresents a mod recipe; the later JEI implementation covers them.
+  - **Subclassed recipes.** Mod recipes that subclass vanilla classes are decoded as `UNKNOWN`. Their citations follow the source chip rules in Design, so the card never misrepresents a mod recipe; the later JEI implementation covers them.
 - **Concise answers.** These never show block cards. Every recipe citation becomes a result chip, whether it stands on its own line or sits inside a sentence.
 - **Plan citations.** A plan citation draws the plan record's own `recipePayload`, which is the route's top-level recipe. Tag slots in plan payloads are already expanded, up to 16 members, and cycle through that list. Deeper steps get cards only when the model cites their recipe records directly.
 
@@ -138,8 +142,8 @@ JEI shows the station in its category header, not in the recipe layout. Every ca
 
 - **Block elements.** Message layout gains block elements. A card occupies its own row, with height equal to the card's height plus padding, and is aligned to the bubble's text left edge.
 - **Culling and caching.** Cards follow the same culling and scroll clipping as text, and they are cached with the prepared turn.
-- **Width.** Cards are drawn at GUI scale and never scaled down. A card wider than the bubble falls back to a source chip.
-- **Item chips and result chips.** These are inline like source chips: a full-size 16 px item render, then the label. Items are never scaled down. A line that holds one of these chips grows from the usual 12 GUI px to 18 GUI px. Other lines keep 12.
+- **Width.** Cards are drawn at GUI scale and never scaled down. A card wider than the bubble falls back to a result chip in Normal answers and a source chip in Detailed answers.
+- **Item chips and result chips.** These are rounded and 12 GUI px tall, with a standard item render scaled to 12 px followed by the label. Item chips have a lighter neutral fill than the bubble; result chips have an accent fill and outline. Lines containing chips use the usual 12 GUI px height. Card slots keep full-size 16 px item renders.
 - **Result chip hover.** The card draws as a floating panel near the mouse.
   - Holding Shift freezes it in place, and hovering its slots shows their item tooltips above the panel.
   - The panel closes when Shift is released and the mouse is outside both the chip and the panel.

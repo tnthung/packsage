@@ -8,7 +8,7 @@
 - **Card model.** A pure model (`client/recipe`) turns a recorded recipe record into a `RecipeCardModel` with JEI 19 slot coordinates.
 - **Text parsing.** `ScreenText` classifies citations into cards, result chips and item chips, using the verbosity stored on the turn.
 - **Native renderer.** The native renderer draws the model with bundled JEI sprites and vanilla item rendering, behind a `RecipeCardSource` seam that a later JEI implementation fills.
-- **Chat layout.** `AssistantScreen` gains block rows, 18 px chip lines, and a floating card panel driven by a pure `PinnedCardState`.
+- **Chat layout.** `AssistantScreen` gains block rows, 12 px chip lines, and a floating card panel driven by a pure `PinnedCardState`.
 
 **Tech Stack:** Java 21, NeoForge 1.21.1, Gson, JUnit 5.
 
@@ -20,8 +20,8 @@
 - Commit each step as soon as it is written. Messages start with `[Add]`, `[Chg]`, `[Fix]` or `[Rmv]`, with no AI attribution trailers. Merge only with `git merge --no-ff`. Do not push, and do not merge into `feat/packsage-v1`.
 - Never run formatting tools. Match the surrounding style.
 - No core class links against JEI. This plan adds no JEI dependency.
-- Icons are always the standard item render: `GuiGraphics.renderItem` plus `renderItemDecorations`. Never draw a raw texture in an item's place. Items are never scaled down.
-- A line holding an item chip or result chip is 18 GUI px tall; other lines stay `ModernUi.MESSAGE_LINE_HEIGHT` (12).
+- Icons are always the standard item render: `GuiGraphics.renderItem` plus `renderItemDecorations`. Never draw a raw texture in an item's place. Chip icons scale to 12 px; card slots keep 16 px icons.
+- Lines holding item chips or result chips use `ModernUi.MESSAGE_LINE_HEIGHT` (12 GUI px).
 - Turns with no stored verbosity render exactly as today: no cards, no item chips and no result chips.
 - Concise answers never contain block cards.
 - Chat opening must stay within the 2026-10-26 recheck: about 11–50 ms from the key press to the first frame.
@@ -246,7 +246,7 @@ Tasks in the same wave touch disjoint files and can run at the same time, each i
 **Files:**
 - Modify: `src/main/java/dev/packsage/client/AssistantScreen.java`
   - `prepareTurn` (843): pass the turn's verbosity and `ScreenText.recipeCards(turn)`, and cache the resolved `RecipeCard`s with the prepared turn.
-  - `messageLayout`: add block rows and the 18 px chip line height.
+  - `messageLayout`: add block rows and 12 px chip lines.
   - `MessageRun` (945): add `RecipeCard card`, `int height`.
   - `drawInlineLines` (918): draw cards and chips, and record hit boxes.
   - Hover handling (around 1345): add item tooltips, result chip panels and `PinnedCardState`.
@@ -255,7 +255,7 @@ Tasks in the same wave touch disjoint files and can run at the same time, each i
 **Interfaces:**
 - Consumes: Tasks 3–6.
 - Produces:
-  - `static int AssistantScreen.lineHeight(ScreenText.InlineLine line)`, which returns 18 when the line holds an item or result chip, the card height plus 8 for card lines, and `ModernUi.MESSAGE_LINE_HEIGHT` otherwise.
+  - Card lines use the card height plus 8; item and result chip lines use `ModernUi.MESSAGE_LINE_HEIGHT`.
   - Slot hover draws `graphics.renderTooltip(font, stack, mouseX, mouseY)` for `Hover.Item` and `graphics.renderComponentTooltip(font, lines, mouseX, mouseY)` for `Hover.Text`. Item chips draw their stack's tooltip the same way.
   - The result chip panel is a `ModernUi.surface(... ModernUi.SURFACE)` with 8 px padding around the card, placed below the chip and flipped above it when it would leave the screen.
   - Cards wider than the bubble's text width render the line's fallback source chip instead.

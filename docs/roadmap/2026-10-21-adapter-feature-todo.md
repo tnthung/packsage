@@ -203,6 +203,10 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 - [x] JEI — output-item searches match modded-category recipes with their captured slots and OPAQUE coverage; installed retrieval passed for Nature's Aura's Natural Altar Infusion recipe for Gold Powder. Using that route in the reply is tracked under the prompt item above.
 - [ ] JEI — items with JEI-distinguished variants, such as potions, still use the bounded scan; the installed potion path was not exercised because the assistant selected native.
 
+### Recipe cards and navigation
+
+- [ ] JEI — draw recipe cards with JEI; R, U and clicks on card slots open recipes or uses, and R, U and clicks on item or result chips open their JEI recipes or uses (chip clicks open recipes).
+
 ### Native crafting grid layout
 
 - [x] Minecraft — shaped recipes report `shape=WxH` with slot-index constraints and shapeless recipes report `shape=shapeless`; installed acceptance passed for a piston's 3x3 placement ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).

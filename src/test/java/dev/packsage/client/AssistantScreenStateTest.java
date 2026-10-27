@@ -1535,7 +1535,10 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
         var model = new dev.packsage.client.recipe.RecipeCardModel(
-                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(), "Furnace", List.of());
+                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(
+                        new dev.packsage.client.recipe.RecipeCardModel.Slot("output", 0, 0, true, List.of(
+                                new dev.packsage.client.recipe.RecipeCardModel.Stack(dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.ITEM,
+                                        "minecraft:glass", "{}", 1, "")))), "Furnace", List.of());
         var card = new dev.packsage.client.recipe.RecipeCard() {
             @Override public int width() { return 88; }
             @Override public int height() { return 63; }
@@ -1549,12 +1552,44 @@ class AssistantScreenStateTest {
                 SOURCE, null, model, null)));
         var block = new ScreenText.InlineLine(result.spans(), false, model);
         var layout = screen.messageLayout(List.of(plain, item, result, block, plain), 200, java.util.Map.of(model, card),
-                java.util.Map.of(model, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)),
+                java.util.Map.of(model, new dev.packsage.client.recipe.SlotStacks.ResolvedSlot(
+                        List.of(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)), false)),
                 java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
-        assertEquals(List.of(0, 12, 30, 48, 119), layout.runs().stream().map(AssistantScreen.MessageRun::y).toList());
-        assertEquals(List.of(12, 18, 18, 71, 12), layout.runs().stream().map(AssistantScreen.MessageRun::height).toList());
-        assertEquals(131, layout.height());
+        assertEquals(List.of(0, 12, 24, 36, 107), layout.runs().stream().map(AssistantScreen.MessageRun::y).toList());
+        assertEquals(List.of(12, 12, 12, 71, 12), layout.runs().stream().map(AssistantScreen.MessageRun::height).toList());
+        assertEquals(119, layout.height());
+        assertEquals(45, layout.runs().get(1).width());
+        assertEquals(layout.runs().get(2).span().text().length() * 5 + 20, layout.runs().get(2).width());
         assertEquals(71, layout.runs().get(3).height());
+    }
+
+    @Test
+    void resultChipsNameMissingAndUnknownOutputsInsteadOfTheBarrier() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var card = new dev.packsage.client.recipe.RecipeCard() {
+            @Override public int width() { return 88; }
+            @Override public int height() { return 63; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
+        };
+        var missing = new dev.packsage.client.recipe.RecipeCardModel.Stack(
+                dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.ITEM, "missingmod:lost_item", "{}", 1, "");
+        var unknown = new dev.packsage.client.recipe.RecipeCardModel.Stack(
+                dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.UNKNOWN, "unknown:output:test:trim", "{}", 1, "");
+        for (var output : List.of(missing, unknown)) {
+            var model = new dev.packsage.client.recipe.RecipeCardModel(
+                    dev.packsage.client.recipe.RecipeCardModel.Category.SMITHING, 80, 50,
+                    List.of(new dev.packsage.client.recipe.RecipeCardModel.Slot("output", 0, 0, true, List.of(output))), "Smithing table", List.of());
+            var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Recipe", null, ModernUi.TEXT, false, false,
+                    SOURCE, null, model, null)));
+            var layout = screen.messageLayout(List.of(line), 300, java.util.Map.of(model, card),
+                    java.util.Map.of(model, dev.packsage.client.recipe.SlotStacks.resolve(output,
+                            net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY))), java.util.Map.of());
+            assertEquals(output == missing ? "Missing: missingmod:lost_item" : "Unknown result", layout.runs().getFirst().span().text());
+        }
     }
 
     @Test
@@ -1618,6 +1653,34 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void normalNarrowRecipeCardFallsBackToResultChip() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var model = new dev.packsage.client.recipe.RecipeCardModel(
+                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(
+                        new dev.packsage.client.recipe.RecipeCardModel.Slot("output", 0, 0, true, List.of(
+                                new dev.packsage.client.recipe.RecipeCardModel.Stack(dev.packsage.client.recipe.RecipeCardModel.Stack.Kind.ITEM,
+                                        "minecraft:glass", "{}", 1, "")))), "Furnace", List.of());
+        var card = new dev.packsage.client.recipe.RecipeCard() {
+            @Override public int width() { return 88; }
+            @Override public int height() { return 71; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
+        };
+        var source = new Evidence.Source(SCOPE, "native", "1", "minecraft:glass", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var line = ScreenText.inlineLines("[native:minecraft:glass]", List.of(), List.of(), List.of(source), java.util.Map.of(),
+                PackSageSettings.Verbosity.NORMAL, java.util.Map.of(source, model)).getFirst();
+        var stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS);
+        var narrow = screen.messageLayout(List.of(line), 87, java.util.Map.of(model, card), java.util.Map.of(model, new dev.packsage.client.recipe.SlotStacks.ResolvedSlot(List.of(stack), false)), java.util.Map.of());
+        assertSame(card, narrow.runs().getFirst().card());
+        assertSame(stack, narrow.runs().getFirst().stack());
+        assertEquals(12, narrow.height());
+    }
+
+    @Test
     void copyTextUsesLabelsAcrossSteeredAnswerSegments() throws Exception {
         var actions = new FakeActions();
         var screen = new AssistantScreen(actions);
@@ -1628,7 +1691,7 @@ class AssistantScreenStateTest {
         font.setAccessible(true);
         font.set(screen, new ScreenPreparationFont());
         var prior = actions.view.conversation().turns().getFirst();
-        var answer = "[Glass](item:minecraft:glass) and [Recipe](native:source)";
+        var answer = "[Glass](item:minecraft:glass) [native:source] and [Recipe](native:source) [native:source].";
         var turn = new ChatContracts.Turn(prior.requestId(), prior.question(), answer, List.of(), prior.context(),
                 List.of(new Evidence.Source(SCOPE, "native", "1", "source", 1, Instant.EPOCH,
                         Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of())),
@@ -1640,7 +1703,7 @@ class AssistantScreenStateTest {
         var prepared = prepare.invoke(screen, turn);
         var copy = prepared.getClass().getDeclaredMethod("copy");
         copy.setAccessible(true);
-        assertEquals("Glass and Recipe", copy.invoke(prepared));
+        assertEquals("Glass and Recipe.", copy.invoke(prepared));
     }
 
     @Test
@@ -1658,7 +1721,7 @@ class AssistantScreenStateTest {
     }
 
     @Test
-    void resolvedItemChipOnlyExpandsItsWrappedRow() {
+    void resolvedItemChipKeepsItsWrappedRowAtTextHeight() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 640;
         screen.height = 480;
@@ -1670,8 +1733,9 @@ class AssistantScreenStateTest {
                 java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
         var chip = layout.runs().stream().filter(run -> run.stack() != null).findFirst().orElseThrow();
         assertEquals(12, chip.y());
-        assertEquals(18, chip.height());
-        assertEquals(30, layout.runs().stream().filter(run -> run.span().text().equals("world")).findFirst().orElseThrow().y());
+        assertEquals(12, chip.height());
+        assertEquals(45, chip.width());
+        assertEquals(24, layout.runs().stream().filter(run -> run.span().text().equals("world")).findFirst().orElseThrow().y());
     }
 
     @Test

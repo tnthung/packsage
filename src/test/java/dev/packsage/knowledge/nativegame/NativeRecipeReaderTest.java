@@ -575,6 +575,19 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void shapedSubclassWithEmptyOutputStaysUnknownAndHasNoCard() {
+        var pattern = net.minecraft.world.item.crafting.ShapedRecipePattern.of(Map.of('P', Ingredient.of(Items.OAK_PLANKS)), "P");
+        var shaped = new net.minecraft.world.item.crafting.ShapedRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                pattern, new ItemStack(Items.STICK)) {
+            @Override public ItemStack getResultItem(net.minecraft.core.HolderLookup.Provider registries) { return ItemStack.EMPTY; }
+        };
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:modded_empty"), shaped),
+                registries, ITEMS, null, SCOPE, null);
+        assertTrue(dev.packsage.client.recipe.RecipeCardModels.fromRecord(dev.packsage.model.PackSageTools.encodeRecord(record)).isEmpty());
+        assertEquals(Evidence.DecodingStatus.UNKNOWN, record.recipePayload().decodingStatus());
+    }
+
+    @Test
     void vanillaRecipeSlotQuantityIsOneEvenWhenItemValueStackHasMore() {
         var shapeless = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
                 new ItemStack(Items.STICK), NonNullList.of(Ingredient.EMPTY, Ingredient.of(new ItemStack(Items.OAK_PLANKS, 4))));

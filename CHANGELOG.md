@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Saved JEI recipe links resolve against the current runtime by category and recipe ID; anonymous links expire with their runtime, and hidden, removed or ambiguous recipes cannot open.
 - Ready JEI supplies the default recipe search and planning source, with native recipes used when JEI is unavailable.
 - Chat cards and item chips open JEI recipes and uses with clicks and JEI's configured keys when its runtime is ready.
 - Added JEI recipe search through its focus index.

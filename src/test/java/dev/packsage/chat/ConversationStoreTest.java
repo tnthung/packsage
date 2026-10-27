@@ -1,5 +1,8 @@
 package dev.packsage.chat;
 
+import dev.packsage.jei.JeiIndex;
+import dev.packsage.jei.JeiLayout;
+import dev.packsage.jei.JeiProvider;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
 import org.junit.jupiter.api.Test;
@@ -11,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -23,6 +27,46 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class ConversationStoreTest {
+    @Test
+    void savedTargetRoundTripsThroughConversationStore() {
+        var store = new ConversationStore(temporaryDirectory, DIRECT);
+        var world = new ChatContracts.WorldIdentity("world-a", "World");
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        var saved = new Evidence.NavigationTarget(SCOPE, "jei", "mod:machine|mod:recipe", "recipe");
+        var source = new Evidence.Source(SCOPE, "jei", "19.27", saved.sourceHandle(), SCOPE.requestGeneration(), Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        store.appendTurn(world, SCOPE, conversation.id(), new ChatContracts.Turn(new ChatContracts.RequestId("saved-jei"), "Recipe?", "Saved answer",
+                List.of(), new ChatContracts.Context("", null, SCOPE), List.of(source), List.of(saved),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0)).toCompletableFuture().join();
+
+        var loaded = new ConversationStore(temporaryDirectory, DIRECT).openConversation(world, conversation.id())
+                .toCompletableFuture().join().turns().getFirst();
+        assertEquals(List.of(saved), loaded.navigationTargets());
+        var current = new Evidence.Scope("world-a", "en_us", "team-a", "provider-2", 5);
+        var index = new JeiIndex() {
+            public long generation() { return 2; }
+            public List<RecipeRef> byFocus(JeiLayout.Role role, String itemId) { return List.of(); }
+            public List<RecipeRef> byVariant(JeiLayout.Role role, ItemVariant variant) { return List.of(); }
+            public List<String> categoriesMatching(String text) { return List.of(); }
+            public List<ItemVariant> itemsMatching(String text) { return List.of(); }
+            public boolean itemsMatchingTruncated() { return false; }
+            public List<RecipeRef> inCategory(String categoryUid) { return List.of(new RecipeRef("mod:machine", 3)); }
+            public Optional<RecipeRef> byRecipeId(String categoryUid, String recipeId) {
+                return categoryUid.equals("mod:machine") && recipeId.equals("mod:recipe")
+                        ? Optional.of(new RecipeRef(categoryUid, 3)) : Optional.empty();
+            }
+            public JeiLayout layout(RecipeRef ref) {
+                return new JeiLayout("mod:machine", "Machine", "mod:recipe", 3, 2,
+                        false, true, null, List.of(), List.of());
+            }
+        };
+        assertEquals(new Evidence.NavigationTarget(current, "jei", "mod:machine|mod:recipe", "recipe"),
+                new JeiProvider(() -> Optional.of(index), DIRECT, () -> current)
+                        .refreshNavigation(loaded.navigationTargets().getFirst(), current).toCompletableFuture().join());
+        assertEquals("Saved answer", loaded.answer());
+        assertEquals(List.of(source), loaded.sources());
+    }
+
     @Test
     void verbosityRoundTrips() throws Exception {
         var store = new ConversationStore(temporaryDirectory, DIRECT);

@@ -33,7 +33,7 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
     @Override
     public Optional<RecipeCard> card(RecipeCardModel model) {
         var level = Minecraft.getInstance().level;
-        if (level == null) return Optional.empty();
+        if (level == null || model.category() == RecipeCardModel.Category.VIEWER) return Optional.empty();
         return Optional.of(new NativeCard(model, level.registryAccess()));
     }
 

@@ -172,6 +172,22 @@ public final class JeiRuntimeIndex implements JeiIndex {
         return Optional.empty();
     }
 
+    record Resolved<T>(IRecipeCategory<T> category, T recipe) { }
+
+    /** The category and recipe object behind a reference, or empty when the reference is no longer valid. */
+    Optional<Resolved<?>> resolve(RecipeRef ref) {
+        generation();
+        return runtime.getRecipeManager().createRecipeCategoryLookup().includeHidden().get()
+                .filter(value -> value.getRecipeType().getUid().toString().equals(ref.categoryUid())).findFirst()
+                .<Resolved<?>>map(category -> resolve(category, ref));
+    }
+
+    private <T> Resolved<T> resolve(IRecipeCategory<T> category, RecipeRef ref) {
+        var recipes = categoryRecipes(category).recipes();
+        if (ref.ordinal() < 0 || ref.ordinal() >= recipes.size()) return null;
+        return new Resolved<>(category, category.getRecipeType().getRecipeClass().cast(recipes.get(ref.ordinal())));
+    }
+
     @Override public JeiLayout layout(RecipeRef ref) {
         try {
             generation();

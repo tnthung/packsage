@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- With JEI ready, chat recipe cards for JEI and vanilla recipes are drawn by JEI's own layouts, scaled down to three quarters to fit; narrower columns fall back to native cards or the caption and chips.
 - Chat cards and item chips open JEI recipes and uses with clicks and JEI's configured keys when its runtime is ready.
 - Added the optional JEI integration foundation with version checks and runtime lifecycle tracking.
 - The assistant gets a `bookmark` tool schema only when a ready bookmark provider is enabled (core side of the JEI bookmark tool).

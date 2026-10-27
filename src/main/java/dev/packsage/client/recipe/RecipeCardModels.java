@@ -3,6 +3,7 @@ package dev.packsage.client.recipe;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,6 +13,10 @@ public final class RecipeCardModels {
             var payload = record.getAsJsonObject("payload");
             var status = payload.get("decodingStatus").getAsString();
             if (!List.of("VERIFIED", "PARTIAL", "OPAQUE").contains(status)) return Optional.empty();
+            var recipeId = text(payload, "canonicalRecipeId");
+            var observed = record.get("source");
+            if (observed != null && observed.isJsonObject() && "jei".equals(text(observed.getAsJsonObject(), "providerId")))
+                return viewer(record, observed.getAsJsonObject(), payload, recipeId);
             var inputs = payload.getAsJsonArray("inputs");
             var outputs = payload.getAsJsonArray("outputs");
             var constraints = payload.getAsJsonArray("constraints");
@@ -91,17 +96,49 @@ public final class RecipeCardModels {
                         texts.add(new RecipeCardModel.Text(payload.get("experience").getAsFloat() + " XP", RecipeCardLayouts.COOKING_TEXT_X, RecipeCardLayouts.EXPERIENCE_Y, true));
                 } catch (RuntimeException ignored) { }
             }
-            return Optional.of(new RecipeCardModel(category, layout.width(), layout.height(), List.copyOf(slots), layout.caption(), List.copyOf(texts), cookingTime));
+            return Optional.of(new RecipeCardModel(category, layout.width(), layout.height(), List.copyOf(slots), layout.caption(), List.copyOf(texts), cookingTime,
+                    recipeId, null));
         } catch (RuntimeException failure) {
             return Optional.empty();
         }
+    }
+
+    /** A viewer-drawn card: the slots only keep the recorded stacks, in record order, for the narrow fallback. */
+    private static Optional<RecipeCardModel> viewer(JsonObject record, JsonObject observed, JsonObject payload, String recipeId) {
+        var handle = text(observed, "sourceHandle");
+        var reference = text(record, "reference");
+        if (handle != null && handle.startsWith("ref:") && reference != null && reference.startsWith("jei:")) handle = reference.substring(4);
+        if (handle == null || handle.isEmpty()) return Optional.empty();
+        var slots = new ArrayList<RecipeCardModel.Slot>();
+        for (var input : payload.getAsJsonArray("inputs")) {
+            var object = input.getAsJsonObject();
+            var stacks = new ArrayList<RecipeCardModel.Stack>();
+            for (var alternative : object.getAsJsonArray("alternatives")) stacks.add(stack(alternative.getAsJsonObject()));
+            slots.add(new RecipeCardModel.Slot(object.get("groupId").getAsString(), 0, 0, false, List.copyOf(stacks)));
+        }
+        var outputs = new LinkedHashMap<String, List<RecipeCardModel.Stack>>();
+        for (var output : payload.getAsJsonArray("outputs")) {
+            var object = output.getAsJsonObject();
+            var group = text(object, "groupId");
+            outputs.computeIfAbsent(group == null ? "output" : group, ignored -> new ArrayList<>()).add(stack(object));
+        }
+        outputs.forEach((group, stacks) -> slots.add(new RecipeCardModel.Slot(group, 0, 0, true, List.copyOf(stacks))));
+        var caption = text(payload, "category");
+        if (caption == null) caption = text(record, "title");
+        return Optional.of(new RecipeCardModel(RecipeCardModel.Category.VIEWER, 0, 0, List.copyOf(slots), caption == null ? "" : caption,
+                List.of(), 0, recipeId, handle));
+    }
+
+    private static String text(JsonObject object, String name) {
+        var value = object.get(name);
+        return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
     }
 
     private static RecipeCardModel.Stack stack(JsonObject value) {
         var kind = switch (value.get("type").getAsString()) {
             case "item", "item_stack" -> RecipeCardModel.Stack.Kind.ITEM;
             case "tag" -> RecipeCardModel.Stack.Kind.TAG;
-            case "custom" -> RecipeCardModel.Stack.Kind.CUSTOM;
+            case "custom", "fluid", "other" -> RecipeCardModel.Stack.Kind.CUSTOM;
             case "unknown" -> RecipeCardModel.Stack.Kind.UNKNOWN;
             default -> throw new IllegalArgumentException();
         };

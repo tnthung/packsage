@@ -7,6 +7,8 @@ import dev.packsage.chat.ChatActions;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.PackSageSettings;
 import dev.packsage.client.recipe.NativeRecipeCardSource;
+import dev.packsage.client.recipe.RecipeCardSource;
+import dev.packsage.client.recipe.RecipeCardSources;
 import dev.packsage.client.recipe.PinnedCardState;
 import dev.packsage.client.recipe.RecipeCard;
 import dev.packsage.client.recipe.RecipeCardModel;
@@ -90,6 +92,7 @@ public final class AssistantScreen extends Screen {
     private final List<ItemHit> itemHits = new ArrayList<>();
     private final List<CardHit> cardHits = new ArrayList<>();
     private dev.packsage.client.recipe.ItemViewer itemViewer;
+    private RecipeCardSource recipeCardSource = new NativeRecipeCardSource();
     private PinnedCardState pinnedCard = new PinnedCardState();
     private int drawMouseX;
     private int drawMouseY;
@@ -899,9 +902,8 @@ public final class AssistantScreen extends Screen {
             items = new HashMap<>();
             copy = new StringBuilder();
             if (!models.isEmpty()) {
-                var source = new NativeRecipeCardSource();
                 for (var model : new HashSet<>(models.values())) {
-                    var card = source.card(model).orElse(null);
+                    var card = recipeCardSource.card(model, answerWidth).orElse(null);
                     if (card == null) continue;
                     cards.put(model, card);
                     if (turn.verbosity() != PackSageSettings.Verbosity.DETAILED && minecraft != null && minecraft.level != null) for (var slot : model.slots()) {
@@ -2055,6 +2057,13 @@ public final class AssistantScreen extends Screen {
     }
 
     public void setItemViewer(dev.packsage.client.recipe.ItemViewer itemViewer) { this.itemViewer = itemViewer; }
+
+    /** Draws recipe cards with {@code viewerSource} first, falling back to native cards; null keeps only native cards. */
+    public void setRecipeCardSource(RecipeCardSource viewerSource) {
+        recipeCardSource = viewerSource == null ? new NativeRecipeCardSource()
+                : RecipeCardSources.first(List.of(viewerSource, new NativeRecipeCardSource()));
+        preparedTurns.clear();
+    }
 
     /** The item under the mouse in a card slot, panel slot or item chip, or {@link ItemStack#EMPTY}. */
     private ItemStack viewerItemAt(double mouseX, double mouseY) {

@@ -7,6 +7,11 @@ import dev.packsage.chat.ChatActions;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.PackSageSettings;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.client.recipe.NativeRecipeCardSource;
+import dev.packsage.client.recipe.PinnedCardState;
+import dev.packsage.client.recipe.RecipeCard;
+import dev.packsage.client.recipe.RecipeCardModel;
+import dev.packsage.client.recipe.SlotStacks;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.GroundingInstructions;
 import net.minecraft.client.Minecraft;
@@ -17,6 +22,10 @@ import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.locale.Language;
 
 import java.net.URI;
@@ -78,6 +87,13 @@ public final class AssistantScreen extends Screen {
     private boolean catalogOtherWorlds;
     private final List<ChipHit> chipHits = new ArrayList<>();
     private final List<SourceHit> sourceHits = new ArrayList<>();
+    private final List<ItemHit> itemHits = new ArrayList<>();
+    private final List<CardHit> cardHits = new ArrayList<>();
+    private PinnedCardState pinnedCard = new PinnedCardState();
+    private int drawMouseX;
+    private int drawMouseY;
+    private CardHit panelCard;
+    private PinnedCardState.Rect panelRect;
     private final List<WebLinkHit> webLinkHits = new ArrayList<>();
     private Evidence.Source tooltipSource;
     private ChatContracts.Turn tooltipTurn;
@@ -242,6 +258,8 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        drawMouseX = mouseX;
+        drawMouseY = mouseY;
         graphics.flush();
         renderBlurredBackground(partialTick);
         layout();
@@ -267,6 +285,7 @@ public final class AssistantScreen extends Screen {
         drawPicker(graphics, mouseX, mouseY);
         drawToolbarTooltip(graphics, mouseX, mouseY);
         drawSourceTooltip(graphics, mouseX, mouseY);
+        drawRecipeTooltips(graphics, mouseX, mouseY);
         acknowledgeRenderedUnread(minecraft != null && minecraft.screen == this);
         if (!firstFrameRendered) {
             firstFrameRendered = true;
@@ -480,6 +499,8 @@ public final class AssistantScreen extends Screen {
         }
         chipHits.clear();
         sourceHits.clear();
+        itemHits.clear();
+        cardHits.clear();
         webLinkHits.clear();
         activityHits.clear();
         messageActions.clear();
@@ -787,7 +808,8 @@ public final class AssistantScreen extends Screen {
     }
 
     private MessageLayout assistantLayout(String answer, MessageSegment segment, ChatContracts.Turn turn,
-                                          List<Evidence.NavigationTarget> targets, int width) {
+                                          List<Evidence.NavigationTarget> targets, int width, Map<Evidence.Source, RecipeCardModel> models,
+                                          Map<RecipeCardModel, RecipeCard> cards, Map<String, ItemStack> items, StringBuilder copy) {
         List<ModelBackend.UrlCitation> citations = new ArrayList<>();
         int searchFrom = 0;
         int segmentEnd = segment.answerOffset() + segment.text().length();
@@ -811,8 +833,23 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
-        List<ScreenText.InlineLine> lines = ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(), sourceLabels(turn));
-        return messageLayout(lines, width);
+        List<ScreenText.InlineLine> lines = ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(),
+                sourceLabels(turn), turn.verbosity(), models);
+        if (turn.verbosity() != null) {
+            if (!copy.isEmpty()) copy.append('\n');
+            for (int index = 0; index < lines.size(); index++) {
+                if (index > 0) copy.append('\n');
+                for (var span : lines.get(index).spans()) copy.append(span.text());
+                for (var span : lines.get(index).spans()) {
+                    if (span.itemId() == null || items.containsKey(span.itemId()) || minecraft == null || minecraft.level == null) continue;
+                    var id = ResourceLocation.tryParse(span.itemId());
+                    var item = id == null ? null : minecraft.level.registryAccess().lookupOrThrow(Registries.ITEM)
+                            .get(ResourceKey.create(Registries.ITEM, id)).orElse(null);
+                    if (item != null) items.put(span.itemId(), new ItemStack(item, 1));
+                }
+            }
+        }
+        return messageLayout(lines, width, cards, items);
     }
 
     /** Shared by rendering and the headless profile; visits only the requested history window, newest first. */
@@ -847,11 +884,20 @@ public final class AssistantScreen extends Screen {
         userLines(turn.question(), width);
         List<Evidence.NavigationTarget> targets = turnTargets(turn);
         Map<MessageSegment, MessageLayout> answers = new HashMap<>();
+        Map<Evidence.Source, RecipeCardModel> models = turn.verbosity() == null ? Map.of() : ScreenText.recipeCards(turn);
+        Map<RecipeCardModel, RecipeCard> cards = new HashMap<>();
+        if (!models.isEmpty()) {
+            var source = new NativeRecipeCardSource();
+            for (var model : new HashSet<>(models.values())) source.card(model).ifPresent(card -> cards.put(model, card));
+        }
+        Map<String, ItemStack> items = new HashMap<>();
+        StringBuilder copy = new StringBuilder();
         for (MessageSegment segment : answerSegments(turn.answer(), turn.steeringMessages())) {
             if (segment.player()) userLines(segment.text(), width);
-            else answers.put(segment, assistantLayout(turn.answer(), segment, turn, targets, width));
+            else answers.put(segment, assistantLayout(turn.answer(), segment, turn, targets, width, models, cards, items, copy));
         }
-        PreparedTurn prepared = new PreparedTurn(turn, width, GroundingInstructions.historyTokenCounts(turn), Map.copyOf(answers));
+        PreparedTurn prepared = new PreparedTurn(turn, width, GroundingInstructions.historyTokenCounts(turn), Map.copyOf(answers),
+                turn.verbosity() == null ? turn.answer() : copy.toString());
         preparedTurns.put(turn.requestId(), prepared);
         return prepared;
     }
@@ -867,7 +913,7 @@ public final class AssistantScreen extends Screen {
     }
 
     private record PreparedTurn(ChatContracts.Turn turn, int width, ChatContracts.TokenCounts tokens,
-                                Map<MessageSegment, MessageLayout> answers) { }
+                                Map<MessageSegment, MessageLayout> answers, String copy) { }
     private record UserLines(int width, List<net.minecraft.util.FormattedCharSequence> lines) { }
 
     private Map<Evidence.Source, String> sourceLabels(ChatContracts.Turn turn) {
@@ -920,56 +966,113 @@ public final class AssistantScreen extends Screen {
         for (MessageRun run : layout.runs()) {
             int x = left + run.x();
             int top = y + run.y();
-            if (top + ModernUi.MESSAGE_LINE_HEIGHT <= 40 || top >= toggleY - 8) continue;
+            if (top + run.height() <= 40 || top >= toggleY - 8) continue;
             if (run.quoted() && quoteY != run.y()) {
-                graphics.fill(left, top, left + 2, top + ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.MUTED);
+                graphics.fill(left, top, left + 2, top + run.height(), ModernUi.MUTED);
                 quoteY = run.y();
             }
+            if (run.card() != null && run.stack() == null) {
+                run.card().draw(graphics, x, top + 4, drawMouseY >= 40 && drawMouseY < toggleY - 8 ? drawMouseX : -1,
+                        drawMouseY >= 40 && drawMouseY < toggleY - 8 ? drawMouseY : -1);
+                cardHits.add(new CardHit(run.card(), null, new PinnedCardState.Rect(x, top + 4,
+                        x + run.card().width(), top + 4 + run.card().height())));
+                continue;
+            }
             ScreenText.InlineSpan span = run.span();
-            if (span.target() != null || span.source() != null || span.externalUrl() != null) {
-                ModernUi.surface(graphics, x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT,
+            boolean item = run.stack() != null;
+            boolean reference = span.target() != null || span.source() != null || span.externalUrl() != null;
+            if (item) {
+                int chipTop = top + (run.height() - 18) / 2;
+                ModernUi.surface(graphics, x, chipTop, x + run.width(), chipTop + 18,
+                        run.card() != null ? ModernUi.ACCENT : ModernUi.SURFACE_HOVER);
+                if (run.card() != null) ModernUi.surface(graphics, x + 1, chipTop + 1, x + run.width() - 1,
+                        chipTop + 17, ModernUi.ACCENT_DARK);
+                graphics.renderItem(run.stack(), x + 1, chipTop + 1);
+                graphics.renderItemDecorations(font, run.stack(), x + 1, chipTop + 1);
+                var rect = new PinnedCardState.Rect(x, chipTop, x + run.width(), chipTop + 18);
+                if (run.card() != null) cardHits.add(new CardHit(run.card(), run.stack(), rect));
+                else itemHits.add(new ItemHit(run.stack(), rect));
+            } else if (reference) {
+                int chipTop = top + (run.height() - ModernUi.MESSAGE_LINE_HEIGHT) / 2;
+                ModernUi.surface(graphics, x, chipTop, x + run.width(), chipTop + ModernUi.MESSAGE_LINE_HEIGHT,
                         span.target() != null || span.externalUrl() != null ? ModernUi.ACCENT_DARK : ModernUi.SURFACE_HOVER);
-                if (turn != null && span.target() != null) chipHits.add(new ChipHit(span.target(), x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT));
-                if (turn != null && span.source() != null) sourceHits.add(new SourceHit(span.source(), turn, x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT));
-                if (turn != null && span.externalUrl() != null) webLinkHits.add(new WebLinkHit(span.externalUrl(), x, top,
-                        x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT));
+                if (turn != null && span.target() != null) chipHits.add(new ChipHit(span.target(), x, chipTop, x + run.width(), chipTop + ModernUi.MESSAGE_LINE_HEIGHT));
+                if (turn != null && span.source() != null) sourceHits.add(new SourceHit(span.source(), turn, x, chipTop, x + run.width(), chipTop + ModernUi.MESSAGE_LINE_HEIGHT));
+                if (turn != null && span.externalUrl() != null) webLinkHits.add(new WebLinkHit(span.externalUrl(), x, chipTop,
+                        x + run.width(), chipTop + ModernUi.MESSAGE_LINE_HEIGHT));
             }
             graphics.drawString(font, Component.literal(span.text()).withStyle(style -> style
                             .withFont(span.bold() || span.target() != null || span.externalUrl() != null ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
-                    x + (span.target() == null && span.source() == null && span.externalUrl() == null ? 0 : 6),
-                    top + (ModernUi.MESSAGE_LINE_HEIGHT - font.lineHeight) / 2 + 1, span.color(), false);
+                    x + (item ? 20 : reference ? 6 : 0), top + (run.height() - font.lineHeight) / 2 + 1, span.color(), false);
         }
         return y + layout.height();
     }
 
-    record MessageRun(ScreenText.InlineSpan span, int x, int y, int width, boolean quoted) { }
+    record MessageRun(ScreenText.InlineSpan span, int x, int y, int width, boolean quoted,
+                      RecipeCard card, ItemStack stack, int height) { }
     record MessageLayout(List<MessageRun> runs, int height) { }
 
+    static int lineHeight(ScreenText.InlineLine line) {
+        if (line.card() != null) return line.card().height() + 8 + 4 + 9 + 8;
+        return line.spans().stream().anyMatch(span -> span.itemId() != null || span.resultCard() != null)
+                ? 18 : ModernUi.MESSAGE_LINE_HEIGHT;
+    }
+
     MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth) {
+        return messageLayout(lines, maxWidth, Map.of(), Map.of());
+    }
+
+    MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth,
+                                Map<RecipeCardModel, RecipeCard> cards, Map<String, ItemStack> items) {
         int width = Math.max(1, maxWidth);
         List<MessageRun> runs = new ArrayList<>();
         int y = 0;
         for (ScreenText.InlineLine line : lines) {
             int indent = line.quote() ? 10 : 0;
+            RecipeCard block = line.card() == null ? null : cards.get(line.card());
+            if (block != null && block.width() <= width - indent) {
+                runs.add(new MessageRun(line.spans().getFirst(), indent, y, block.width(), line.quote(), block, null, block.height() + 8));
+                y += block.height() + 8;
+                continue;
+            }
             int x = indent;
+            int rowHeight = ModernUi.MESSAGE_LINE_HEIGHT;
+            int rowStart = runs.size();
             if (line.spans().isEmpty() && line.quote()) runs.add(new MessageRun(
-                    new ScreenText.InlineSpan("", null, ModernUi.TEXT, false, false), x, y, 0, true));
+                    new ScreenText.InlineSpan("", null, ModernUi.TEXT, false, false), x, y, 0, true, null, null, rowHeight));
             for (ScreenText.InlineSpan span : line.spans()) {
-                if (span.target() != null || span.source() != null || span.externalUrl() != null) {
-                    boolean navigation = span.target() != null || span.externalUrl() != null;
-                    String labelText = span.text();
+                RecipeCard result = span.resultCard() == null ? null : cards.get(span.resultCard());
+                ItemStack stack = span.itemId() == null ? null : items.get(span.itemId());
+                if (result != null && span.resultCard() != null && minecraft != null && minecraft.level != null) {
+                    for (var slot : span.resultCard().slots()) if (slot.output() && !slot.stacks().isEmpty()) {
+                        var resolved = SlotStacks.resolve(slot.stacks().getFirst(), minecraft.level.registryAccess());
+                        stack = resolved.missing() ? new ItemStack(Items.BARRIER) : resolved.stacks().isEmpty() ? null : resolved.stacks().getFirst();
+                        break;
+                    }
+                }
+                boolean item = stack != null;
+                if (item || span.target() != null || span.source() != null || span.externalUrl() != null) {
+                    boolean navigation = !item && (span.target() != null || span.externalUrl() != null);
+                    String labelText = item && result != null ? stack.getHoverName().getString() : span.text();
                     String verb = span.target() == null ? "Open" : ScreenText.navigationVerb(span.target());
                     if (navigation && !labelText.regionMatches(true, 0, verb + " ", 0, verb.length() + 1)) labelText = verb + " " + labelText;
-                    else if (!navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;
+                    else if (!item && !navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;
                     boolean bold = navigation;
-                    Component label = Component.literal(labelText).withStyle(style -> style
-                            .withFont(bold ? ModernUi.BOLD_FONT : ModernUi.FONT));
-                    int chipWidth = Math.min(Math.max(1, width - indent), font.width(label) + 12);
-                    if (x > indent && x + chipWidth > width) { x = indent; y += ModernUi.MESSAGE_LINE_HEIGHT; }
-                    String clipped = font.substrByWidth(label, Math.max(1, chipWidth - 12)).getString();
-                    runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, span.target(),
-                            navigation ? ModernUi.ACCENT : ModernUi.TEXT, bold, false, span.source(), span.externalUrl()),
-                            x, y, chipWidth, line.quote()));
+                    Component label = Component.literal(labelText).withStyle(style -> style.withFont(bold ? ModernUi.BOLD_FONT : ModernUi.FONT));
+                    int padding = item ? 24 : 12;
+                    int chipWidth = Math.min(Math.max(1, width - indent), font.width(label) + padding);
+                    if (x > indent && x + chipWidth > width) {
+                        for (int i = rowStart; i < runs.size(); i++) {
+                            var r = runs.get(i);
+                            runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
+                        }
+                        x = indent; y += rowHeight; rowHeight = ModernUi.MESSAGE_LINE_HEIGHT; rowStart = runs.size();
+                    }
+                    String clipped = font.substrByWidth(label, Math.max(1, chipWidth - padding)).getString();
+                    runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, item ? null : span.target(),
+                            navigation ? ModernUi.ACCENT : ModernUi.TEXT, bold, false, item ? null : span.source(),
+                            item ? null : span.externalUrl()), x, y, chipWidth, line.quote(), item ? result : null, stack, item ? 18 : rowHeight));
+                    if (item) rowHeight = 18;
                     x += chipWidth + 4;
                     continue;
                 }
@@ -980,27 +1083,39 @@ public final class AssistantScreen extends Screen {
                     int tokenWidth = font.width(Component.literal(token).withStyle(style ->
                             style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)));
                     if (x > indent && x + tokenWidth > width) {
-                        x = indent;
-                        y += ModernUi.MESSAGE_LINE_HEIGHT;
+                        for (int i = rowStart; i < runs.size(); i++) {
+                            var r = runs.get(i);
+                            runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
+                        }
+                        x = indent; y += rowHeight; rowHeight = ModernUi.MESSAGE_LINE_HEIGHT; rowStart = runs.size();
                         if (space) continue;
                     }
                     while (!token.isEmpty()) {
-                        int take = font.substrByWidth(
-                                Component.literal(token).withStyle(style -> style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)),
-                                Math.max(1, width - x)).getString().length();
+                        int take = font.substrByWidth(Component.literal(token).withStyle(style ->
+                                style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)), Math.max(1, width - x)).getString().length();
                         if (take <= 0) take = Character.charCount(token.codePointAt(0));
                         String piece = token.substring(0, take);
                         int pieceWidth = font.width(Component.literal(piece).withStyle(style ->
                                 style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)));
                         runs.add(new MessageRun(new ScreenText.InlineSpan(piece, null, span.color(), span.bold(), span.code()),
-                                x, y, pieceWidth, line.quote()));
+                                x, y, pieceWidth, line.quote(), null, null, rowHeight));
                         x += pieceWidth;
                         token = token.substring(take);
-                        if (!token.isEmpty()) { x = indent; y += ModernUi.MESSAGE_LINE_HEIGHT; }
+                        if (!token.isEmpty()) {
+                            for (int i = rowStart; i < runs.size(); i++) {
+                                var r = runs.get(i);
+                                runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
+                            }
+                            x = indent; y += rowHeight; rowHeight = ModernUi.MESSAGE_LINE_HEIGHT; rowStart = runs.size();
+                        }
                     }
                 }
             }
-            y += ModernUi.MESSAGE_LINE_HEIGHT;
+            for (int i = rowStart; i < runs.size(); i++) {
+                var r = runs.get(i);
+                runs.set(i, new MessageRun(r.span(), r.x(), r.y(), r.width(), r.quoted(), r.card(), r.stack(), rowHeight));
+            }
+            y += rowHeight;
         }
         return new MessageLayout(List.copyOf(runs), y);
     }
@@ -1381,6 +1496,64 @@ public final class AssistantScreen extends Screen {
         graphics.pose().popPose();
     }
 
+    private void drawRecipeTooltips(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (picker != null) {
+            pinnedCard = new PinnedCardState();
+            panelCard = null;
+            panelRect = null;
+            return;
+        }
+        if (panelCard != null && cardHits.stream().noneMatch(hit -> hit.stack() != null && hit.card() == panelCard.card()
+                && hit.rect().equals(panelCard.rect()) && hit.rect().top() >= 40 && hit.rect().bottom() <= toggleY - 8)) {
+            // A chip leaving the viewport closes its pinned panel as well.
+            pinnedCard = new PinnedCardState();
+            panelCard = null;
+            panelRect = null;
+        }
+        CardHit hovered = mouseX >= readableLeft && mouseX < readableLeft + readableWidth && mouseY >= 40 && mouseY < toggleY - 8
+                ? cardHits.stream().filter(hit -> hit.stack() != null && mouseX >= hit.rect().left() && mouseX < hit.rect().right()
+                && mouseY >= hit.rect().top() && mouseY < hit.rect().bottom()).findFirst().orElse(null) : null;
+        if (pinnedCard.anchor() == null && hovered != null && (panelCard == null || !panelCard.rect().equals(hovered.rect()))) {
+            panelCard = hovered;
+            panelRect = null;
+        }
+        var visibility = pinnedCard.update(mouseX, mouseY, hasShiftDown(), panelCard == null ? null : panelCard.rect(), panelRect);
+        RecipeCard.Hover tooltip = null;
+        if (visibility != PinnedCardState.Visibility.HIDDEN && panelCard != null) {
+            if (panelRect == null) {
+                int panelWidth = panelCard.card().width() + 16;
+                int panelHeight = panelCard.card().height() + 16;
+                int left = Math.max(0, Math.min(panelCard.rect().left(), width - panelWidth));
+                int top = panelCard.rect().bottom();
+                if (top + panelHeight > height) top = Math.max(0, panelCard.rect().top() - panelHeight);
+                panelRect = new PinnedCardState.Rect(left, top, left + panelWidth, top + panelHeight);
+            }
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, 0, 400);
+            ModernUi.surface(graphics, panelRect.left(), panelRect.top(), panelRect.right(), panelRect.bottom(), ModernUi.SURFACE);
+            panelCard.card().draw(graphics, panelRect.left() + 8, panelRect.top() + 8, mouseX, mouseY);
+            tooltip = panelCard.card().hoverAt(panelRect.left() + 8, panelRect.top() + 8, mouseX, mouseY).orElse(null);
+            graphics.pose().popPose();
+        } else {
+            panelCard = null;
+            panelRect = null;
+            if (mouseX >= readableLeft && mouseX < readableLeft + readableWidth && mouseY >= 40 && mouseY < toggleY - 8) {
+                for (var hit : cardHits) if (hit.stack() == null && mouseX >= hit.rect().left() && mouseX < hit.rect().right()
+                        && mouseY >= hit.rect().top() && mouseY < hit.rect().bottom()) {
+                    tooltip = hit.card().hoverAt(hit.rect().left(), hit.rect().top(), mouseX, mouseY).orElse(null);
+                    if (tooltip != null) break;
+                }
+                if (tooltip == null) for (var hit : itemHits) if (mouseX >= hit.rect().left() && mouseX < hit.rect().right()
+                        && mouseY >= hit.rect().top() && mouseY < hit.rect().bottom()) {
+                    tooltip = new RecipeCard.Hover.Item(hit.stack());
+                    break;
+                }
+            }
+        }
+        if (tooltip instanceof RecipeCard.Hover.Item item) graphics.renderTooltip(font, item.stack(), mouseX, mouseY);
+        else if (tooltip instanceof RecipeCard.Hover.Text text) graphics.renderComponentTooltip(font, text.lines(), mouseX, mouseY);
+    }
+
     private void drawSendIcon(GuiGraphics graphics) {
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/paper-plane-right.png"),
                 sendX + 4, sendY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
@@ -1434,6 +1607,10 @@ public final class AssistantScreen extends Screen {
             return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         }
         if (height > 0 && (mouseY < 40 || mouseY >= toggleY - 8)) return false;
+        // A chat scroll closes the panel so a pinned card never detaches from its chip.
+        pinnedCard = new PinnedCardState();
+        panelCard = null;
+        panelRect = null;
         scrollOffset = Math.max(0, Math.min(maxScroll(), scrollOffset - (int) (scrollY * 20)));
         followBottom = scrollOffset >= maxScroll();
         if (scrollY > 0 && scrollOffset == 0 && visibleTurnCount < view.conversation().turns().size()) {
@@ -1565,7 +1742,7 @@ public final class AssistantScreen extends Screen {
             if (mouseY >= 48 && mouseY < toggleY - 8 && mouseX >= action.x() && mouseX < action.x() + action.width()
                     && mouseY >= action.y() && mouseY < action.y() + 16) {
                 if (action.edit()) editLatest(action.turn().requestId());
-                else if (minecraft != null) minecraft.keyboardHandler.setClipboard(action.user() ? action.turn().question() : action.turn().answer());
+                else if (minecraft != null) minecraft.keyboardHandler.setClipboard(action.user() ? action.turn().question() : prepareTurn(action.turn()).copy());
                 return true;
             }
         }
@@ -1861,6 +2038,8 @@ public final class AssistantScreen extends Screen {
                 integratedServer != null && integratedServer.isPublished());
     }
 
+    private record ItemHit(ItemStack stack, PinnedCardState.Rect rect) { }
+    private record CardHit(RecipeCard card, ItemStack stack, PinnedCardState.Rect rect) { }
     private record ChipHit(Evidence.NavigationTarget target, int left, int top, int right, int bottom) { }
     private record SourceHit(Evidence.Source source, ChatContracts.Turn turn, int left, int top, int right, int bottom) { }
     private record CachedSourceLabels(ChatContracts.Turn turn, Map<Evidence.Source, String> labels) { }

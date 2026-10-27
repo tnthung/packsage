@@ -1618,6 +1618,31 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void normalNarrowRecipeCardFallsBackToResultChip() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var model = new dev.packsage.client.recipe.RecipeCardModel(
+                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(), "Furnace", List.of());
+        var card = new dev.packsage.client.recipe.RecipeCard() {
+            @Override public int width() { return 88; }
+            @Override public int height() { return 71; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
+        };
+        var source = new Evidence.Source(SCOPE, "native", "1", "minecraft:glass", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var line = ScreenText.inlineLines("[native:minecraft:glass]", List.of(), List.of(), List.of(source), java.util.Map.of(),
+                PackSageSettings.Verbosity.NORMAL, java.util.Map.of(source, model)).getFirst();
+        var stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS);
+        var narrow = screen.messageLayout(List.of(line), 87, java.util.Map.of(model, card), java.util.Map.of(model, stack), java.util.Map.of());
+        assertSame(card, narrow.runs().getFirst().card());
+        assertSame(stack, narrow.runs().getFirst().stack());
+        assertEquals(18, narrow.height());
+    }
+
+    @Test
     void copyTextUsesLabelsAcrossSteeredAnswerSegments() throws Exception {
         var actions = new FakeActions();
         var screen = new AssistantScreen(actions);

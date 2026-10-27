@@ -863,13 +863,47 @@ class ScreenTextTest {
             var inline = ScreenText.inlineLines("Make [native:minecraft:stone].", List.of(), List.of(), turn.sources(),
                     java.util.Map.of(), verbosity, cards).getFirst();
             assertEquals(null, inline.card());
-            assertEquals(null, inline.spans().stream().filter(span -> span.source() != null).findFirst().orElseThrow().resultCard());
+            if (verbosity == dev.packsage.chat.PackSageSettings.Verbosity.DETAILED) {
+                assertEquals(null, inline.spans().stream().filter(span -> span.source() != null).findFirst().orElseThrow().resultCard());
+            } else {
+                assertEquals("Make.", inline.spans().stream().map(ScreenText.InlineSpan::text).collect(java.util.stream.Collectors.joining()));
+            }
         }
         for (String text : List.of("[native:minecraft:stone]", "Make [native:minecraft:stone].")) {
             var line = ScreenText.inlineLines(text, List.of(), List.of(), turn.sources(), java.util.Map.of(),
                     dev.packsage.chat.PackSageSettings.Verbosity.CONCISE, cards).getFirst();
             assertEquals(null, line.card());
             assertEquals(card, line.spans().stream().filter(span -> span.source() != null).findFirst().orElseThrow().resultCard());
+        }
+    }
+
+    @Test
+    void sourceCitationsRespectVerbosityAndKeepNavigationAndWebLinks() {
+        var source = recipeSource("minecraft:stone", 0);
+        var target = new Evidence.NavigationTarget(SCOPE, "native", "minecraft:stone", "minecraft:stone");
+        String group = "\uE200cite\uE202native:minecraft:stone\uE201";
+        for (var verbosity : List.of(dev.packsage.chat.PackSageSettings.Verbosity.NORMAL,
+                dev.packsage.chat.PackSageSettings.Verbosity.CONCISE)) {
+            for (String text : List.of("Before [native:minecraft:stone] after.", "Before " + group + " after.")) {
+                var spans = ScreenText.inlineLines(text, List.of(), List.of(), List.of(source), java.util.Map.of(), verbosity, java.util.Map.of()).getFirst().spans();
+                assertEquals("Before after.", spans.stream().map(ScreenText.InlineSpan::text).collect(java.util.stream.Collectors.joining()));
+                assertTrue(spans.stream().noneMatch(span -> span.source() != null));
+            }
+            var spans = ScreenText.inlineLines("A [native:minecraft:stone], [Stone](native:minecraft:stone).", List.of(), List.of(),
+                    List.of(source), java.util.Map.of(), verbosity, java.util.Map.of()).getFirst().spans();
+            assertEquals("A, Stone.", spans.stream().map(ScreenText.InlineSpan::text).collect(java.util.stream.Collectors.joining()));
+            assertTrue(spans.stream().noneMatch(span -> span.source() != null));
+            var navigation = ScreenText.inlineLines("[Stone](native:minecraft:stone)", List.of(target), List.of(),
+                    List.of(source), java.util.Map.of(), verbosity, java.util.Map.of()).getFirst().spans().getFirst();
+            assertEquals(target, navigation.target());
+            var web = ScreenText.inlineLines("[Wiki](https://example.test/page)", List.of(), List.of(),
+                    List.of(), java.util.Map.of(), verbosity, java.util.Map.of()).getFirst().spans().getFirst();
+            assertEquals("https://example.test/page", web.externalUrl());
+        }
+        for (var verbosity : java.util.Arrays.asList(null, dev.packsage.chat.PackSageSettings.Verbosity.DETAILED)) {
+            var spans = ScreenText.inlineLines("[native:minecraft:stone] [Stone](native:minecraft:stone)", List.of(), List.of(),
+                    List.of(source), java.util.Map.of(), verbosity, java.util.Map.of()).getFirst().spans();
+            assertEquals(2, spans.stream().filter(span -> span.source() != null).count());
         }
     }
 

@@ -316,20 +316,7 @@ public final class JeiRuntimeIndex implements JeiIndex {
         var slots = new ArrayList<JeiLayout.Slot>();
         for (var slot : drawable.getRecipeSlotsView().getSlotViews()) {
             var alternatives = new ArrayList<JeiLayout.Ingredient>();
-            for (var ingredient : slot.getAllIngredients().toList()) {
-                var item = ingredient.getIngredient(VanillaTypes.ITEM_STACK);
-                var fluid = ingredient.getIngredient(NeoForgeTypes.FLUID_STACK);
-                if (item.isPresent()) {
-                    var stack = item.get();
-                    var remainder = stack.getCraftingRemainingItem();
-                    alternatives.add(new JeiLayout.Ingredient("item", BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
-                            components(stack.getComponentsPatch()), stack.getCount(), remainder.isEmpty() ? null : BuiltInRegistries.ITEM.getKey(remainder.getItem()).toString()));
-                } else if (fluid.isPresent()) {
-                    var stack = fluid.get();
-                    alternatives.add(new JeiLayout.Ingredient("fluid", BuiltInRegistries.FLUID.getKey(stack.getFluid()).toString(),
-                            components(stack.getComponentsPatch()), stack.getAmount(), null));
-                } else alternatives.add(new JeiLayout.Ingredient("other", ingredient.getType().toString(), "{}", 1, null));
-            }
+            for (var ingredient : slot.getAllIngredients().toList()) alternatives.add(ingredient(ingredient));
             var extra = new ArrayList<String>();
             if (slot instanceof IRecipeSlotDrawable drawableSlot) {
                 extra.addAll(drawableSlot.getTooltip().stream().map(value -> value.getString()).toList());
@@ -337,6 +324,10 @@ public final class JeiRuntimeIndex implements JeiIndex {
             }
             slots.add(new JeiLayout.Slot(slots.size(), JeiLayout.Role.valueOf(slot.getRole().name()), alternatives, extra));
         }
+        // Machines registered for the whole category are often not drawn; vanilla categories keep native's catalyst-free records.
+        if (!JeiProjection.VANILLA_CATEGORIES.contains(ref.categoryUid()))
+            slots = new ArrayList<>(withCategoryCatalysts(slots, runtime.getRecipeManager().createRecipeCatalystLookup(category.getRecipeType()).get()
+                    .map(this::ingredient).toList()));
         boolean hidden = runtime.getRecipeManager().createRecipeCategoryLookup().get()
                 .noneMatch(value -> value.getRecipeType().getUid().equals(category.getRecipeType().getUid()))
                 || runtime.getRecipeManager().createRecipeLookup(category.getRecipeType()).get().noneMatch(value -> value == recipe);
@@ -345,6 +336,38 @@ public final class JeiRuntimeIndex implements JeiIndex {
             decoding = NativeSnapshot.decoding(holder, Minecraft.getInstance(), new Evidence.Scope("", "", "", "", generation));
         return new JeiLayout(ref.categoryUid(), category.getTitle().getString(), id == null ? null : id.toString(), ref.ordinal(), generation,
                 hidden, true, decoding, slots, category.getTooltipStrings(recipe, drawable.getRecipeSlotsView(), 0, 0).stream().map(value -> value.getString()).toList());
+    }
+
+    /**
+     * Adds the machines JEI registers for the whole category as one CATALYST slot after the drawn slots. JEI lists each as able to
+     * craft the category, so they are alternatives; any a drawn CATALYST slot already shows is left out.
+     */
+    static List<JeiLayout.Slot> withCategoryCatalysts(List<JeiLayout.Slot> slots, List<JeiLayout.Ingredient> catalysts) {
+        var shown = new LinkedHashSet<List<String>>();
+        for (var slot : slots) if (slot.role() == JeiLayout.Role.CATALYST)
+            for (var ingredient : slot.alternatives()) shown.add(List.of(ingredient.type(), ingredient.identity(), ingredient.componentsJson()));
+        var machines = catalysts.stream().filter(ingredient -> shown.add(List.of(ingredient.type(), ingredient.identity(), ingredient.componentsJson()))).toList();
+        if (machines.isEmpty()) return slots;
+        var result = new ArrayList<>(slots);
+        result.add(new JeiLayout.Slot(slots.size(), JeiLayout.Role.CATALYST, machines, List.of()));
+        return List.copyOf(result);
+    }
+
+    private JeiLayout.Ingredient ingredient(ITypedIngredient<?> ingredient) {
+        var item = ingredient.getIngredient(VanillaTypes.ITEM_STACK);
+        var fluid = ingredient.getIngredient(NeoForgeTypes.FLUID_STACK);
+        if (item.isPresent()) {
+            var stack = item.get();
+            var remainder = stack.getCraftingRemainingItem();
+            return new JeiLayout.Ingredient("item", BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
+                    components(stack.getComponentsPatch()), stack.getCount(), remainder.isEmpty() ? null : BuiltInRegistries.ITEM.getKey(remainder.getItem()).toString());
+        }
+        if (fluid.isPresent()) {
+            var stack = fluid.get();
+            return new JeiLayout.Ingredient("fluid", BuiltInRegistries.FLUID.getKey(stack.getFluid()).toString(),
+                    components(stack.getComponentsPatch()), stack.getAmount(), null);
+        }
+        return new JeiLayout.Ingredient("other", ingredient.getType().toString(), "{}", 1, null);
     }
 
     private String components(DataComponentPatch patch) {

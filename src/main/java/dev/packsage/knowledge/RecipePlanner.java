@@ -259,7 +259,7 @@ public final class RecipePlanner {
                 }
             }
         }
-        if (batches != null && rules.reusedCatalysts(candidate)) candidate.recipePayload().catalysts().forEach(catalyst -> state.equipment.add(catalyst.comparisonIdentity()));
+        if (batches != null && rules.reusedCatalysts(candidate)) state.equipment.addAll(catalystEquipment(candidate));
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         values.put("unexpandedNeeds", new Evidence.JsonArray(needs.entrySet().stream().map(need -> {
             var fields = new LinkedHashMap<String, Evidence.JsonValue>();
@@ -272,6 +272,22 @@ public final class RecipePlanner {
         values.put("possibleExtras", possibleExtras(candidate, output));
         if (rules.assumed) values.put("assumed", new Evidence.JsonBoolean(true));
         return planned(candidate, quantity, output == null ? null : output.quantity(), batches, bound, values);
+    }
+
+    /**
+     * One equipment entry per catalyst slot: its machine, or "one of [...]" when the slot accepts alternatives. The slot comes from the
+     * payload JSON catalysts[i].groupId; without one, each catalyst is its own slot.
+     */
+    private static List<String> catalystEquipment(Evidence.Record record) {
+        var catalysts = record.recipePayload().catalysts();
+        var json = record.payload().values().get("catalysts") instanceof Evidence.JsonArray array ? array.values() : List.<Evidence.JsonValue>of();
+        var slots = new LinkedHashMap<String, LinkedHashSet<String>>();
+        for (int i = 0; i < catalysts.size(); i++) {
+            var group = i < json.size() && json.get(i) instanceof Evidence.JsonObject value && value.values().get("groupId") instanceof Evidence.JsonString id
+                    ? id.value() : "#" + i;
+            slots.computeIfAbsent(group, ignored -> new LinkedHashSet<>()).add(catalysts.get(i).comparisonIdentity());
+        }
+        return slots.values().stream().map(machines -> machines.size() == 1 ? machines.getFirst() : "one of " + List.copyOf(machines)).toList();
     }
 
     /** The step's outputs other than the planned one; they never count toward the plan. */

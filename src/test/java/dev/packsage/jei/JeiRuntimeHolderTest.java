@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class JeiRuntimeHolderTest {
     @Test
     void staleIndexRejectsAccessBeforeTouchingMinecraft() {
-        var index = new JeiRuntimeIndex(null);
+        var index = new JeiRuntimeIndex(JeiRuntimeHolder.snapshot());
         JeiRuntimeHolder.unavailable();
         assertEquals(Toolbox.Code.STALE_SCOPE, assertThrows(Toolbox.Failure.class, index::generation).code());
     }

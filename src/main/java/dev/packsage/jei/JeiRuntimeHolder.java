@@ -19,6 +19,13 @@ public final class JeiRuntimeHolder {
         return millis << 20;
     }
 
+    /** The runtime, or null, and the generation it was published under, read together. */
+    public record Snapshot(IJeiRuntime runtime, long generation) { }
+
+    public static synchronized Snapshot snapshot() {
+        return new Snapshot(runtime, generation);
+    }
+
     public static synchronized Optional<IJeiRuntime> current() {
         return Optional.ofNullable(runtime);
     }

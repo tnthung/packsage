@@ -45,17 +45,7 @@ public final class JeiProvider implements KnowledgeProvider {
         var mods = ModList.get();
         this.version = mods == null ? "unknown" : mods.getModContainerById("jei")
                 .map(container -> container.getModInfo().getVersion().toString()).orElse("unknown");
-        this.index = new Supplier<>() {
-            private long generation = -1;
-            private JeiIndex cached;
-            @Override public synchronized Optional<JeiIndex> get() {
-                var runtime = JeiRuntimeHolder.current();
-                long current = JeiRuntimeHolder.generation();
-                if (runtime.isEmpty()) { cached = null; generation = current; return Optional.empty(); }
-                if (cached == null || generation != current) { cached = new JeiRuntimeIndex(runtime.get()); generation = current; }
-                return Optional.of(cached);
-            }
-        };
+        this.index = new JeiRuntimeCache<JeiIndex>(JeiRuntimeIndex::new);
     }
 
     @Override public String id() { return "jei"; }
@@ -249,13 +239,13 @@ public final class JeiProvider implements KnowledgeProvider {
             if (current == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI runtime unavailable");
             long generation = current.generation();
             var ref = resolveNavigation(current, target);
-            var runtime = JeiRuntimeHolder.current();
-            if (ref.isEmpty() || !(current instanceof JeiRuntimeIndex runtimeIndex) || runtime.isEmpty()
+            if (ref.isEmpty() || !(current instanceof JeiRuntimeIndex runtimeIndex) || runtimeIndex.runtime() == null
                     || index.get().orElse(null) != current || generation != current.generation())
                 return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI recipe unavailable");
             if (!scope.equals(currentScope.get()))
                 return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "JEI scope changed");
-            return new JeiViewer(runtime.get().getRecipesGui(), runtimeIndex::resolveVisible).showRecipe(ref.get())
+            // The GUI comes from the index's own runtime, which the generation checks above confirmed is still current.
+            return new JeiViewer(runtimeIndex.runtime().getRecipesGui(), runtimeIndex::resolveVisible).showRecipe(ref.get())
                     ? new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null)
                     : new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI recipe unavailable");
         } catch (RuntimeException failure) {

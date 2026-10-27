@@ -2,7 +2,7 @@ package dev.packsage.jei.bookmark;
 
 import dev.packsage.jei.JeiIndex;
 import dev.packsage.jei.JeiProjection;
-import dev.packsage.jei.JeiRuntimeHolder;
+import dev.packsage.jei.JeiRuntimeCache;
 import dev.packsage.jei.JeiRuntimeIndex;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
@@ -43,21 +43,10 @@ public final class JeiBookmarkProvider implements KnowledgeProvider {
                 .map(container -> container.getModInfo().getVersion().toString()).orElse("unknown");
         this.executor = clientExecutor;
         this.currentScope = scope;
-        this.session = new Supplier<>() {
-            private long generation = -1;
-            private Session cached;
-            @Override public synchronized Optional<Session> get() {
-                var runtime = JeiRuntimeHolder.current();
-                long current = JeiRuntimeHolder.generation();
-                if (runtime.isEmpty()) { cached = null; generation = current; return Optional.empty(); }
-                if (cached == null || generation != current) {
-                    var index = new JeiRuntimeIndex(runtime.get());
-                    cached = new Session(index, JeiBookmarks.of(runtime.get(), index));
-                    generation = current;
-                }
-                return Optional.of(cached);
-            }
-        };
+        this.session = new JeiRuntimeCache<>(snapshot -> {
+            var index = new JeiRuntimeIndex(snapshot);
+            return new Session(index, JeiBookmarks.of(snapshot.runtime(), index));
+        });
     }
 
     @Override public String id() { return "jei_bookmarks"; }

@@ -53,22 +53,22 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
 
     @Override
     public Optional<RecipeCard> card(RecipeCardModel model, int maxWidth) {
-        var runtime = JeiRuntimeHolder.current();
+        var snapshot = JeiRuntimeHolder.snapshot();
         var handle = handle(model);
-        if (runtime.isEmpty() || handle == null) return Optional.empty();
-        long generation = JeiRuntimeHolder.generation();
+        if (snapshot.runtime() == null || handle == null) return Optional.empty();
+        long generation = snapshot.generation();
         var key = new Key(handle, generation);
         Optional<Layout> layout;
         try {
             if (index == null || indexGeneration != generation) {
-                index = new JeiRuntimeIndex(runtime.get());
+                index = new JeiRuntimeIndex(snapshot);
                 indexGeneration = generation;
                 cache.clear();
             }
             layout = cache.get(key);
             if (layout == null) {
                 var resolved = ref(index, model).flatMap(index::resolve);
-                layout = resolved.flatMap(value -> drawable(runtime.get(), value)).map(Layout::new);
+                layout = resolved.flatMap(value -> drawable(snapshot.runtime(), value)).map(Layout::new);
                 cache.put(key, layout);
             }
         } catch (RuntimeException | LinkageError failure) {

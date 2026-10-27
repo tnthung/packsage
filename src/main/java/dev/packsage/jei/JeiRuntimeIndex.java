@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.ingredients.ITypedIngredient;
@@ -35,14 +36,25 @@ public final class JeiRuntimeIndex implements JeiIndex {
     private final IJeiRuntime runtime;
     private final Map<String, CategoryRecipes> categories = new LinkedHashMap<>(16, 0.75f, true);
     private final long createdGeneration;
+    private final BooleanSupplier clientThread;
     private long generation;
     private record CategoryRecipes(List<?> recipes, IdentityHashMap<Object, Integer> ordinals) { }
     private boolean truncated;
 
-    public JeiRuntimeIndex(IJeiRuntime runtime) {
+    public JeiRuntimeIndex(JeiRuntimeHolder.Snapshot snapshot) {
+        this(snapshot.runtime(), snapshot.generation(), () -> Minecraft.getInstance().isSameThread());
+    }
+
+    JeiRuntimeIndex(IJeiRuntime runtime, long generation, BooleanSupplier clientThread) {
         this.runtime = runtime;
-        this.createdGeneration = JeiRuntimeHolder.generation();
-        this.generation = createdGeneration;
+        this.createdGeneration = generation;
+        this.generation = generation;
+        this.clientThread = clientThread;
+    }
+
+    /** The runtime this index was built from; only current while {@link #generation()} accepts it. */
+    IJeiRuntime runtime() {
+        return runtime;
     }
 
     @Override public long generation() {
@@ -52,7 +64,7 @@ public final class JeiRuntimeIndex implements JeiIndex {
             categories.clear();
         }
         if (current != createdGeneration) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "JEI runtime generation changed");
-        if (!Minecraft.getInstance().isSameThread()) throw new IllegalStateException("JEI index must run on the client thread");
+        if (!clientThread.getAsBoolean()) throw new IllegalStateException("JEI index must run on the client thread");
         return generation;
     }
 

@@ -304,7 +304,7 @@ The rules to integrate follow the "Assistant prompt changes" rules in `AGENTS.md
 
 Steps:
 
-- [ ] **Step 1: Compare against JEI with computer use.** Install JEI 19.27.0.340 temporarily for the comparison only. For each category, screenshot a native card and JEI's screen for the same recipe. The comparison passes when the only differences are the caption and JEI's transfer and bookmark buttons. Then remove JEI again.
+- [ ] **Step 1: Compare against JEI with computer use.** JEI 19.27.0.340 is part of the player's pack; leave it installed. For each category, screenshot a native card and JEI's screen for the same recipe. The comparison passes when the only differences are the caption and JEI's transfer and bookmark buttons. 
 - [ ] **Step 2: Check the interactions.**
   - Slot tooltips, including advanced tooltips (F3+H)
   - Tag cycling

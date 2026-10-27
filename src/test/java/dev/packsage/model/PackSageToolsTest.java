@@ -76,6 +76,12 @@ class PackSageToolsTest {
     }
 
     @Test
+    void runCommandTargetsFirstPersonUsingContextIdentity() {
+        var definition = PackSageTools.definitions().stream().filter(value -> value.name().equals("run_command")).findFirst().orElseThrow();
+        assertTrue(definition.description().contains("For first-person targets, use playerName from the gameplay context or @s where valid; do not ask for the player's name."));
+    }
+
+    @Test
     void readGameStateRequestsOptionalF3Sections() {
         var definition = PackSageTools.definitions().stream().filter(value -> value.name().equals("read_game_state")).findFirst().orElseThrow();
         var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();

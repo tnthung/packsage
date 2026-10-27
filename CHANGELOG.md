@@ -4,6 +4,8 @@
 
 ### 2026-10-27
 
+- The assistant receives the local player's name and UUID and uses that identity for first-person requests and command targets.
+
 - Assistant answers are drawn without a bubble again, beside the avatar, while keeping their sent time under the answer. Result chips use the standard chip border instead of a light outline.
 - Chat completion read state retries temporary file replacement failures and shows a short message if acknowledgement still fails.
 - Prompt candidate 18 passed the nine-question recipe-card presentation check before promotion and on the installed default with the developer override cleared: Normal and Detailed use cards for explained transformations; Concise uses one result chip per recipe without repeated item names.

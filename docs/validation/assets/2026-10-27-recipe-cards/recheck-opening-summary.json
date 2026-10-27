@@ -1,0 +1,72 @@
+[
+  {
+    "requestLine": "[27Oct2026 09:29:35.734] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=289664884028000 event_ns=289664884028000 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:29:35.807] [Render thread/INFO] [PackSage/]: PackSage timing opening=289664887547300 phase=first_frame_rendered conversation=431286e5-79b1-4651-9468-a4d6257aa6de start_ns=289664887547300 event_ns=289664956260400 elapsed_ms=68.7131 loading=false",
+    "requestToFirstFrameMs": 72.2324
+  },
+  {
+    "requestLine": "[27Oct2026 09:31:38.388] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=289787537727100 event_ns=289787537727100 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:31:38.412] [Render thread/INFO] [PackSage/]: PackSage timing opening=289787537888300 phase=first_frame_rendered conversation=9d11abff-4d77-4fa3-b996-9bf1d6f5f036 start_ns=289787537888300 event_ns=289787561500600 elapsed_ms=23.6123 loading=false",
+    "requestToFirstFrameMs": 23.7735
+  },
+  {
+    "requestLine": "[27Oct2026 09:32:29.705] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=289838854841800 event_ns=289838854841800 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:32:29.728] [Render thread/INFO] [PackSage/]: PackSage timing opening=289838855174500 phase=first_frame_rendered conversation=7730f3ed-121c-49ff-8001-8c7b3f0ccd43 start_ns=289838855174500 event_ns=289838877268400 elapsed_ms=22.0939 loading=true",
+    "requestToFirstFrameMs": 22.4266
+  },
+  {
+    "requestLine": "[27Oct2026 09:32:55.822] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=289864971423600 event_ns=289864971423600 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:32:55.850] [Render thread/INFO] [PackSage/]: PackSage timing opening=289864971771400 phase=first_frame_rendered conversation=e5dab5e5-3156-4efc-ad84-914278dccb84 start_ns=289864971771400 event_ns=289864999736600 elapsed_ms=27.9652 loading=false",
+    "requestToFirstFrameMs": 28.313
+  },
+  {
+    "requestLine": "[27Oct2026 09:34:24.348] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=289953497438600 event_ns=289953497438600 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:34:24.375] [Render thread/INFO] [PackSage/]: PackSage timing opening=289953497580200 phase=first_frame_rendered conversation=e5dab5e5-3156-4efc-ad84-914278dccb84 start_ns=289953497580200 event_ns=289953524426500 elapsed_ms=26.8463 loading=false",
+    "requestToFirstFrameMs": 26.9879
+  },
+  {
+    "requestLine": "[27Oct2026 09:35:28.162] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=290017311299900 event_ns=290017311299900 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:35:28.190] [Render thread/INFO] [PackSage/]: PackSage timing opening=290017311503600 phase=first_frame_rendered conversation=262c501b-abc6-48fc-8c4e-94c693e5b120 start_ns=290017311503600 event_ns=290017339207800 elapsed_ms=27.7042 loading=false",
+    "requestToFirstFrameMs": 27.9079
+  },
+  {
+    "requestLine": "[27Oct2026 09:39:44.169] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=290273319273700 event_ns=290273319273700 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:39:44.194] [Render thread/INFO] [PackSage/]: PackSage timing opening=290273319700100 phase=first_frame_rendered conversation=09d21183-fe0f-47c9-b250-06a552202512 start_ns=290273319700100 event_ns=290273343726000 elapsed_ms=24.0259 loading=false",
+    "requestToFirstFrameMs": 24.4523
+  },
+  {
+    "requestLine": "[27Oct2026 09:40:02.169] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=290291318631500 event_ns=290291318631500 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:40:02.188] [Render thread/INFO] [PackSage/]: PackSage timing opening=290291318791800 phase=first_frame_rendered conversation=979d3dee-1e0a-4121-bd8b-fec7ba71dc00 start_ns=290291318791800 event_ns=290291337765900 elapsed_ms=18.9741 loading=false",
+    "requestToFirstFrameMs": 19.1344
+  },
+  {
+    "requestLine": "[27Oct2026 09:40:17.280] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=290306430190900 event_ns=290306430190900 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:40:17.287] [Render thread/INFO] [PackSage/]: PackSage timing opening=290306430234000 phase=first_frame_rendered conversation=2a562715-dbe3-4598-8273-e1290f4146a7 start_ns=290306430234000 event_ns=290306437167200 elapsed_ms=6.9332 loading=true",
+    "requestToFirstFrameMs": 6.9763
+  },
+  {
+    "requestLine": "[27Oct2026 09:40:44.086] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=290333235940200 event_ns=290333235940200 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:40:44.137] [Render thread/INFO] [PackSage/]: PackSage timing opening=290333236541500 phase=first_frame_rendered conversation=2a562715-dbe3-4598-8273-e1290f4146a7 start_ns=290333236541500 event_ns=290333287022400 elapsed_ms=50.4809 loading=false",
+    "requestToFirstFrameMs": 51.0822
+  },
+  {
+    "requestLine": "[27Oct2026 09:40:44.689] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=290333838866400 event_ns=290333838866400 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:40:44.725] [Render thread/INFO] [PackSage/]: PackSage timing opening=290333839204400 phase=first_frame_rendered conversation=2a562715-dbe3-4598-8273-e1290f4146a7 start_ns=290333839204400 event_ns=290333873771500 elapsed_ms=34.5671 loading=false",
+    "requestToFirstFrameMs": 34.9051
+  },
+  {
+    "requestLine": "[27Oct2026 09:40:46.339] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=290335487953600 event_ns=290335487953600 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:40:46.375] [Render thread/INFO] [PackSage/]: PackSage timing opening=290335488113300 phase=first_frame_rendered conversation=2a562715-dbe3-4598-8273-e1290f4146a7 start_ns=290335488113300 event_ns=290335524818500 elapsed_ms=36.7052 loading=false",
+    "requestToFirstFrameMs": 36.8649
+  },
+  {
+    "requestLine": "[27Oct2026 09:40:48.339] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=290337489485200 event_ns=290337489485200 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:40:48.376] [Render thread/INFO] [PackSage/]: PackSage timing opening=290337490059500 phase=first_frame_rendered conversation=2a562715-dbe3-4598-8273-e1290f4146a7 start_ns=290337490059500 event_ns=290337525709200 elapsed_ms=35.6497 loading=false",
+    "requestToFirstFrameMs": 36.224
+  },
+  {
+    "requestLine": "[27Oct2026 09:40:50.635] [Render thread/INFO] [PackSage/]: PackSage timing phase=client_open_request start_ns=290339784704000 event_ns=290339784704000 elapsed_ms=0",
+    "frameLine": "[27Oct2026 09:40:50.672] [Render thread/INFO] [PackSage/]: PackSage timing opening=290339784868600 phase=first_frame_rendered conversation=2a562715-dbe3-4598-8273-e1290f4146a7 start_ns=290339784868600 event_ns=290339822213900 elapsed_ms=37.3453 loading=false",
+    "requestToFirstFrameMs": 37.5099
+  }
+]

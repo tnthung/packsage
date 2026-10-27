@@ -1,0 +1,783 @@
+{
+  "testedHead": "03f2ee6ef56a9c03d37c6c72794ae44e5de942e9",
+  "installedJarSha256": "9DAF91D98C33586DAD4EA8D151AC64CEEAA4BE039CF38A9AAED792F686994BDC",
+  "effectivePromptSha256": "e3f275fd58fbe13ea6e5f0dac8a1b129186b14e07f414838c927c1a8b9c2e7cf",
+  "effectivePromptUnchanged": true,
+  "developerOverride": null,
+  "clientSize": {
+    "width": 1024,
+    "height": 768
+  },
+  "narrowClientSize": {
+    "width": 290,
+    "height": 768
+  },
+  "requests": [
+    {
+      "name": "concise-beacon",
+      "requestId": "41ca4daf-69e4-46f6-a175-2439a67210c8",
+      "conversationId": "9d11abff-4d77-4fa3-b996-9bf1d6f5f036",
+      "status": "completed",
+      "saved": true,
+      "question": "how do I make a beacon?",
+      "storedVerbosity": "CONCISE",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "17607",
+      "navigationTargetCount": 0,
+      "toolCalls": [
+        {
+          "name": "plan_recipe",
+          "arguments": {
+            "identity": "minecraft:beacon",
+            "quantity": 1,
+            "depth": 3
+          },
+          "error": false,
+          "coverage": "PARTIAL",
+          "references": [
+            "native:plan|minecraft:beacon|1|3|0|minecraft:beacon",
+            "native:plan|minecraft:beacon|1|3|1|minecraft:glass",
+            "native:plan|minecraft:beacon|1|3|2|naturesaura:altar/sand"
+          ]
+        }
+      ],
+      "reply": "Craft **1 [Beacon](native:plan|minecraft:beacon|1|3|0|minecraft:beacon)** using **5 [Glass](item:minecraft:glass)**, **3 [Obsidian](item:minecraft:obsidian)**, and **1 [Nether Star](item:minecraft:nether_star)** at a crafting table."
+    },
+    {
+      "name": "normal-beacon",
+      "requestId": "47465a5e-9f57-4f82-b49d-f360a28b7169",
+      "conversationId": "e5dab5e5-3156-4efc-ad84-914278dccb84",
+      "status": "completed",
+      "saved": true,
+      "question": "how do I make a beacon?",
+      "storedVerbosity": "NORMAL",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "31182",
+      "navigationTargetCount": 0,
+      "toolCalls": [
+        {
+          "name": "plan_recipe",
+          "arguments": {
+            "identity": "minecraft:beacon",
+            "quantity": 1,
+            "depth": 3
+          },
+          "error": false,
+          "coverage": "PARTIAL",
+          "references": [
+            "native:plan|minecraft:beacon|1|3|0|minecraft:beacon",
+            "native:plan|minecraft:beacon|1|3|1|minecraft:glass",
+            "native:plan|minecraft:beacon|1|3|2|naturesaura:altar/sand"
+          ]
+        },
+        {
+          "name": "read_loot",
+          "arguments": {
+            "table": null,
+            "block": null,
+            "entity": "minecraft:wither",
+            "place": null,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "world:loot|minecraft:entities/wither"
+          ]
+        }
+      ],
+      "reply": "To craft **1 beacon**, you need:\n- **5 [Glass](item:minecraft:glass)**\n- **3 [Obsidian](item:minecraft:obsidian)**\n- **1 [Nether Star](item:minecraft:nether_star)**\n\nCombine them in a crafting table using this recipe:\n\n[native:plan|minecraft:beacon|1|3|0|minecraft:beacon]\n\nFor the glass, smelt **5 sand or red sand** with furnace fuel to produce the 5 you need:\n\n[native:plan|minecraft:beacon|1|3|1|minecraft:glass]"
+    },
+    {
+      "name": "normal-glass",
+      "requestId": "7f5cd3fa-6f16-47b6-87db-5fbc05d8dde0",
+      "conversationId": "09d21183-fe0f-47c9-b250-06a552202512",
+      "status": "completed",
+      "saved": true,
+      "question": "how do I smelt glass?",
+      "storedVerbosity": "NORMAL",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "15586",
+      "navigationTargetCount": 0,
+      "toolCalls": [
+        {
+          "name": "search_recipe",
+          "arguments": {
+            "filter": {
+              "text": null,
+              "outputItem": "minecraft:glass",
+              "provider": null
+            },
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "PARTIAL",
+          "references": [
+            "native:minecraft:glass"
+          ]
+        }
+      ],
+      "reply": "Smelt **1 [Sand](item:minecraft:sand) or 1 [Red Sand](item:minecraft:red_sand)** in a **furnace with fuel** to make **1 glass**. Each takes **10 seconds**.\n\n[native:minecraft:glass]"
+    },
+    {
+      "name": "detailed-beacon",
+      "requestId": "e413dec8-a0d1-46ba-bd12-ac401551876d",
+      "conversationId": "262c501b-abc6-48fc-8c4e-94c693e5b120",
+      "status": "completed",
+      "saved": true,
+      "question": "how do I make a beacon?",
+      "storedVerbosity": "DETAILED",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "47439",
+      "navigationTargetCount": 0,
+      "toolCalls": [
+        {
+          "name": "plan_recipe",
+          "arguments": {
+            "identity": "minecraft:beacon",
+            "quantity": 1,
+            "depth": 5
+          },
+          "error": false,
+          "coverage": "PARTIAL",
+          "references": [
+            "native:plan|minecraft:beacon|1|5|0|minecraft:beacon",
+            "native:plan|minecraft:beacon|1|5|1|minecraft:glass",
+            "native:plan|minecraft:beacon|1|5|2|naturesaura:altar/sand"
+          ]
+        },
+        {
+          "name": "read_loot",
+          "arguments": {
+            "table": null,
+            "block": null,
+            "entity": "minecraft:wither",
+            "place": null,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "world:loot|minecraft:entities/wither"
+          ]
+        }
+      ],
+      "reply": "To craft **1 beacon** in your pack, you need:\n\n- **5 [Glass](item:minecraft:glass)**\n- **3 [Obsidian](item:minecraft:obsidian)**\n- **1 [Nether Star](item:minecraft:nether_star)**\n\nYour loaded beacon recipe confirms these amounts:\n\n[native:plan|minecraft:beacon|1|5|0|minecraft:beacon]\n\n### Getting the materials\n\n**Glass:** Smelt **5 sand or red sand** in a furnace, with fuel, to produce the five glass required.\n\n[native:plan|minecraft:beacon|1|5|1|minecraft:glass]\n\n**Nether Star:** The normal Minecraft route is to defeat the **Wither**. That is external vanilla guidance, rather than a confirmed pack-specific acquisition route; the local recipe scan didn’t establish a way to craft the star. ([minecraft.wiki](https://minecraft.wiki/w/Nether_star?utm_source=openai))\n\n**Obsidian:** Gather three blocks. The recipe scan didn’t establish a crafting route for it, although its incomplete coverage means I can’t rule out a modded alternative. [native:plan|minecraft:beacon|1|5|0|minecraft:beacon]\n\n**One important distinction:** crafting the beacon doesn’t activate its powers. Normal Minecraft beacons also need a mineral-block pyramid and a clear beam path to the sky; that operating guidance is external, not checked against your pack’s behavior. ([minecraft.wiki](https://minecraft.wiki/w/Beacon?utm_source=openai))"
+    },
+    {
+      "name": "detailed-glass",
+      "requestId": "c0821a18-1034-482b-aca6-4e17eb104e91",
+      "conversationId": "979d3dee-1e0a-4121-bd8b-fec7ba71dc00",
+      "status": "completed",
+      "saved": true,
+      "question": "how do I smelt glass?",
+      "storedVerbosity": "DETAILED",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "23949",
+      "navigationTargetCount": 0,
+      "toolCalls": [
+        {
+          "name": "search_recipe",
+          "arguments": {
+            "filter": {
+              "text": null,
+              "outputItem": "minecraft:glass",
+              "provider": null
+            },
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "PARTIAL",
+          "references": [
+            "native:minecraft:glass"
+          ]
+        }
+      ],
+      "reply": "**Smelt sand in a regular furnace with fuel to make glass.**\n\n- **Material:** 1 [Sand](item:minecraft:sand) **or** 1 [Red Sand](item:minecraft:red_sand).\n- **Process:** Use a furnace with fuel, such as coal or charcoal.\n- **Result:** 1 glass per block of sand, taking **10 seconds** at normal game speed. Both kinds of sand make the same glass.\n\n[native:minecraft:glass]"
+    },
+    {
+      "name": "source-normal",
+      "requestId": "5119f1c8-48e3-438c-9e33-fd7d03fa4685",
+      "conversationId": "224491f8-044c-49f5-b49f-adb162de1232",
+      "status": "completed",
+      "saved": true,
+      "question": "what effects do I have and where do my bonuses come from?",
+      "storedVerbosity": "NORMAL",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "37243",
+      "navigationTargetCount": 0,
+      "toolCalls": [
+        {
+          "name": "search_registry",
+          "arguments": {
+            "registry": "active_effect",
+            "filter": null,
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": []
+        },
+        {
+          "name": "search_registry",
+          "arguments": {
+            "registry": "player_attribute",
+            "filter": null,
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "native:player_attribute:minecraft:generic.armor",
+            "native:player_attribute:minecraft:generic.armor_toughness",
+            "native:player_attribute:minecraft:generic.attack_damage",
+            "native:player_attribute:minecraft:generic.attack_knockback",
+            "native:player_attribute:minecraft:generic.attack_speed",
+            "native:player_attribute:minecraft:generic.burning_time",
+            "native:player_attribute:minecraft:generic.explosion_knockback_resistance",
+            "native:player_attribute:minecraft:generic.fall_damage_multiplier",
+            "native:player_attribute:minecraft:generic.gravity",
+            "native:player_attribute:minecraft:generic.jump_strength",
+            "native:player_attribute:minecraft:generic.knockback_resistance",
+            "native:player_attribute:minecraft:generic.luck",
+            "native:player_attribute:minecraft:generic.max_absorption",
+            "native:player_attribute:minecraft:generic.max_health",
+            "native:player_attribute:minecraft:generic.movement_efficiency",
+            "native:player_attribute:minecraft:generic.movement_speed",
+            "native:player_attribute:minecraft:generic.oxygen_bonus",
+            "native:player_attribute:minecraft:generic.safe_fall_distance",
+            "native:player_attribute:minecraft:generic.scale",
+            "native:player_attribute:minecraft:generic.step_height",
+            "native:player_attribute:minecraft:generic.water_movement_efficiency",
+            "native:player_attribute:minecraft:player.block_break_speed",
+            "native:player_attribute:minecraft:player.block_interaction_range",
+            "native:player_attribute:minecraft:player.entity_interaction_range",
+            "native:player_attribute:minecraft:player.mining_efficiency",
+            "native:player_attribute:minecraft:player.sneaking_speed",
+            "native:player_attribute:minecraft:player.submerged_mining_speed",
+            "native:player_attribute:minecraft:player.sweeping_damage_ratio",
+            "native:player_attribute:neoforge:creative_flight",
+            "native:player_attribute:neoforge:nametag_distance",
+            "native:player_attribute:neoforge:swim_speed"
+          ]
+        },
+        {
+          "name": "list_items",
+          "arguments": {
+            "holder": "player",
+            "inventory": null,
+            "filter": null,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "world:holder|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+            "world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#1@minecraft:diamond_pickaxe",
+            "world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword"
+          ]
+        },
+        {
+          "name": "inspect_item",
+          "arguments": {
+            "path": "held"
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword"
+          ]
+        }
+      ],
+      "reply": "**You currently have no active status effects.** Your visible bonuses come from Creative-mode reach modifiers and your held sword—not an active potion effect.\n\n### Creative-mode reach\n- **Block interaction range: 5 blocks** — base 4.5, plus **0.5** from the Creative-mode modifier. [native:player_attribute:minecraft:player.block_interaction_range]\n- **Entity interaction range: 5 blocks** — base 3, plus **2** from the Creative-mode modifier. [native:player_attribute:minecraft:player.entity_interaction_range]\n\n### Your held Diamond Sword\n- **+6 attack damage while in your main hand.** Its tooltip shows **7 attack damage**, but that is not a verified final damage total including enchantments. [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword]\n- **−2.4 attack speed**, bringing your base 4 down to **1.6**. The live attack-speed modifier matches the sword’s modifier. [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword] [native:player_attribute:minecraft:generic.attack_speed]\n- It also carries **Sharpness 100, Looting 100, Unbreaking 100, and Mending 100**. These are item enchantments, separate from active status effects. [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword]\n\nYou have **no armor or offhand item equipped**, so neither is supplying equipment bonuses. [world:holder|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5]\n\n**Read limitation:** attack damage, attack knockback, and knockback resistance are not fully synchronized to this client. I can identify the sword’s listed modifiers, but I can’t reliably give your final server-side combat totals from those attribute readings. [native:player_attribute:minecraft:generic.attack_damage] [native:player_attribute:minecraft:generic.attack_knockback] [native:player_attribute:minecraft:generic.knockback_resistance]"
+    },
+    {
+      "name": "navigation-normal",
+      "requestId": "1e56cdec-22d4-42b4-a569-ca45b4e5df7a",
+      "conversationId": "933efc43-1eea-475f-8d89-45d9cffade8b",
+      "status": "completed",
+      "saved": true,
+      "question": "what should I do next for advancements?",
+      "storedVerbosity": "NORMAL",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "57046",
+      "navigationTargetCount": 60,
+      "toolCalls": [
+        {
+          "name": "list_progress",
+          "arguments": {
+            "tree": null,
+            "status": null,
+            "text": null,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "PARTIAL",
+          "references": [
+            "progress:tree|minecraft/minecraft:adventure/root",
+            "progress:tree|minecraft/minecraft:end/root",
+            "progress:tree|minecraft/minecraft:husbandry/root",
+            "progress:tree|minecraft/minecraft:nether/root",
+            "progress:tree|minecraft/minecraft:story/root",
+            "progress:tree|minecraft/naturesaura:root",
+            "progress:tree|minecraft/packsage_acceptance:root",
+            "progress:progress|minecraft/minecraft:adventure/root",
+            "progress:progress|minecraft/minecraft:adventure/avoid_vibration",
+            "progress:progress|minecraft/minecraft:adventure/brush_armadillo",
+            "progress:progress|minecraft/minecraft:adventure/crafters_crafting_crafters",
+            "progress:progress|minecraft/minecraft:adventure/fall_from_world_height",
+            "progress:progress|minecraft/minecraft:adventure/honey_block_slide",
+            "progress:progress|minecraft/minecraft:adventure/kill_a_mob",
+            "progress:progress|minecraft/minecraft:adventure/kill_all_mobs",
+            "progress:progress|minecraft/minecraft:adventure/kill_mob_near_sculk_catalyst",
+            "progress:progress|minecraft/minecraft:adventure/shoot_arrow",
+            "progress:progress|minecraft/minecraft:adventure/bullseye",
+            "progress:progress|minecraft/minecraft:adventure/sniper_duel",
+            "progress:progress|minecraft/minecraft:adventure/throw_trident",
+            "progress:progress|minecraft/minecraft:adventure/very_very_frightening",
+            "progress:progress|minecraft/minecraft:adventure/totem_of_undying",
+            "progress:progress|minecraft/minecraft:adventure/lightning_rod_with_villager_no_fire",
+            "progress:progress|minecraft/minecraft:adventure/minecraft_trials_edition",
+            "progress:progress|minecraft/minecraft:adventure/blowback",
+            "progress:progress|minecraft/minecraft:adventure/lighten_up",
+            "progress:progress|minecraft/minecraft:adventure/overoverkill",
+            "progress:progress|minecraft/minecraft:adventure/under_lock_and_key",
+            "progress:progress|minecraft/minecraft:adventure/revaulting",
+            "progress:progress|minecraft/minecraft:adventure/who_needs_rockets",
+            "progress:progress|minecraft/minecraft:adventure/ol_betsy",
+            "progress:progress|minecraft/minecraft:adventure/two_birds_one_arrow",
+            "progress:progress|minecraft/minecraft:adventure/whos_the_pillager_now",
+            "progress:progress|minecraft/hidden:33cadcb2-7a29-451f-9c5b-8c2a253d2ada",
+            "progress:progress|minecraft/minecraft:adventure/read_power_of_chiseled_bookshelf",
+            "progress:progress|minecraft/minecraft:adventure/salvage_sherd",
+            "progress:progress|minecraft/minecraft:adventure/craft_decorated_pot_using_only_sherds",
+            "progress:progress|minecraft/minecraft:adventure/sleep_in_bed",
+            "progress:progress|minecraft/minecraft:adventure/adventuring_time",
+            "progress:progress|minecraft/minecraft:adventure/play_jukebox_in_meadows",
+            "progress:progress|minecraft/minecraft:adventure/walk_on_powder_snow_with_leather_boots",
+            "progress:progress|minecraft/minecraft:adventure/spyglass_at_parrot",
+            "progress:progress|minecraft/minecraft:adventure/spyglass_at_ghast",
+            "progress:progress|minecraft/minecraft:adventure/spyglass_at_dragon",
+            "progress:progress|minecraft/minecraft:adventure/trade",
+            "progress:progress|minecraft/minecraft:adventure/summon_iron_golem",
+            "progress:progress|minecraft/minecraft:adventure/trade_at_world_height",
+            "progress:progress|minecraft/minecraft:adventure/trim_with_any_armor_pattern",
+            "progress:progress|minecraft/minecraft:adventure/trim_with_all_exclusive_armor_patterns",
+            "progress:progress|minecraft/hidden:0ab2181e-9090-45b5-a7b1-6844396d9aef",
+            "progress:progress|minecraft/hidden:b977f5c5-03fb-4a9b-b2a7-ca9484133fab",
+            "progress:progress|minecraft/minecraft:end/root",
+            "progress:progress|minecraft/minecraft:end/kill_dragon",
+            "progress:progress|minecraft/minecraft:end/dragon_breath",
+            "progress:progress|minecraft/minecraft:end/dragon_egg",
+            "progress:progress|minecraft/minecraft:end/enter_end_gateway",
+            "progress:progress|minecraft/minecraft:end/find_end_city",
+            "progress:progress|minecraft/minecraft:end/elytra",
+            "progress:progress|minecraft/minecraft:end/levitate",
+            "progress:progress|minecraft/minecraft:end/respawn_dragon",
+            "progress:progress|minecraft/minecraft:husbandry/root",
+            "progress:progress|minecraft/minecraft:husbandry/breed_an_animal",
+            "progress:progress|minecraft/minecraft:husbandry/bred_all_animals",
+            "progress:progress|minecraft/minecraft:husbandry/fishy_business"
+          ]
+        },
+        {
+          "name": "list_progress",
+          "arguments": {
+            "tree": "minecraft/minecraft:story/root",
+            "status": null,
+            "text": null,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "progress:tree|minecraft/minecraft:story/root",
+            "progress:progress|minecraft/minecraft:story/root",
+            "progress:progress|minecraft/minecraft:story/mine_stone",
+            "progress:progress|minecraft/minecraft:story/upgrade_tools",
+            "progress:progress|minecraft/minecraft:story/smelt_iron",
+            "progress:progress|minecraft/minecraft:story/iron_tools",
+            "progress:progress|minecraft/minecraft:story/mine_diamond",
+            "progress:progress|minecraft/minecraft:story/enchant_item",
+            "progress:progress|minecraft/minecraft:story/shiny_gear",
+            "progress:progress|minecraft/minecraft:story/lava_bucket",
+            "progress:progress|minecraft/minecraft:story/form_obsidian",
+            "progress:progress|minecraft/minecraft:story/enter_the_nether",
+            "progress:progress|minecraft/minecraft:story/cure_zombie_villager",
+            "progress:progress|minecraft/minecraft:story/follow_ender_eye",
+            "progress:progress|minecraft/minecraft:story/enter_the_end",
+            "progress:progress|minecraft/minecraft:story/obtain_armor",
+            "progress:progress|minecraft/minecraft:story/deflect_arrow"
+          ]
+        },
+        {
+          "name": "inspect_progress",
+          "arguments": {
+            "id": "minecraft/minecraft:story/upgrade_tools"
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "progress:progress|minecraft/minecraft:story/upgrade_tools"
+          ]
+        },
+        {
+          "name": "inspect_progress",
+          "arguments": {
+            "id": "minecraft/minecraft:story/iron_tools"
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "progress:progress|minecraft/minecraft:story/iron_tools"
+          ]
+        },
+        {
+          "name": "inspect_progress",
+          "arguments": {
+            "id": "minecraft/minecraft:story/follow_ender_eye"
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "progress:progress|minecraft/minecraft:story/follow_ender_eye"
+          ]
+        }
+      ],
+      "reply": "**I’d clear a few skipped basics first, then aim for a stronghold.** Your Minecraft tab is at **5/16**, with several early advancements still available. [Open Minecraft advancements](progress:tree|minecraft/minecraft:story/root)\n\n### My recommended next steps\n1. **Getting an Upgrade** — get a **stone pickaxe**; its sole criterion is still incomplete. [Open advancement](progress:progress|minecraft/minecraft:story/upgrade_tools)\n2. **Isn’t It Iron Pick** — get an **iron pickaxe**; that criterion is also incomplete. [Open advancement](progress:progress|minecraft/minecraft:story/iron_tools)\n3. **Hot Stuff** — fill a bucket with lava. [Open advancement](progress:progress|minecraft/minecraft:story/lava_bucket)\n4. **Enchanter** — enchant an item at an enchanting table. [Open advancement](progress:progress|minecraft/minecraft:story/enchant_item)\n\n**For a bigger adventure:** go for **Eye Spy** by following Eyes of Ender and entering a stronghold—the missing criterion is being in the stronghold, not merely throwing an Eye. That leads toward **The End?**, which asks you to enter the End Portal. [Eye Spy](progress:progress|minecraft/minecraft:story/follow_ender_eye) · [The End?](progress:progress|minecraft/minecraft:story/enter_the_end)\n\nIf you’d rather do a quick combat goal, **Take Aim** is still available: shoot something with an arrow. [Open advancement](progress:progress|minecraft/minecraft:adventure/shoot_arrow)\n\nI’ve focused on those six targets rather than listing every unfinished advancement. The other **five** unfinished Minecraft-tab entries are Minecraft, Suit Up, Not Today, Thank You, Ice Bucket Challenge, and Zombie Doctor; I haven’t finished reviewing the other tabs. [Minecraft](progress:progress|minecraft/minecraft:story/root) · [Suit Up](progress:progress|minecraft/minecraft:story/obtain_armor) · [Not Today, Thank You](progress:progress|minecraft/minecraft:story/deflect_arrow) · [Ice Bucket Challenge](progress:progress|minecraft/minecraft:story/form_obsidian) · [Zombie Doctor](progress:progress|minecraft/minecraft:story/cure_zombie_villager)"
+    },
+    {
+      "name": "source-concise",
+      "requestId": "0847545a-be2a-420c-8cfb-6e02596f1851",
+      "conversationId": "b6e3eac7-5349-4447-8167-b691a5d2ba26",
+      "status": "completed",
+      "saved": true,
+      "question": "what effects do I have and where do my bonuses come from?",
+      "storedVerbosity": "CONCISE",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "31988",
+      "navigationTargetCount": 0,
+      "toolCalls": [
+        {
+          "name": "search_registry",
+          "arguments": {
+            "registry": "active_effect",
+            "filter": null,
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": []
+        },
+        {
+          "name": "search_registry",
+          "arguments": {
+            "registry": "player_attribute",
+            "filter": null,
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "native:player_attribute:minecraft:generic.armor",
+            "native:player_attribute:minecraft:generic.armor_toughness",
+            "native:player_attribute:minecraft:generic.attack_damage",
+            "native:player_attribute:minecraft:generic.attack_knockback",
+            "native:player_attribute:minecraft:generic.attack_speed",
+            "native:player_attribute:minecraft:generic.burning_time",
+            "native:player_attribute:minecraft:generic.explosion_knockback_resistance",
+            "native:player_attribute:minecraft:generic.fall_damage_multiplier",
+            "native:player_attribute:minecraft:generic.gravity",
+            "native:player_attribute:minecraft:generic.jump_strength",
+            "native:player_attribute:minecraft:generic.knockback_resistance",
+            "native:player_attribute:minecraft:generic.luck",
+            "native:player_attribute:minecraft:generic.max_absorption",
+            "native:player_attribute:minecraft:generic.max_health",
+            "native:player_attribute:minecraft:generic.movement_efficiency",
+            "native:player_attribute:minecraft:generic.movement_speed",
+            "native:player_attribute:minecraft:generic.oxygen_bonus",
+            "native:player_attribute:minecraft:generic.safe_fall_distance",
+            "native:player_attribute:minecraft:generic.scale",
+            "native:player_attribute:minecraft:generic.step_height",
+            "native:player_attribute:minecraft:generic.water_movement_efficiency",
+            "native:player_attribute:minecraft:player.block_break_speed",
+            "native:player_attribute:minecraft:player.block_interaction_range",
+            "native:player_attribute:minecraft:player.entity_interaction_range",
+            "native:player_attribute:minecraft:player.mining_efficiency",
+            "native:player_attribute:minecraft:player.sneaking_speed",
+            "native:player_attribute:minecraft:player.submerged_mining_speed",
+            "native:player_attribute:minecraft:player.sweeping_damage_ratio",
+            "native:player_attribute:neoforge:creative_flight",
+            "native:player_attribute:neoforge:nametag_distance",
+            "native:player_attribute:neoforge:swim_speed"
+          ]
+        },
+        {
+          "name": "inspect_item",
+          "arguments": {
+            "path": "held"
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword"
+          ]
+        }
+      ],
+      "reply": "- **You have no active status effects** right now.\n- **Creative-mode reach bonuses:** +0.5 block interaction range and +2 entity interaction range, bringing both to **5 blocks**. [native:player_attribute:minecraft:player.block_interaction_range] [native:player_attribute:minecraft:player.entity_interaction_range]\n- **Your held Diamond Sword** supplies +6 attack damage and −2.4 attack speed; its tooltip shows **7 damage and 1.6 attack speed**. It also carries **Sharpness 100, Looting 100, Unbreaking 100, and Mending 100**—equipment enchantments, not status effects; the 7-damage tooltip is not a verified total including Sharpness. [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword]"
+    },
+    {
+      "name": "source-detailed",
+      "requestId": "762ab8e9-8864-4170-b09f-b76f9599e6e5",
+      "conversationId": "a4cc60a5-0510-4286-9e88-072bb1824812",
+      "status": "completed",
+      "saved": true,
+      "question": "what effects do I have and where do my bonuses come from?",
+      "storedVerbosity": "DETAILED",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "40962",
+      "navigationTargetCount": 0,
+      "toolCalls": [
+        {
+          "name": "search_registry",
+          "arguments": {
+            "registry": "active_effect",
+            "filter": null,
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": []
+        },
+        {
+          "name": "search_registry",
+          "arguments": {
+            "registry": "player_attribute",
+            "filter": null,
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "native:player_attribute:minecraft:generic.armor",
+            "native:player_attribute:minecraft:generic.armor_toughness",
+            "native:player_attribute:minecraft:generic.attack_damage",
+            "native:player_attribute:minecraft:generic.attack_knockback",
+            "native:player_attribute:minecraft:generic.attack_speed",
+            "native:player_attribute:minecraft:generic.burning_time",
+            "native:player_attribute:minecraft:generic.explosion_knockback_resistance",
+            "native:player_attribute:minecraft:generic.fall_damage_multiplier",
+            "native:player_attribute:minecraft:generic.gravity",
+            "native:player_attribute:minecraft:generic.jump_strength",
+            "native:player_attribute:minecraft:generic.knockback_resistance",
+            "native:player_attribute:minecraft:generic.luck",
+            "native:player_attribute:minecraft:generic.max_absorption",
+            "native:player_attribute:minecraft:generic.max_health",
+            "native:player_attribute:minecraft:generic.movement_efficiency",
+            "native:player_attribute:minecraft:generic.movement_speed",
+            "native:player_attribute:minecraft:generic.oxygen_bonus",
+            "native:player_attribute:minecraft:generic.safe_fall_distance",
+            "native:player_attribute:minecraft:generic.scale",
+            "native:player_attribute:minecraft:generic.step_height",
+            "native:player_attribute:minecraft:generic.water_movement_efficiency",
+            "native:player_attribute:minecraft:player.block_break_speed",
+            "native:player_attribute:minecraft:player.block_interaction_range",
+            "native:player_attribute:minecraft:player.entity_interaction_range",
+            "native:player_attribute:minecraft:player.mining_efficiency",
+            "native:player_attribute:minecraft:player.sneaking_speed",
+            "native:player_attribute:minecraft:player.submerged_mining_speed",
+            "native:player_attribute:minecraft:player.sweeping_damage_ratio",
+            "native:player_attribute:neoforge:creative_flight",
+            "native:player_attribute:neoforge:nametag_distance",
+            "native:player_attribute:neoforge:swim_speed"
+          ]
+        },
+        {
+          "name": "inspect_item",
+          "arguments": {
+            "path": "held"
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword"
+          ]
+        }
+      ],
+      "reply": "**You currently have no active status effects.** The bonuses I can identify come from **Creative-mode reach modifiers and your held Diamond Sword**, rather than an active potion or beacon effect.\n\n### Reach bonuses: Creative mode\nBoth reach modifiers explicitly identify Creative mode as their source:\n\n| Attribute | Base | Bonus | Current total |\n|---|---:|---:|---:|\n| Block interaction range | 4.5 blocks | +0.5 blocks | **5 blocks** |\n| Entity interaction range | 3 blocks | +2 blocks | **5 blocks** |\n\nThese are separate bonuses for interacting with blocks and entities. [native:player_attribute:minecraft:player.block_interaction_range] [native:player_attribute:minecraft:player.entity_interaction_range]\n\n### Weapon bonuses: your held Diamond Sword\nYour sword supplies these modifiers **while in your main hand**:\n\n- **+6 attack damage.** Its tooltip shows **7 Attack Damage**.\n- **−2.4 attack speed** relative to your base of 4, leaving **1.6 attack speed**. The live attack-speed modifier matches the sword’s modifier. [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword] [native:player_attribute:minecraft:generic.attack_speed]\n\nIt also has **four enchantments, all at level 100**:\n- Sharpness\n- Looting\n- Unbreaking\n- Mending\n\nThese are enchantments on the weapon, not timed effects on you. [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword]\n\n**Damage-reading caveat:** the client’s attack-damage attribute is not synchronized and reports only 1 with no modifiers, so that read cannot establish your actual server-side damage. The sword itself confirms its +6 modifier and 7-damage tooltip; I’m **not treating 7 as your final damage including Sharpness 100**. [native:player_attribute:minecraft:generic.attack_damage] [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:diamond_sword]\n\nThe above covers every modifier returned by the attribute check and every enchantment on your held sword. I’ve omitted the unchanged baseline attributes because they do not identify additional bonuses."
+    },
+    {
+      "name": "sand-concise",
+      "requestId": "885780c6-5074-4175-9ad6-30af434e9e7a",
+      "conversationId": "745416ab-0eaf-4db0-beb0-43a60e69ecce",
+      "status": "completed",
+      "saved": true,
+      "question": "how do I make sand using Nature's Aura?",
+      "storedVerbosity": "CONCISE",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "43242",
+      "navigationTargetCount": 0,
+      "toolCalls": [
+        {
+          "name": "search_recipe",
+          "arguments": {
+            "filter": {
+              "text": null,
+              "outputItem": "minecraft:sand",
+              "provider": null
+            },
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "PARTIAL",
+          "references": [
+            "native:naturesaura:altar/sand"
+          ]
+        },
+        {
+          "name": "read_evidence",
+          "arguments": {
+            "handles": [
+              "native:naturesaura:altar/sand"
+            ]
+          },
+          "error": false,
+          "coverage": "PARTIAL",
+          "references": [
+            "native:naturesaura:altar/sand"
+          ]
+        }
+      ],
+      "reply": "Use a **Natural Altar with a Crumbling Catalyst**: Nature’s Aura’s upstream recipe converts **1 cobblestone → 1 sand**, costing **3,000 Aura** and taking **40 ticks (2 seconds)**. ([raw.githubusercontent.com](https://raw.githubusercontent.com/Ellpeck/NaturesAura/main/src/main/resources/data/naturesaura/recipe/altar/sand.json))\n\nYour pack has the [Sand](native:naturesaura:altar/sand) altar recipe loaded, but its ingredient and catalyst details aren’t readable here, so those requirements are upstream guidance rather than confirmed pack settings."
+    },
+    {
+      "name": "sand-normal",
+      "requestId": "b3e0df2e-94be-4f72-98b6-34339d56a76a",
+      "conversationId": "a712fa5f-1cb8-484b-b848-a72fef640641",
+      "status": "completed",
+      "saved": true,
+      "question": "how do I make sand using Nature's Aura?",
+      "storedVerbosity": "NORMAL",
+      "savedReplyMatches": true,
+      "modelTerminalMs": "57126",
+      "navigationTargetCount": 0,
+      "toolCalls": [
+        {
+          "name": "search_registry",
+          "arguments": {
+            "registry": "item",
+            "filter": {
+              "text": "sand",
+              "ids": null,
+              "tags": null,
+              "provider": null
+            },
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "COMPLETE",
+          "references": [
+            "native:item:minecraft:sand",
+            "native:item:minecraft:suspicious_sand",
+            "native:item:minecraft:red_sand",
+            "native:item:minecraft:sandstone",
+            "native:item:minecraft:chiseled_sandstone",
+            "native:item:minecraft:cut_sandstone",
+            "native:item:minecraft:sandstone_slab",
+            "native:item:minecraft:cut_sandstone_slab",
+            "native:item:minecraft:red_sandstone_slab",
+            "native:item:minecraft:cut_red_sandstone_slab",
+            "native:item:minecraft:smooth_red_sandstone",
+            "native:item:minecraft:smooth_sandstone",
+            "native:item:minecraft:soul_sand",
+            "native:item:minecraft:sandstone_stairs",
+            "native:item:minecraft:red_sandstone_wall",
+            "native:item:minecraft:sandstone_wall",
+            "native:item:minecraft:red_sandstone",
+            "native:item:minecraft:chiseled_red_sandstone",
+            "native:item:minecraft:cut_red_sandstone",
+            "native:item:minecraft:red_sandstone_stairs",
+            "native:item:minecraft:smooth_red_sandstone_stairs",
+            "native:item:minecraft:smooth_sandstone_stairs",
+            "native:item:minecraft:smooth_red_sandstone_slab",
+            "native:item:minecraft:smooth_sandstone_slab"
+          ]
+        },
+        {
+          "name": "search_recipe",
+          "arguments": {
+            "filter": {
+              "text": null,
+              "outputItem": "minecraft:sand",
+              "provider": null
+            },
+            "limit": 64,
+            "cursor": null
+          },
+          "error": false,
+          "coverage": "PARTIAL",
+          "references": [
+            "native:naturesaura:altar/sand"
+          ]
+        },
+        {
+          "name": "read_evidence",
+          "arguments": {
+            "handles": [
+              "native:naturesaura:altar/sand"
+            ]
+          },
+          "error": false,
+          "coverage": "PARTIAL",
+          "references": [
+            "native:naturesaura:altar/sand"
+          ]
+        }
+      ],
+      "reply": "Use a **Natural Altar with a Crushing Catalyst**. The mod’s published recipe converts **1 cobblestone → 1 sand**, using **3,000 Aura** over **40 ticks**—about **2 seconds** at normal tick speed. ([raw.githubusercontent.com](https://raw.githubusercontent.com/Ellpeck/NaturesAura/main/src/main/resources/data/naturesaura/recipe/altar/sand.json))\n\nYou need a completed altar structure, the catalyst installed, and enough Aura for the conversion to run. ([raw.githubusercontent.com](https://raw.githubusercontent.com/Ellpeck/NaturesAura/main/src/main/java/de/ellpeck/naturesaura/blocks/tiles/BlockEntityNatureAltar.java))\n\nYour pack does have the sand altar recipe loaded, but its ingredient and catalyst details aren’t readable through the local recipe adapter, so the requirements above are from the mod’s published source rather than fully verified pack settings.\n\n[native:naturesaura:altar/sand]"
+    }
+  ],
+  "finalState": {
+    "world": "PackSage Adapter Filter Live Test",
+    "save": "PackSage Adapter Filter Live Test",
+    "paused": false,
+    "running": true,
+    "screen": null,
+    "dimension": "minecraft:overworld",
+    "position": [
+      1583.394432834578,
+      108.51250108506484,
+      184.70977029085697
+    ],
+    "yaw": 1687.0385,
+    "pitch": 90,
+    "health": 20,
+    "gamemode": "creative",
+    "gameTime": 2758397,
+    "dayTime": 1172198,
+    "selectedHotbarSlot": 0,
+    "crosshairTarget": null,
+    "riddenEntity": null,
+    "menuId": 0
+  },
+  "checks": {
+    "jei": "PASS",
+    "compactChips": "PASS",
+    "sourceRules": "FAIL: a trailing blank row remains after a standalone source-only paragraph is hidden",
+    "narrowFallbacks": "PASS",
+    "normalDetailedCards": "PASS",
+    "openingTiming": "FAIL: cold 72.2324 ms and first warm 51.0822 ms exceed the previous 50.383 ms maximum",
+    "shiftPinning": "NOT RUN: no supported timed key hold",
+    "ordinaryWheelDismissal": "FAIL: preview stays visible after wheel input"
+  }
+}

@@ -147,3 +147,69 @@ FAIL, observed once on candidate 15's Concise glass completion, request `4c839fe
 - NOT RUN: missing-item barrier and `Missing:` tooltip. No naturally missing registry item was present in these recorded recipes.
 - NOT RUN: custom-ingredient `?` tooltip. The trim unknown-output placeholder was exercised, but it is a different case. No loaded recognized native recipe with a custom ingredient was found in the selected checks; unsupported Nature's Aura recipes remain source-only by design.
 - Candidates 14–17 failures are retained above; candidate 18 passed both before promotion and on the installed default. Full feature acceptance remains incomplete because UI-1/UI-2, the cold timing exceptions and the unverified interactions above remain open.
+
+## Follow-up live recheck: compact chips and source visibility
+
+Date: 2026-10-27. This section appends new observations; earlier results remain historical. **Acceptance remains partial:** checks 1, 2, 4 and 5 pass; check 3 fails its no-empty-lines clause; check 6 has cold and warm timing exceptions; check 7 is NOT RUN. UI-1 still reproduces, and UI-3 below is a new spacing failure. UI-2 did not recur in these eleven completions, which does not establish that it is fixed.
+
+### Build and method
+
+- Started in the main checkout on `feat/packsage-v2` at `03f2ee6ef56a9c03d37c6c72794ae44e5de942e9`. Installed `packsage.jar` was and remains SHA-256 `9DAF91D98C33586DAD4EA8D151AC64CEEAA4BE039CF38A9AAED792F686994BDC`.
+- Launched the existing CurseForge **Packsage** instance with computer use and opened **PackSage Adapter Filter Live Test**, displayed as New World in the world list. JEI `jei-1.21.1-neoforge-19.27.0.340.jar` stayed in the instance's `mods` directory throughout. No mod was moved, removed or replaced.
+- Read the current spec at the start of the run, including the 12-GUI-pixel chip/icon rule and source visibility rules. During testing, another work step advanced the checkout to `e9ea9e4f` and changed the specification and icon inset. **That later change is not installed or covered by this recheck.** The tested artifact is identified by the hash above.
+- Model GPT-6.1-Sol, medium; screenshot and automatic web search enabled. The developer prompt override remained null, and the effective prompt matched its initial value at the end. No code or prompt was changed by this test run.
+- Changed Answer detail before each new request, using Settings for the initial Concise case and the authenticated bridge for the other detail groups. Each question was submitted once in a new conversation. All eleven completed, were saved with the intended verbosity, and have saved replies matching the bridge responses. [Durable request/call/reply evidence](assets/2026-10-27-recipe-cards/recheck-evidence.json) records IDs, tool calls, returned references and final state; full responses remain under `build/recipe-cards-recheck`. The bridge token and authorization headers were never printed or saved in evidence.
+- Original game PNGs use a 1024 by 768 client at GUI scale 2, except the explicit 290 by 768 narrow-window views at scale 1 and the labelled wide view. Restored the original client size afterwards. No formatting tools, build, unit tests or gameplay fixture mutations were used for this installed visual recheck.
+
+### Results by requested check
+
+| Check | Result | Observation and screenshots |
+|---|---|---|
+| 1. JEI loads and R opens recipes | PASS | The JEI item list is visible in the inventory. Searched for Beacon, defocused the search field, hovered its result and pressed R; JEI opened the beacon crafting recipe. [Item list](assets/2026-10-27-recipe-cards/recheck-jei-list.png), [R opens recipe](assets/2026-10-27-recipe-cards/recheck-jei-r-beacon.png). |
+| 2. Concise compact chips and hover | PASS for the requested installed build | The fresh exact beacon question produces one green result chip and three filled neutral ingredient chips. Chips occupy one 12-GUI-pixel text line, with 12-pixel item renders (24 image pixels at scale 2), rounded corners, a visibly lighter ingredient fill and a rounded result outline. Glass hover shows its item tooltip. Beacon hover shows the floating crafting card, whose slots retain the full 16-pixel item renders. [Concise answer](assets/2026-10-27-recipe-cards/recheck-concise-beacon.png), [item tooltip](assets/2026-10-27-recipe-cards/recheck-item-tooltip.png), [floating card](assets/2026-10-27-recipe-cards/recheck-result-hover.png). This does not accept the later `e9ea9e4f` icon-inset change. |
+| 3. Sources by verbosity, links and legacy | FAIL: spacing subcase; other observed subcases PASS | Normal and Concise attribute answers hide bare source citations and citation groups without visible source chips or empty bullets. Concise Nature's Aura renders the labelled `Sand` citation as ordinary text and retains its web link. Detailed retains Source chips and source hover details. Normal advancement links remain Open chips; clicking Open advancement for Take Aim opens the Adventure advancements tab. Legacy beacon retains its Source chip while current detail is Normal. The supplemental Normal standalone-citation case leaves a trailing blank row: UI-3 below. [Normal](assets/2026-10-27-recipe-cards/recheck-source-normal.png), [Concise](assets/2026-10-27-recipe-cards/recheck-source-concise.png), [plain label/web link](assets/2026-10-27-recipe-cards/recheck-concise-plain-label-web.png), [Detailed](assets/2026-10-27-recipe-cards/recheck-source-detailed.png), [source hover](assets/2026-10-27-recipe-cards/recheck-source-detailed-hover.png), [Open chips](assets/2026-10-27-recipe-cards/recheck-navigation-normal.png), [opened tab](assets/2026-10-27-recipe-cards/recheck-navigation-opened.png), [legacy](assets/2026-10-27-recipe-cards/recheck-legacy-normal-setting.png). |
+| 4. Narrow window | PASS | At a 290-pixel client width, the Normal beacon card becomes a green result chip, and hover opens its floating full card. The same-width Detailed answer falls back to a Source chip. Neither beacon card is squeezed to fit. [Normal](assets/2026-10-27-recipe-cards/recheck-narrow-normal.png), [Normal hover](assets/2026-10-27-recipe-cards/recheck-narrow-normal-hover.png), [Detailed](assets/2026-10-27-recipe-cards/recheck-narrow-detailed.png). |
+| 5. Normal and Detailed card spot-checks | PASS | Fresh beacon and glass answers show their cards: beacon's five glass, centered star and bottom obsidian row; glass's input, empty fuel slot, flame, arrow, output, `10s` and `0.1 XP`. Cards retain the previous layout and full-size slot items. [Normal beacon](assets/2026-10-27-recipe-cards/recheck-normal-beacon.png), [Normal glass](assets/2026-10-27-recipe-cards/recheck-normal-glass.png), [Detailed beacon](assets/2026-10-27-recipe-cards/recheck-detailed-beacon.png), [Detailed glass](assets/2026-10-27-recipe-cards/recheck-detailed-glass.png), [both Detailed cards in wide view](assets/2026-10-27-recipe-cards/recheck-detailed-beacon-glass-wide.png). |
+| 6. Real-key opening timing | FAIL against the prior maximum | First P opening: 72.2324 ms. Five warm P openings: 51.0822, 34.9051, 36.8649, 36.2240 and 37.5099 ms. Four warm samples pass; the first warm sample is 0.6992 ms above the previous 50.383 ms maximum. Details below. |
+| 7. Sustained Shift pinning | NOT RUN | The supported computer-use API still exposes complete key chords only, with no key-down/key-up or timed hold. Could not establish sustained Shift, movement into the pinned card, slot tooltips while pinned, release outside, click-through protection or pinned-panel scroll dismissal. No pass is inferred from a Shift tap. Ordinary unpinned wheel dismissal was run and still fails: UI-1 below. |
+
+The navigation observations establish retained chips and the opened advancement tab; they are not a new full navigation/restart matrix. Web links remain visible in the Concise Nature's Aura and Detailed beacon answers ([Detailed sources and web links](assets/2026-10-27-recipe-cards/recheck-detailed-source-web.png)); external browser launch was not part of this recheck. No source-only empty-bullet fixture was fabricated. The natural list and grouped-citation cases inspected above are clean, while the final standalone source paragraph exposes UI-3.
+
+Fresh recipe requests:
+
+| Detail / exact question | Request ID | Model-terminal time |
+|---|---|---|
+| Concise / `how do I make a beacon?` | `41ca4daf-69e4-46f6-a175-2439a67210c8` | 17,607 ms |
+| Normal / `how do I make a beacon?` | `47465a5e-9f57-4f82-b49d-f360a28b7169` | 31,182 ms |
+| Normal / `how do I smelt glass?` | `7f5cd3fa-6f16-47b6-87db-5fbc05d8dde0` | 15,586 ms |
+| Detailed / `how do I make a beacon?` | `e413dec8-a0d1-46ba-bd12-ac401551876d` | 47,439 ms |
+| Detailed / `how do I smelt glass?` | `c0821a18-1034-482b-aca6-4e17eb104e91` | 23,949 ms |
+
+Supplemental source probes used `what effects do I have and where do my bonuses come from?` in Normal, Concise and Detailed, `what should I do next for advancements?` in Normal, and `how do I make sand using Nature's Aura?` in Concise and Normal. Their request IDs and exact replies are in the durable evidence JSON. These are renderer/link observations, not a separate acceptance of every gameplay claim in those replies.
+
+### Opening timings
+
+Measured from `client_open_request.start_ns` to `first_frame_rendered.event_ns`, using the real P key. All samples have `loading=false`. The first opening was taken before any bridge-selected chat opening after launch, with the previously selected Concise glass conversation `431286e5-79b1-4651-9468-a4d6257aa6de`. The five warm samples use the same completed six-card conversation as the earlier report, `2a562715-dbe3-4598-8273-e1290f4146a7`, at the restored 1024 by 768 size. Bridge-selected openings and sizing operations are excluded from these samples.
+
+| Sample | Local log time | Request to first frame | Assessment |
+|---|---|---|---|
+| First P after launch | 09:29:35 | 72.2324 ms | Cold exception |
+| Warm 1 | 09:40:44.086 | 51.0822 ms | Slightly above the prior maximum |
+| Warm 2 | 09:40:44.689 | 34.9051 ms | PASS |
+| Warm 3 | 09:40:46.339 | 36.8649 ms | PASS |
+| Warm 4 | 09:40:48.339 | 36.2240 ms | PASS |
+| Warm 5 | 09:40:50.635 | 37.5099 ms | PASS |
+
+[Raw timing lines](assets/2026-10-27-recipe-cards/recheck-opening-stages.log), [derived timing pairs](assets/2026-10-27-recipe-cards/recheck-opening-summary.json), [selected six-card chat](assets/2026-10-27-recipe-cards/recheck-warm-six-card-chat.png). As before, this measures render-call completion, not GPU presentation. The exceptions are retained; this run does not establish that recipe cards caused the timing variation.
+
+### Bugs retained or newly observed
+
+**UI-1 still FAILS: wheel scrolling leaves an ordinary hovered preview visible.** In the fresh Concise beacon conversation `9d11abff-4d77-4fa3-b996-9bf1d6f5f036`, hover the Beacon result chip, then scroll one wheel step with the pointer still on it. Expected: the floating card closes. Actual: it remains visible immediately and in a later stationary capture. The short conversation does not overflow. [Before](assets/2026-10-27-recipe-cards/recheck-result-hover.png), [after](assets/2026-10-27-recipe-cards/recheck-result-after-scroll.png). This is the unpinned case; pinned dismissal remains NOT RUN.
+
+**UI-3 FAILS: a hidden source-only paragraph leaves a trailing blank row.** Set Answer detail to Normal, start a new conversation and ask `how do I make sand using Nature's Aura?`. Request `b3e0df2e-94be-4f72-98b6-34339d56a76a`, conversation `a712fa5f-1cb8-484b-b848-a72fef640641`. The saved answer ends with its final prose paragraph, a blank line, then `[native:naturesaura:altar/sand]` alone. Expected: removing that source-only paragraph leaves no empty line in the bubble. Actual: the Source chip is hidden, but one blank text row remains below `settings.` before the bubble's bottom padding, approximately 12 GUI pixels / 24 image pixels. [Screenshot](assets/2026-10-27-recipe-cards/recheck-normal-hidden-source-web.png). The inspected Normal/Concise trailing inline citations do not show this gap; the standalone final paragraph is the reproducing case. No code fix was made.
+
+UI-2 was not observed in these eleven saved completions. Missing/custom ingredient and sustained Shift checks from the earlier report remain open. The later icon-inset change is also outside this installed-build acceptance.
+
+### Final state
+
+Minecraft is left running in **PackSage Adapter Filter Live Test**, with chat and settings closed, Answer detail **Normal**, the original 1024 by 768 client size restored, and the developer override still null. [Normal selected](assets/2026-10-27-recipe-cards/recheck-final-settings-normal.png), [world with chat closed](assets/2026-10-27-recipe-cards/recheck-final-world.png). The installed PackSage hash is unchanged and JEI remains installed. No push or merge was performed.

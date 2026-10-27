@@ -473,6 +473,37 @@ class RecipePlannerTest {
                 canonical(new RecipePlanner(source).plan("minecraft:torch", 9, SCOPE, 4), fixtures));
     }
 
+    @Test
+    void everyRouteForThePlannedItemLeadsAManyRoutePlan() {
+        // A large pack: each route for the alloy has inputs with 64 routes each, so the inputs' routes alone exceed the node cap.
+        var records = new java.util.ArrayList<Evidence.Record>();
+        for (int route = 0; route < 10; route++) {
+            var inputs = new java.util.ArrayList<Evidence.RecipeSlot>();
+            for (int input = 0; input < 3; input++) {
+                var material = "mod:material_" + route + "_" + input;
+                inputs.add(slot("slot-" + input, item(material, 1)));
+                for (int source = 0; source < 64; source++) records.add(craft("mod:make_" + route + "_" + input + "_" + source, material, "mod:raw_" + source));
+            }
+            records.add(record("mod:alloy_" + route, new Evidence.RecipePayload("mod:alloy_" + route, inputs, List.of(output("mod:alloy", 1)),
+                    List.of(), List.of(), List.of(), Evidence.DecodingStatus.VERIFIED)));
+        }
+        var source = new RecipePlanner.Source() {
+            @Override public boolean available(Evidence.Scope scope) { return true; }
+            @Override public List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope scope) {
+                return records.stream().filter(record -> record.recipePayload().outputs().stream()
+                        .anyMatch(output -> output.comparisonIdentity().equals(identity))).toList();
+            }
+        };
+
+        var result = new RecipePlanner(source).plan("mod:alloy", 8, SCOPE, 1);
+
+        assertEquals(java.util.stream.IntStream.range(0, 10).mapToObj(route -> "mod:alloy_" + route).toList(),
+                result.records().stream().limit(10).map(record -> record.source().sourceHandle()).toList());
+        for (var route : result.records().subList(0, 10)) assertEquals(number(8), route.payload().values().get("batches"));
+        assertTrue(result.detail().contains("node-cap=256"), result.detail());
+        assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
+    }
+
     /** Key-sorted rendering, so the comparison does not depend on JsonObject's unordered map. */
     private static String canonical(Evidence.Result result, List<Evidence.Record> fixtures) {
         var text = new StringBuilder();
@@ -526,6 +557,11 @@ class RecipePlannerTest {
 
     private static Evidence.Record craft(String id, String input) {
         return record(id, new Evidence.RecipePayload(id, List.of(slot("slot-0", item(input, 1))), List.of(output(id, 1)), List.of(), List.of(),
+                List.of(), Evidence.DecodingStatus.VERIFIED));
+    }
+
+    private static Evidence.Record craft(String id, String product, String input) {
+        return record(id, new Evidence.RecipePayload(id, List.of(slot("slot-0", item(input, 1))), List.of(output(product, 1)), List.of(), List.of(),
                 List.of(), Evidence.DecodingStatus.VERIFIED));
     }
 

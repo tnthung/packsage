@@ -155,11 +155,14 @@ class JeiProjectionTest {
     void missingRecipeIdGetsTemporaryHandle() {
         var layout = new JeiLayout("naturesaura:altar", "Altar", null, 3, 7, false, true, null, List.of(), List.of());
         var record = JeiProjection.record(layout, SCOPE, "19.27", NOW);
-        assertEquals("naturesaura:altar|#3@7", JeiProjection.handle(layout));
+        assertEquals("naturesaura:altar|#3@7~" + JeiRuntimeHolder.session(), JeiProjection.handle(layout));
         assertNull(record.recipePayload().canonicalRecipeId());
         assertEquals("temporary", record.targets().getFirst().targetId());
-        assertEquals(new JeiProjection.Handle("naturesaura:altar", null, 3, 7L), JeiProjection.parseHandle(JeiProjection.handle(layout)).orElseThrow());
-        assertEquals(new JeiProjection.Handle("naturesaura:altar", "mod:recipe", null, null), JeiProjection.parseHandle("naturesaura:altar|mod:recipe").orElseThrow());
+        assertEquals(new JeiProjection.Handle("naturesaura:altar", null, 3, 7L, JeiRuntimeHolder.session()), JeiProjection.parseHandle(JeiProjection.handle(layout)).orElseThrow());
+        assertEquals(new JeiProjection.Handle("naturesaura:altar", null, 3, 7L, null), JeiProjection.parseHandle("naturesaura:altar|#3@7").orElseThrow());
+        for (var malformed : List.of("naturesaura:altar|#3@7~", "naturesaura:altar|#3@7~a~b", "naturesaura:altar|#3@7~a@b"))
+            assertTrue(JeiProjection.parseHandle(malformed).isEmpty(), malformed);
+        assertEquals(new JeiProjection.Handle("naturesaura:altar", "mod:recipe", null, null, null), JeiProjection.parseHandle("naturesaura:altar|mod:recipe").orElseThrow());
         assertTrue(JeiProjection.parseHandle("naturesaura:altar|#bad@7").isEmpty());
     }
 

@@ -147,6 +147,25 @@ class JeiBookmarkProviderTest {
     }
 
     @Test
+    void temporaryRecipeFromAnotherSessionIsNotBookmarked() {
+        var index = new JeiSearchTest.Fake();
+        index.add(0, "mod:machine", "Machine", true);
+        var bookmarks = new FakeBookmarks();
+        var provider = provider(bookmarks, index);
+        var session = dev.packsage.jei.JeiRuntimeHolder.session();
+        var other = session.equals("0123456789abcdef") ? "fedcba9876543210" : "0123456789abcdef";
+        for (var handle : List.of("mod:machine|#0@7~" + other, "mod:machine|#0@7")) {
+            var observed = new Toolbox.Reference("jei", handle, Evidence.RecordKind.RECIPE, SCOPE);
+            assertEquals(Toolbox.Code.INVALID_REFERENCE, failure(provider.handle(request(Map.of("action", text("add"),
+                    "recipe", text("jei:" + handle))), context(Map.of("jei:" + handle, observed)))), handle);
+        }
+        var current = "mod:machine|#0@7~" + session;
+        provider.handle(request(Map.of("action", text("add"), "recipe", text("jei:" + current))),
+                context(Map.of("jei:" + current, new Toolbox.Reference("jei", current, Evidence.RecordKind.RECIPE, SCOPE)))).toCompletableFuture().join();
+        assertEquals(Set.of("recipe:" + new JeiIndex.RecipeRef("mod:machine", 0)), bookmarks.held);
+    }
+
+    @Test
     void notReadyIsUnavailable() {
         var provider = new JeiBookmarkProvider(Optional::empty, Runnable::run, () -> SCOPE);
         assertFalse(provider.enabled());

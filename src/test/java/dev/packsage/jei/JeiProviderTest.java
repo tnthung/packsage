@@ -169,7 +169,7 @@ class JeiProviderTest {
             var provider = new JeiProvider(() -> Optional.ofNullable(current.get()), Runnable::run, () -> SCOPE);
             var stage = switch (tool) {
                 case "get" -> provider.query(new Evidence.Query(Evidence.Operation.GET,
-                        new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("mod:machine|#0@7"))), 1, null, null), SCOPE);
+                        new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("mod:machine|#0@7~" + JeiRuntimeHolder.session()))), 1, null, null), SCOPE);
                 case "search_recipe" -> provider.searchRecipe(request(tool, SCOPE, Map.of("filter",
                         new Evidence.JsonObject(Map.of("outputItem", new Evidence.JsonString("mod:product"))))), context(SCOPE));
                 default -> provider.planRecipe(request(tool, SCOPE, Map.of("identity", new Evidence.JsonString("mod:product"))), context(SCOPE));
@@ -191,13 +191,13 @@ class JeiProviderTest {
                 new Evidence.JsonString("mod:machine|test:recipe0"))), 1, null, null), SCOPE).toCompletableFuture().join();
         assertEquals("mod:machine|test:recipe0", result.records().getFirst().source().sourceHandle());
         var stale = provider.query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of("id",
-                new Evidence.JsonString("mod:machine|#0@6"))), 1, null, null), SCOPE).toCompletableFuture().join();
+                new Evidence.JsonString("mod:machine|#0@6~" + JeiRuntimeHolder.session()))), 1, null, null), SCOPE).toCompletableFuture().join();
         assertTrue(stale.records().isEmpty());
         index.layouts.put(new JeiIndex.RecipeRef("mod:machine", 0), new JeiLayout("mod:machine", "Machine", null, 0, 7,
                 false, true, null, List.of(), List.of()));
         var temporary = provider.query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of("id",
-                new Evidence.JsonString("mod:machine|#0@7"))), 1, null, null), SCOPE).toCompletableFuture().join();
-        assertEquals("mod:machine|#0@7", temporary.records().getFirst().source().sourceHandle());
+                new Evidence.JsonString("mod:machine|#0@7~" + JeiRuntimeHolder.session()))), 1, null, null), SCOPE).toCompletableFuture().join();
+        assertEquals("mod:machine|#0@7~" + JeiRuntimeHolder.session(), temporary.records().getFirst().source().sourceHandle());
     }
 
     @Test

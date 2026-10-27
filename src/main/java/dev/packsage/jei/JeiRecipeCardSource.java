@@ -101,7 +101,7 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
         if (model.category() == RecipeCardModel.Category.VIEWER) {
             return JeiProjection.destination(model.viewerHandle()).flatMap(JeiProjection::parseHandle).flatMap(handle -> handle.recipeId() != null
                     ? index.byRecipeId(handle.categoryUid(), handle.recipeId())
-                    : handle.generation() == index.generation() ? Optional.of(new JeiIndex.RecipeRef(handle.categoryUid(), handle.ordinal()))
+                    : handle.current(index) ? Optional.of(new JeiIndex.RecipeRef(handle.categoryUid(), handle.ordinal()))
                     : Optional.empty());
         }
         var category = nativeCategory(model.category());

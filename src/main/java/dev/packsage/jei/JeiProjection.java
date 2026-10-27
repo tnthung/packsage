@@ -17,10 +17,17 @@ public final class JeiProjection {
 
     private JeiProjection() { }
 
-    public record Handle(String categoryUid, String recipeId, Integer ordinal, Long generation) { }
+    /** A parsed handle; temporary handles carry the ordinal, the generation and the session of the process that made them (null when saved before sessions). */
+    public record Handle(String categoryUid, String recipeId, Integer ordinal, Long generation, String session) {
+        /** Whether a temporary handle names a recipe in this process and the index's current generation; stable handles never depend on it. */
+        public boolean current(JeiIndex index) {
+            return session != null && session.equals(JeiRuntimeHolder.session()) && generation == index.generation();
+        }
+    }
 
     public static String handle(JeiLayout layout) {
-        return layout.categoryUid() + "|" + (layout.recipeId() == null ? "#" + layout.ordinal() + "@" + layout.generation() : layout.recipeId());
+        return layout.categoryUid() + "|" + (layout.recipeId() == null
+                ? "#" + layout.ordinal() + "@" + layout.generation() + "~" + JeiRuntimeHolder.session() : layout.recipeId());
     }
 
     /**
@@ -48,11 +55,16 @@ public final class JeiProjection {
         if (separator <= 0 || separator == value.length() - 1 || value.indexOf('|', separator + 1) >= 0) return Optional.empty();
         var category = value.substring(0, separator);
         var recipe = value.substring(separator + 1);
-        if (!recipe.startsWith("#")) return Optional.of(new Handle(category, recipe, null, null));
+        if (!recipe.startsWith("#")) return Optional.of(new Handle(category, recipe, null, null, null));
         int at = recipe.indexOf('@');
         if (at <= 1 || at == recipe.length() - 1 || recipe.indexOf('@', at + 1) >= 0) return Optional.empty();
         try {
-            return Optional.of(new Handle(category, null, Integer.parseInt(recipe.substring(1, at)), Long.parseLong(recipe.substring(at + 1))));
+            // Handles saved before sessions have none; they parse but never resolve as current.
+            int tilde = recipe.indexOf('~', at);
+            if (tilde == recipe.length() - 1 || tilde >= 0 && recipe.indexOf('~', tilde + 1) >= 0) return Optional.empty();
+            var generation = tilde < 0 ? recipe.substring(at + 1) : recipe.substring(at + 1, tilde);
+            return Optional.of(new Handle(category, null, Integer.parseInt(recipe.substring(1, at)), Long.parseLong(generation),
+                    tilde < 0 ? null : recipe.substring(tilde + 1)));
         } catch (NumberFormatException ignored) {
             return Optional.empty();
         }

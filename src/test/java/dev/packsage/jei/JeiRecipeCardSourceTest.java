@@ -23,8 +23,8 @@ class JeiRecipeCardSourceTest {
     @Test void viewerHandlesResolveByRecipeIdOrCurrentOrdinal() {
         var viewer = RecipeCardModel.Category.VIEWER;
         assertEquals(Optional.of(new JeiIndex.RecipeRef("create:mixing", 3)), JeiRecipeCardSource.ref(INDEX, model(viewer, null, "create:mixing|create:mixing/brass")));
-        assertEquals(Optional.of(new JeiIndex.RecipeRef("mod:altar", 2)), JeiRecipeCardSource.ref(INDEX, model(viewer, null, "mod:altar|#2@7")));
-        assertTrue(JeiRecipeCardSource.ref(INDEX, model(viewer, null, "mod:altar|#2@6")).isEmpty());
+        assertEquals(Optional.of(new JeiIndex.RecipeRef("mod:altar", 2)), JeiRecipeCardSource.ref(INDEX, model(viewer, null, "mod:altar|#2@7~" + JeiRuntimeHolder.session())));
+        assertTrue(JeiRecipeCardSource.ref(INDEX, model(viewer, null, "mod:altar|#2@6~" + JeiRuntimeHolder.session())).isEmpty());
         assertTrue(JeiRecipeCardSource.ref(INDEX, model(viewer, null, "create:mixing|create:mixing/missing")).isEmpty());
         assertTrue(JeiRecipeCardSource.ref(INDEX, model(viewer, null, "malformed")).isEmpty());
     }

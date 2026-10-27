@@ -28,11 +28,8 @@ class JeiRuntimeHolderTest {
     }
 
     @Test
-    void generationsNeverRepeatAcrossProcesses() {
-        // A restarted process starts past every generation an earlier one could reach, so a saved temporary handle cannot match.
-        long jvmStart = java.lang.management.ManagementFactory.getRuntimeMXBean().getStartTime();
-        assertTrue(JeiRuntimeHolder.generation() >= JeiRuntimeHolder.firstGeneration(jvmStart));
-        assertTrue(JeiRuntimeHolder.firstGeneration(jvmStart + 1) > JeiRuntimeHolder.firstGeneration(jvmStart) + 1_000_000);
-        assertTrue(JeiRuntimeHolder.firstGeneration(jvmStart) > 0);
+    void sessionIsARandomPerProcessIdentity() {
+        assertTrue(JeiRuntimeHolder.session().matches("[0-9a-f]{16}"), JeiRuntimeHolder.session());
+        assertEquals(JeiRuntimeHolder.session(), JeiRuntimeHolder.session());
     }
 }

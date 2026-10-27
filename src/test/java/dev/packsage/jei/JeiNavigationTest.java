@@ -56,8 +56,8 @@ class JeiNavigationTest {
     void temporaryLinkExpiresWithRuntime() {
         var current = new AtomicReference<JeiIndex>(new Fake(1, 0, null));
         var provider = new JeiProvider(() -> Optional.of(current.get()), Runnable::run, () -> CURRENT);
-        var saved = new Evidence.NavigationTarget(OLD, "jei", "mod:machine|#0@1", "temporary");
-        assertEquals(new Evidence.NavigationTarget(CURRENT, "jei", "mod:machine|#0@1", "temporary"),
+        var saved = new Evidence.NavigationTarget(OLD, "jei", "mod:machine|#0@1~" + JeiRuntimeHolder.session(), "temporary");
+        assertEquals(new Evidence.NavigationTarget(CURRENT, "jei", saved.sourceHandle(), "temporary"),
                 provider.refreshNavigation(saved, CURRENT).toCompletableFuture().join());
 
         current.set(new Fake(2, 0, null));
@@ -67,16 +67,21 @@ class JeiNavigationTest {
     }
 
     @Test
-    void temporaryLinkFromEarlierProcessNeverOpensAnotherRecipe() {
-        long earlier = JeiRuntimeHolder.firstGeneration(1_000_000L) + 1;
-        long restarted = JeiRuntimeHolder.firstGeneration(1_000_001L) + 1;
-        var saved = new Evidence.NavigationTarget(OLD, "jei", "mod:machine|#0@" + earlier, "temporary");
-        var current = new Fake(restarted, 0, null);
+    void temporaryLinkFromAnotherSessionNeverResolves() {
+        // Another process can reach the same generation and ordinal with a different anonymous recipe; only its session differs.
+        var current = new Fake(1, 0, null);
         var provider = new JeiProvider(() -> Optional.of(current), Runnable::run, () -> CURRENT);
-
-        assertNull(provider.refreshNavigation(saved, CURRENT).toCompletableFuture().join());
-        assertTrue(JeiRecipeCardSource.ref(current, new dev.packsage.client.recipe.RecipeCardModel(
-                dev.packsage.client.recipe.RecipeCardModel.Category.VIEWER, 0, 0, List.of(), "", List.of(), 0, null, saved.sourceHandle())).isEmpty());
+        var other = JeiRuntimeHolder.session().equals("0123456789abcdef") ? "fedcba9876543210" : "0123456789abcdef";
+        for (var handle : List.of("mod:machine|#0@1~" + other, "mod:machine|#0@1")) {
+            var saved = new Evidence.NavigationTarget(OLD, "jei", handle, "temporary");
+            assertNull(provider.refreshNavigation(saved, CURRENT).toCompletableFuture().join(), handle);
+            assertTrue(JeiRecipeCardSource.ref(current, new dev.packsage.client.recipe.RecipeCardModel(
+                    dev.packsage.client.recipe.RecipeCardModel.Category.VIEWER, 0, 0, List.of(), "", List.of(), 0, null, handle)).isEmpty(), handle);
+            assertTrue(provider.query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(java.util.Map.of("id",
+                    new Evidence.JsonString(handle))), 1, null, null), CURRENT).toCompletableFuture().join().records().isEmpty(), handle);
+        }
+        var same = new Evidence.NavigationTarget(OLD, "jei", "mod:machine|#0@1~" + JeiRuntimeHolder.session(), "temporary");
+        assertNotNull(provider.refreshNavigation(same, CURRENT).toCompletableFuture().join());
     }
 
     @Test
@@ -102,7 +107,7 @@ class JeiNavigationTest {
         var provider = new JeiProvider(() -> Optional.of(new Fake(2, 0, "mod:recipe")), Runnable::run, () -> CURRENT);
         for (var handle : List.of("", "mod:machine", "|mod:recipe", "mod:machine|", "mod:machine|mod:recipe|extra",
                 "mod:machine|#0", "mod:machine|#-1@2", "mod:machine|#0@bad", "mod:machine|#0@2@3",
-                "mod:machine|#2147483648@2", "Bad ID|mod:recipe", "mod:machine|Bad ID")) {
+                "mod:machine|#2147483648@2", "mod:machine|#0@2~", "Bad ID|mod:recipe", "mod:machine|Bad ID")) {
             assertNull(provider.refreshNavigation(new Evidence.NavigationTarget(OLD, "jei", handle,
                     handle.contains("#") ? "temporary" : "recipe"), CURRENT)
                     .toCompletableFuture().join(), handle);

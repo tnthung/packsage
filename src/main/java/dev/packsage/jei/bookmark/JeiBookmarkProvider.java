@@ -132,7 +132,7 @@ public final class JeiBookmarkProvider implements KnowledgeProvider {
                 .orElseThrow(() -> new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "invalid JEI recipe reference"));
         JeiIndex.RecipeRef ref = null;
         if (parsed.recipeId() != null) ref = index.byRecipeId(parsed.categoryUid(), parsed.recipeId()).orElse(null);
-        else if (parsed.generation() == index.generation() && parsed.ordinal() >= 0
+        else if (parsed.current(index) && parsed.ordinal() >= 0
                 && parsed.ordinal() < index.inCategory(parsed.categoryUid()).size())
             ref = new JeiIndex.RecipeRef(parsed.categoryUid(), parsed.ordinal());
         if (ref == null) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "JEI recipe is no longer available; repeat search_recipe");

@@ -2,21 +2,25 @@ package dev.packsage.jei;
 
 import mezz.jei.api.runtime.IJeiRuntime;
 
+import java.security.SecureRandom;
+import java.util.HexFormat;
 import java.util.Optional;
 
 public final class JeiRuntimeHolder {
     private static IJeiRuntime runtime;
-    private static long generation = firstGeneration(System.currentTimeMillis());
+    private static long generation;
 
     private JeiRuntimeHolder() {
     }
 
     /**
-     * The generation a process started at {@code millis} counts up from. Temporary recipe handles carry the generation, so a later
-     * process must never reach a value an earlier one used; each millisecond leaves room for 2^20 runtime changes.
+     * A random identity for this process, independent of the clock. Temporary recipe handles carry it, so a handle saved by another
+     * process never matches here even when its generation and ordinal do.
      */
-    static long firstGeneration(long millis) {
-        return millis << 20;
+    private static final String SESSION = HexFormat.of().toHexDigits(new SecureRandom().nextLong());
+
+    public static String session() {
+        return SESSION;
     }
 
     /** The runtime, or null, and the generation it was published under, read together. */

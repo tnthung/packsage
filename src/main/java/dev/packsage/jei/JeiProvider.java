@@ -215,7 +215,7 @@ public final class JeiProvider implements KnowledgeProvider {
             if (parsed.isEmpty()) return new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null, "invalid JEI handle");
             var value = parsed.get();
             var ref = value.recipeId() != null ? current.byRecipeId(value.categoryUid(), value.recipeId()).orElse(null)
-                    : value.generation() == current.generation() && value.ordinal() >= 0 && value.ordinal() < current.inCategory(value.categoryUid()).size()
+                    : value.current(current) && value.ordinal() >= 0 && value.ordinal() < current.inCategory(value.categoryUid()).size()
                     ? new JeiIndex.RecipeRef(value.categoryUid(), value.ordinal()) : null;
             if (ref == null) return new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null, "JEI recipe unavailable");
             var record = JeiProjection.record(current.layout(ref), scope, version, Instant.now());
@@ -282,7 +282,7 @@ public final class JeiProvider implements KnowledgeProvider {
             if (!target.targetId().equals("recipe") || recipe == null || !recipe.toString().equals(parsed.recipeId())) return Optional.empty();
             ref = current.byRecipeId(parsed.categoryUid(), parsed.recipeId());
         } else {
-            if (!target.targetId().equals("temporary") || parsed.generation() != current.generation() || parsed.ordinal() < 0)
+            if (!target.targetId().equals("temporary") || !parsed.current(current) || parsed.ordinal() < 0)
                 return Optional.empty();
             ref = Optional.of(new JeiIndex.RecipeRef(parsed.categoryUid(), parsed.ordinal()))
                     .filter(value -> current.inCategory(parsed.categoryUid()).contains(value));

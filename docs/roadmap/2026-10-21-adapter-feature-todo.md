@@ -207,7 +207,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 ### Recipe cards and navigation
 
-- [ ] JEI — replacement provider resolves saved category/recipe links in the current runtime and opens the exact recipe; anonymous links expire with their runtime and never recur after a restart; raw native recipe objects recover their native holder ID; plan routes open the recipe they wrap; hidden recipes never open. Conversation persistence and navigation have automated coverage; installed restart acceptance remains pending.
+- [ ] JEI — replacement provider resolves saved category/recipe links in the current runtime and opens the exact recipe; anonymous links expire with their runtime and carry a per-process session so another process never resolves them; raw native recipe objects recover their native holder ID; plan routes open the recipe they wrap; hidden recipes never open. Conversation persistence and navigation have automated coverage; installed restart acceptance remains pending.
 - [ ] JEI — draw recipe cards with JEI; R, U and clicks on card slots open recipes or uses, and R, U and clicks on item or result chips open their JEI recipes or uses (chip clicks open recipes). Slot hover shows the whole JEI slot tooltip, and card actions stay inert in another world's read-only history.
 
 ### Native crafting grid layout

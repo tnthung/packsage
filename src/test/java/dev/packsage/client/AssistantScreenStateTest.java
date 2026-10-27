@@ -213,6 +213,68 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void openingRevealedSessionsKeepsSidebarRowsAndScrollPosition() throws Exception {
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var store = new dev.packsage.chat.ConversationStore(java.nio.file.Files.createTempDirectory("packsage-sidebar-open"), Runnable::run);
+        var ids = new ArrayList<String>();
+        for (int index = 0; index < 15; index++) {
+            var conversation = store.newConversation(world).toCompletableFuture().join();
+            ids.add(conversation.id());
+            var request = new ChatContracts.RequestId("request-" + index);
+            store.appendTurn(world, SCOPE, conversation.id(), new ChatContracts.Turn(request,
+                    "Question " + index, "Answer " + index, List.of(), new ChatContracts.Context("", null, SCOPE), List.of(),
+                    List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1,
+                    index == 5 ? Instant.parse("2099-01-01T00:00:00Z") : Instant.EPOCH)).toCompletableFuture().join();
+            java.nio.file.Files.setLastModifiedTime(store.conversationPath(world, conversation.id()),
+                    java.nio.file.attribute.FileTime.from(Instant.parse("2020-01-01T00:00:00Z").plusSeconds(index)));
+            store.summary(world, conversation.id()).toCompletableFuture().join();
+            if (index == 5) store.recordCompletion(world, conversation.id(), request).toCompletableFuture().join();
+        }
+        var runtime = new dev.packsage.chat.AssistantRuntime(store, new ModelBackend() {
+            @Override public CompletionStage<AuthState> signIn() { return new CompletableFuture<>(); }
+            @Override public void cancelSignIn() { }
+            @Override public void signOut() { }
+            @Override public CompletionStage<Capabilities> capabilities() { return new CompletableFuture<>(); }
+            @Override public Exchange start(Request request, java.util.function.Consumer<Event> events) { throw new AssertionError(); }
+        }, scope -> new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), Runnable::run, scope),
+                Runnable::run, Runnable::run, scope -> new dev.packsage.knowledge.KnowledgeService(List.of(), scope),
+                ChatContracts.Turn::tokenCount, ignored -> { throw new AssertionError(); }, ignored -> 512, ignored -> { }, ignored -> { });
+        var settings = PackSageSettings.defaults();
+        settings.setSessionsBeforeCollapse(3);
+        runtime.setSettings(settings);
+        runtime.enterWorld(world, SCOPE);
+        var screen = runtime.openScreen();
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        screen.mouseClicked(24, screen.sessionRows().stream().filter(AssistantScreen.SessionRow::expand).findFirst().orElseThrow().top() + 5, 0);
+        screen.mouseScrolled(50, 200, 0, -100);
+        var before = screen.sessionRows().stream().filter(row -> row.session() != null).toList();
+        assertEquals(13, before.size());
+        var target = before.stream().filter(row -> row.session().id().equals(ids.get(5))).findFirst().orElseThrow();
+        assertTrue(target.top() >= 84 && target.top() < 424);
+        assertEquals(new ChatContracts.RequestId("request-5"), target.session().unreadRequestId());
+        assertTrue(screen.mouseClicked(24, target.top() + 5, 0));
+        assertEquals(ids.get(5), screen.view().conversation().id());
+        var after = screen.sessionRows().stream().filter(row -> row.session() != null).toList();
+        assertEquals(before.stream().map(row -> row.session().id()).toList(), after.stream().map(row -> row.session().id()).toList());
+        assertEquals(before.stream().map(AssistantScreen.SessionRow::top).toList(), after.stream().map(AssistantScreen.SessionRow::top).toList());
+        runtime.markRead(target.session(), new ChatContracts.RequestId("request-5"));
+        var read = screen.sessionRows().stream().filter(row -> row.session() != null).toList();
+        assertEquals(before.stream().map(row -> row.session().id()).toList(), read.stream().map(row -> row.session().id()).toList());
+        assertEquals(before.stream().map(AssistantScreen.SessionRow::top).toList(), read.stream().map(AssistantScreen.SessionRow::top).toList());
+        assertNull(read.stream().filter(row -> row.session().id().equals(ids.get(5))).findFirst().orElseThrow().session().unreadRequestId());
+        screen.mouseClicked(24, read.stream().filter(row -> row.session().id().equals(ids.get(6))).findFirst().orElseThrow().top() + 5, 0);
+        screen.mouseClicked(24, target.top() + 5, 0);
+        assertEquals(ids.get(5), screen.view().conversation().id());
+        var reopened = screen.sessionRows().stream().filter(row -> row.session() != null).toList();
+        assertEquals(before.stream().map(row -> row.session().id()).toList(), reopened.stream().map(row -> row.session().id()).toList());
+        assertEquals(before.stream().map(AssistantScreen.SessionRow::top).toList(), reopened.stream().map(AssistantScreen.SessionRow::top).toList());
+    }
+
+    @Test
     void messageMetadataUsesEachMessagesLocalSentTimeAndOmitsMissingResponseTime() {
         var previousZone = java.util.TimeZone.getDefault();
         var previousLocale = java.util.Locale.getDefault();

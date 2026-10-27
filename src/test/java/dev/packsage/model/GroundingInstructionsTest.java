@@ -39,12 +39,14 @@ class GroundingInstructionsTest {
             "not generated yet",
             "Minecraft does not record what applied an effect",
             "Do not state planner batches as operation counts.",
-            "Never describe a recipe as a crafting grid, slot layout or arrangement in text; state amounts, prerequisites and caveats in prose.",
-            "In answers that show recipe cards, cite each recipe being shown alone on its own line, one record per line, not grouped.",
-            "Place every other citation, including recipe citations not shown as cards, inside the sentence it supports.",
+            "Recipe visuals carry all spatial instructions. Never describe a crafting grid, slot layout or arrangement in text, including prose directions about where an input, output or fuel goes.",
+            "In Normal and Detailed answers, every recipe described in prose gets a card: cite its record alone on its own line, one record per line, not grouped.",
+            "In a Concise recipe answer, use exactly one inline labelled citation per recipe being explained, as its output name.",
+            "Once a recipe has been cited, never cite it again in that Concise answer, including in a caveat, summary or conclusion.",
+            "Place every other citation inside the sentence it supports.",
             "Write [Label](item:<registry id>) to name an item in prose, using a registry ID that appears in tool results; never invent one.",
             "Use it only for items, not tags, blocks as placed, entities, fluids or recipes.",
-            "Item links carry no components and are neither source citations nor navigation links; when components matter, such as for a potion or enchanted item, cite the record for that variant instead.",
+            "Item links carry no components and are neither source citations nor navigation links; when components matter, such as for a potion or enchanted item, name it through the exact record for that variant instead of an item link.",
             "square brackets on both sides",
             "as [reference] or [label](reference); never emit a partial or altered reference.",
             "an item, including one inside a shulker box, bundle or other nested holder, cites its own record or its outermost holder's own record, never a similar item's or another holder's record.",
@@ -82,8 +84,8 @@ class GroundingInstructionsTest {
     @Test
     void defaultMatchesCandidateWhenPresent() throws IOException {
         // NeoForge runs tests from build/minecraft-junit.
-        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(Path.of("../prompt-candidates/candidate-14.txt")));
-        assertEquals(Files.readString(Path.of("../prompt-candidates/candidate-14.txt")),
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(Path.of("../prompt-candidates/candidate-18.txt")));
+        assertEquals(Files.readString(Path.of("../prompt-candidates/candidate-18.txt")),
                 GroundingInstructions.defaultInstructions());
     }
 

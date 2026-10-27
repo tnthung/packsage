@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Prompt candidate 18 passed the nine-question recipe-card presentation check: Normal and Detailed use cards for explained transformations; Concise uses one result chip per recipe without repeated item names. Installed-default recheck pending.
 - Chat answers show recipe cards, item chips and Shift-pinnable result previews.
 - Recipe citations and item links are classified for cards and chips using each answer's saved detail setting.
 - Drafted assistant instructions for recipe cards and item chips, tailored to the answer detail setting, with consistent citation placement and item link rules.

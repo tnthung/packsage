@@ -188,13 +188,13 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 - [x] Minecraft — localized potion-name matching and empty-page progress; installed acceptance passed: the potion was searched by name, the empty page was continued and the localized transformation was found in 2 recipe searches ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — planner brewing batch presentation; installed acceptance passed: `plan_recipe` was called and the reply stated the batch semantics and derived totals under a stated grouping ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — plan_recipe routes reach every loaded recipe (beacon, enchanting table, oak planks) with concrete PARTIAL details, intermediate expansion and smithing inputs (A1r/A3 plan detail/W20/W21, native readiness rounds 3–8; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
-- [ ] JEI — the installed altar plan passed with assumed consumption and equipment once. Possible extras passed via follow-up; fluid/container needs and plan-level multi-machine ambiguity need live acceptance ([validation](../validation/2026-10-27-jei-adapter.md)).
+- [ ] JEI — altar, mixing, fluid and returned-container plans passed, including the machine relationship and blank crafting positions. Possible extras and fluid details passed via follow-up; component-bearing unexpanded fluid/container needs remain unverified ([validation](../validation/2026-10-27-jei-adapter.md)).
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
 
 ### Default recipe source
 
-- [ ] JEI — the replacement provider passed default search, native fallback, stale-cursor checks and selected multi-mod reads; explicit source selection still needs live acceptance ([validation](../validation/2026-10-27-jei-adapter.md)).
+- [x] JEI — the replacement provider passed default search, native fallback, stale-cursor checks, explicit native selection and selected multi-mod reads ([validation](../validation/2026-10-27-jei-adapter.md)).
 - [x] Minecraft — default recipe source when JEI is not installed or not ready, with no JEI-unavailable note; installed acceptance passed for the torch and Potion of Strength questions.
 - [x] PackSage — the installed default used JEI for the focused brewing question and supplied the altar route on a directed follow-up ([validation](../validation/2026-10-27-jei-adapter.md)).
 
@@ -204,7 +204,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 ### Recipe cards and navigation
 
-- [ ] JEI — a saved torch link reopened after restart, cards drew and card clicks, R/U and slot tooltips worked. Chip actions and scaled and narrow layouts also passed; custom/plan links and read-only cross-world behavior need live checks ([validation](../validation/2026-10-27-jei-adapter.md)).
+- [ ] JEI — saved torch and Natural Altar plan links reopened after restart; Create plan navigation and foreign-world read-only refusal passed. Cards, clicks, R/U, tooltips, chips and narrow layouts also passed; temporary and hidden recipe behavior remains open ([validation](../validation/2026-10-27-jei-adapter.md)).
 
 ### JEI bookmarks
 

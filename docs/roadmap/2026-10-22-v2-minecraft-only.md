@@ -156,4 +156,4 @@ The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include 
 
 ## JEI adapter (v2)
 
-The [JEI adapter](../specs/2026-10-27-jei-adapter.md) is implemented. The [live record](../validation/2026-10-27-jei-adapter.md) covers default and native fallback, assumed altar planning, saved-link reopening, bookmarks on JEI 19.64 and Create, Mekanism and Immersive Engineering spot checks. Full acceptance remains open for the navigation and planning cases listed there.
+The [JEI adapter](../specs/2026-10-27-jei-adapter.md) is implemented. The [live record](../validation/2026-10-27-jei-adapter.md) covers default and native fallback, assumed altar planning, saved-link reopening, bookmarks on JEI 19.64 and Create, Mekanism and Immersive Engineering spot checks. The planner recheck covered Create mixing, fluid and returned-container needs, explicit native selection, stable mod-machine plan links after restart and foreign-world read-only refusal. Full acceptance remains open for component-bearing unexpanded fluid/container needs and temporary/hidden recipe behavior, as listed there.

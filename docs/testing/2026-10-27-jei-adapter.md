@@ -21,3 +21,9 @@ Update the instance to JEI 19.64, retaining the old JAR outside `mods`. Ask to b
 ## ATM10 spot check
 
 With JEI 19.64 and the same PackSage build, inspect one Create, one Mekanism and one Immersive Engineering recipe. Compare returned slots, fluids and catalysts with the JEI-drawn card and tooltip. Plan one route through an assumed-consumption machine, checking equipment, unexpanded needs and any possible extras. Restore any temporary debug-bridge configuration after the run.
+
+## Planner-fix and persistent-link recheck
+
+With the installed default prompt and its developer override cleared, plan eight andesite alloy in ATM10. Check the Create mixing plan route, following its `nextCall` when necessary; one directed same-chat follow-up may supply a missing route. Record the planner-call and whole-reply times. Repeat a depth-1 iron-nugget plan and record its bounds and times. In Packsage, repeat the eight-Gold-Powder altar plan and check that genuinely blank vanilla crafting positions do not produce `empty-input-slot`.
+
+Plan a real fluid route and a returned-container route. Check unexpanded mB and contents, alternative grouping, component identities and equipment needed once. If the chosen routes have no component-bearing fluid or contents needs, record the observed limits rather than inferring that none exist in the pack. Check a plan with multiple category machines, and accept a relationship only with evidence or an explicit uncertainty. Ask for the native source while JEI is present. Open a mod-machine plan link, restart Minecraft and reopen it, then try the foreign-world read-only conversation. Repeat torch, gold-powder uses and bookmark add/remove. Restore any temporary settings and close the test instances. The [validation record](../validation/2026-10-27-jei-adapter.md) separates passing cases from open checks.

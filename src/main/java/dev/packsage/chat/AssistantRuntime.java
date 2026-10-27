@@ -352,6 +352,7 @@ public final class AssistantRuntime implements ChatActions {
         for (String id : List.of("native", "config", "world", "progress", "journal")) {
             availability.put(id, providers.getOrDefault(id, false));
         }
+        if (providers.containsKey("jei")) availability.put("jei", providers.get("jei"));
         availability.put("history", true);
         return Map.copyOf(availability);
     }

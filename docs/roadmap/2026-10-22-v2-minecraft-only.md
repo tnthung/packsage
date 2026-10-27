@@ -1,6 +1,6 @@
 # PackSage v2: Minecraft-only baseline
 
-Updated: 2026-10-26.
+Updated: 2026-10-27.
 
 The `feat/packsage-v2` branch removes every non-Minecraft adapter so mod adapters can be rebuilt with a new strategy. The [tool roadmap](2026-10-13-todo.md) and [adapter feature checklist](2026-10-21-adapter-feature-todo.md) still describe the previous branch for removed adapters. Each now has a v2 section pointing here, and this note tracks v2 work.
 
@@ -151,3 +151,9 @@ The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include 
 - [ ] Recorded reply-compliance failures: A3 (accepted by the player on 2026-10-27; the from-scratch beacon reply does not say obsidian is obtained, though the plan detail is correct). J8 passes the 2026-10-27 retest, including the same-chat follow-up. Accepted limitation: the statistics one-step owned key copy (Astra accepted).
 - Modded-menu PARTIAL sections are deferred until the storage mod adapters (player decision, 2026-10-27); the rest of the item/menu, world-knowledge, journal and progress clauses are accepted above.
 - The paused JEI recipe-planning tasks J3–J7 belong to feat/packsage-v1 and do not apply until a JEI adapter returns.
+- Native adapter work is closed for now (player decision, 2026-10-27). The unchecked native items above stay unchecked because their criteria are not met; they are deferred, not accepted.
+- Clicking an item in a native recipe card or chip does nothing, and R and U over card and chip items are not handled. The [JEI adapter](../specs/2026-10-27-jei-adapter.md) adds R, U and A over card and chip items, left and right clicks on card slots, and chip clicks that open the item's recipes in JEI. Without JEI, clicks keep doing nothing.
+
+## JEI adapter (v2)
+
+The [JEI adapter specification](../specs/2026-10-27-jei-adapter.md) is the next v2 work. JEI becomes the default recipe source while ready, mod machine recipes are read with assumed consumption, cards are drawn by JEI, and a `bookmark` tool adds, removes and checks JEI bookmarks on JEI 19.53+. A plan follows.

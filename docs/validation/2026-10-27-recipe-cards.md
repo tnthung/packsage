@@ -2,7 +2,7 @@
 
 Date: 2026-10-27. Tasks 8b and 9 of the [implementation plan](../plans/2026-10-27-recipe-cards.md). Player steps: [testing checklist](../testing/2026-10-27-recipe-cards.md).
 
-Status: in progress. Category comparisons and the candidate 14 matrix are recorded below. Candidate 15 failed; candidate 16 is being tested. Neither has been promoted. The remaining failures and unverified interactions are separate from the passes.
+Status: category comparisons pass; interaction acceptance remains partial. Prompt candidate 18 passed the nine-question presentation matrix and was promoted in `4953ed32`. Full build passes. Installed-default recheck is in progress. The remaining failures and unverified interactions are separate from the passes.
 
 ## Installation and method
 
@@ -67,7 +67,39 @@ Candidate files are whole prompts under `build/prompt-candidates`. Each replacem
 
 Candidate 15 integrates result-name ownership into citation policy: an inline labelled recipe citation supplies the output name, with no extra item link or repeated citation; component-dependent items use their exact variant record. Its Concise beacon and Swiftness checks pass. Concise glass still fails: after the correct chips it says “Put the sand in the input slot and fuel below it,” repeating an ingredient and describing placement. Candidate 15 was not promoted. Evidence: [beacon](../../build/recipe-cards-live/c15-concise-beacon.json), [glass](../../build/recipe-cards-live/c15-concise-glass.json), [Swiftness](../../build/recipe-cards-live/c15-concise-swiftness.json); [beacon screenshot](assets/2026-10-27-recipe-cards/c15-concise-beacon.png), [glass screenshot](assets/2026-10-27-recipe-cards/c15-concise-glass-read-error.png), [Swiftness screenshot](assets/2026-10-27-recipe-cards/c15-concise-swiftness.png).
 
-Candidate 16 strengthens the existing spatial-information rule for all recipes and integrates a Concise final check for repeated names/citations across explanation and caveat sentences. Its first Concise glass check passes: one name per ingredient/output, one inline result chip and a short processing-time sentence. The remaining matrix is in progress.
+Candidate 16 strengthens the existing spatial-information rule for all recipes and integrates a Concise final check for repeated names/citations across explanation and caveat sentences. Concise glass passes, but Swiftness repeats the result citation on a final caveat, producing a second result chip. Beacon's recipe presentation passes, but it incorrectly tells the player to “Open the recipe chip” when the supported interaction is hover. Not promoted. [Glass](../../build/recipe-cards-live/c16-concise-glass.json), [beacon](../../build/recipe-cards-live/c16-concise-beacon.json), [Swiftness](../../build/recipe-cards-live/c16-concise-swiftness.json), [duplicate-chip screenshot](assets/2026-10-27-recipe-cards/c16-concise-swiftness.png).
+
+Candidate 17 reconciles citation scope with Concise brevity: one recipe citation supports its quantities and caveats together and supplies its output name; the existing hover behavior is stated correctly. All three Concise and Normal questions pass. Detailed beacon/glass pass, but Detailed Swiftness explains Water Bottle + Sugar → Mundane Potion in a warning using only an inline source chip. That transformation does not get a card. Not promoted. [Failing reply](../../build/recipe-cards-live/c17-detailed-swiftness.json), [warning screenshot](assets/2026-10-27-recipe-cards/c17-detailed-swiftness-warning.png). All nine `c17-<detail>-<question>.json` responses remain in the evidence folder.
+
+Candidate 18 makes the existing Normal/Detailed rule apply to every explained transformation, including alternatives and warnings. It passed the full matrix below. No prompt rules outside recipe presentation were intentionally changed. The whole prompt and all current tool descriptions were reviewed together; tool schemas/descriptions and verbosity-setting text were unchanged. Keeping the verbosity text preserves the exact configuration used for the live passing matrix.
+
+### Candidate 18: passing matrix before promotion
+
+All nine replies were saved byte-for-byte as returned, with the expected stored verbosity and exact requested question. Every item ID and local reference matched returned evidence; zero tool errors and zero in-game navigation targets. The absence of recipe navigation is explained by the native records' `navigable:false`. Returned external links remained visible where the answer used external guidance. All Normal/Detailed explained recipes have standalone citations/cards and no text grids or slot-placement prose. Concise uses one inline result citation per recipe and names ingredients/outputs once, with variant outputs represented by their recipe record. This is recipe-presentation acceptance; it does not supersede older unrelated A3/J8 answer-completeness findings.
+
+| Detail / question | Request ID | Model-terminal time | Result and evidence |
+|---|---|---|---|
+| Normal beacon | `774560ec-660b-4805-9944-08c2003f199a` | 24,372 ms | PASS; [JSON](../../build/recipe-cards-live/c18-normal-beacon.json), [render](assets/2026-10-27-recipe-cards/c18-normal-beacon.png) |
+| Normal glass | `c040167f-47e3-4b6c-b8c5-ae2c64c539cd` | 16,914 ms | PASS; [JSON](../../build/recipe-cards-live/c18-normal-glass.json), [render](assets/2026-10-27-recipe-cards/c18-normal-glass.png) |
+| Normal Swiftness | `a27faffa-2780-4481-9bf9-bec1494ba90c` | 36,399 ms | PASS; [JSON](../../build/recipe-cards-live/c18-normal-swiftness.json), [render](assets/2026-10-27-recipe-cards/c18-normal-swiftness.png) |
+| Detailed beacon | `9e214685-caee-40bd-8547-9c85216ea312` | 34,839 ms | PASS; [JSON](../../build/recipe-cards-live/c18-detailed-beacon.json), [render](assets/2026-10-27-recipe-cards/c18-detailed-beacon.png) |
+| Detailed glass | `893f7a30-39e7-4778-9ee7-7612eae933cd` | 20,457 ms | PASS; [JSON](../../build/recipe-cards-live/c18-detailed-glass.json), [render](assets/2026-10-27-recipe-cards/c18-detailed-glass.png) |
+| Detailed Swiftness | `8153b704-05f8-4445-8d8a-a84c2f544166` | 34,195 ms | PASS; [JSON](../../build/recipe-cards-live/c18-detailed-swiftness.json), [render](assets/2026-10-27-recipe-cards/c18-detailed-swiftness.png) |
+| Concise beacon | `7d7f19b8-e3aa-4a4f-b6d7-3dd6dcb88fa6` | 15,960 ms | PASS; [JSON](../../build/recipe-cards-live/c18-concise-beacon.json), [render](assets/2026-10-27-recipe-cards/c18-concise-beacon.png) |
+| Concise glass | `592620a5-e874-4f5c-9a44-35e354d4b802` | 17,229 ms | PASS; [JSON](../../build/recipe-cards-live/c18-concise-glass.json), [render](assets/2026-10-27-recipe-cards/c18-concise-glass.png) |
+| Concise Swiftness | `fe254c74-7e2d-4591-bca3-bfbfe1a825e7` | 27,413 ms | PASS; [JSON](../../build/recipe-cards-live/c18-concise-swiftness.json), [render](assets/2026-10-27-recipe-cards/c18-concise-swiftness.png) |
+
+[candidate18-summary.json](../../build/recipe-cards-live/candidate18-summary.json) includes the calls, arguments, coverage, record counts, exact replies, saved-reply comparisons, stored verbosity and reference/ID checks. Timing spans acceptance to model termination, including capture/tool/model work, and excludes persistence. Independent questions in each detail group ran in separate chats concurrently; this is separate from the model's own tool-call grouping. The prompt changes did not change query or fan-out policy. Brewing used plan_recipe and, where needed, a later multi-handle read_evidence for returned variant references.
+
+The existing bridge request-discoverability issue also appeared on the first Normal and Concise beacon polls in candidate 18 and on two candidate 17 beacon polls: `No saved request` immediately after acceptance. The same accepted request IDs were recovered after completion, without resubmitting the question. Candidate 18 first-poll responses are retained as `c18-*-beacon-first-poll.json`; this is not a recipe-card rendering failure.
+
+## Build and reinstallation
+
+Promoted the exact candidate 18 text to `GroundingInstructions.java`, updated its existing policy anchors and candidate equality test, and committed immediately as `4953ed32` before automated verification. No other production code changed.
+
+With `JAVA_HOME=D:/Project/packsage/.tools/jdk/jdk-21.0.12.1`, `gradlew.bat build -q` exited 0. `node build/tools/count.cjs` reports **1,340 tests, zero failures/errors, five skipped** (1,335 passed). [Build log](../../build/recipe-cards-live/build.log). This verifies prompt equality and existing regressions; it does not establish model compliance or the unrun Shift interactions.
+
+Cleared the developer override, restored Normal and advanced tooltips off, saved/quit normally, and verified zero instance Java processes using the canonical instance path. Removed temporary JEI from `mods` into `build/recipe-cards-live/temporary-mods/` after the comparison. Ran `powershell -ExecutionPolicy Bypass -File scripts/build.ps1`: exit 0, BUILD SUCCESSFUL, with build/test tasks up-to-date. Installed JAR and dist JAR both have SHA-256 `D7E6C8E8ECEE1F4F9F9064282843C341E49659635E9B953A959E41B9B7B72915`. [Install log](../../build/recipe-cards-live/install.log), [hash metadata](../../build/recipe-cards-live/installed-promoted.json). Relaunch and installed-default questions are pending.
 
 ## Chat-opening timings
 
@@ -90,4 +122,4 @@ FAIL, observed once on candidate 15's Concise glass completion, request `4c839fe
 - NOT RUN: sustained Shift for three seconds, freeze without a release jump, pinned panel slot tooltips, release outside chip/panel, and pinned panel click-through protection. The available computer-use API exposes complete key chords but no key-down/key-up or timed hold operation. An ordinary Shift tap cannot establish these behaviors.
 - NOT RUN: missing-item barrier and `Missing:` tooltip. No naturally missing registry item was present in these recorded recipes.
 - NOT RUN: custom-ingredient `?` tooltip. The trim unknown-output placeholder was exercised, but it is a different case. No loaded recognized native recipe with a custom ingredient was found in the selected checks; unsupported Nature's Aura recipes remain source-only by design.
-- Candidate 14 and 15 prompt failures are retained above. Candidate 16 and installed-default acceptance are pending.
+- Candidates 14–17 failures are retained above; candidate 18 passed before promotion. Installed-default acceptance is pending.

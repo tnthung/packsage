@@ -836,7 +836,6 @@ public final class AssistantScreen extends Screen {
         List<ScreenText.InlineLine> lines = ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(),
                 sourceLabels(turn), turn.verbosity(), models);
         if (turn.verbosity() != null) {
-            if (!copy.isEmpty()) copy.append('\n');
             for (int index = 0; index < lines.size(); index++) {
                 if (index > 0) copy.append('\n');
                 for (var span : lines.get(index).spans()) copy.append(span.text());

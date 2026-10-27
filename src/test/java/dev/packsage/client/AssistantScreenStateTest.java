@@ -1557,7 +1557,7 @@ class AssistantScreenStateTest {
             @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
             @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
         };
-        var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, SOURCE)), false, model);
+        var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", TARGET, ModernUi.TEXT, false, false, SOURCE)), false, model);
         var narrow = screen.messageLayout(List.of(line), 87, java.util.Map.of(model, card), java.util.Map.of());
         assertEquals("Source: Glass", narrow.runs().getFirst().span().text());
         assertNull(narrow.runs().getFirst().card());

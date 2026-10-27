@@ -331,11 +331,13 @@ public final class JeiRuntimeIndex implements JeiIndex {
         boolean hidden = runtime.getRecipeManager().createRecipeCategoryLookup().get()
                 .noneMatch(value -> value.getRecipeType().getUid().equals(category.getRecipeType().getUid()))
                 || runtime.getRecipeManager().createRecipeLookup(category.getRecipeType()).get().noneMatch(value -> value == recipe);
-        Evidence.DecodingStatus decoding = null;
+        Evidence.RecipePayload nativePayload = null;
         if (JeiProjection.VANILLA_CATEGORIES.contains(ref.categoryUid()) && recipe instanceof RecipeHolder<?> holder)
-            decoding = NativeSnapshot.decoding(holder, Minecraft.getInstance(), new Evidence.Scope("", "", "", "", generation));
+            nativePayload = NativeSnapshot.payload(holder, Minecraft.getInstance(), new Evidence.Scope("", "", "", "", generation));
         return new JeiLayout(ref.categoryUid(), category.getTitle().getString(), id == null ? null : id.toString(), ref.ordinal(), generation,
-                hidden, true, decoding, slots, category.getTooltipStrings(recipe, drawable.getRecipeSlotsView(), 0, 0).stream().map(value -> value.getString()).toList());
+                hidden, true, nativePayload == null ? null : nativePayload.decodingStatus(), slots,
+                category.getTooltipStrings(recipe, drawable.getRecipeSlotsView(), 0, 0).stream().map(value -> value.getString()).toList(),
+                nativePayload == null ? null : nativePayload.inputs().size());
     }
 
     /**

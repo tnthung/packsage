@@ -89,8 +89,14 @@ public final class JeiProjection {
         }
         if (layout.categoryUid().equals("minecraft:brewing")) constraints.add(RecipePlanner.BREWING_BATCH_CONSTRAINT);
         if (layout.hidden()) constraints.add("hidden");
+        // JEI lays out empty input slots both for blank grid positions and for ingredients it could not resolve, such as an empty tag.
+        // Only when the native recipe has exactly as many non-blank ingredients as JEI shows filled inputs are the empty slots all blank.
+        boolean blanksKnown = vanilla && layout.nativeDecoding() != null && layout.nativeInputs() != null
+                && layout.slots().stream().filter(slot -> slot.role() == JeiLayout.Role.INPUT && !slot.alternatives().isEmpty()).count()
+                == layout.nativeInputs();
         for (var slot : layout.slots()) {
             if (slot.role() == JeiLayout.Role.RENDER_ONLY) continue;
+            if (blanksKnown && slot.role() == JeiLayout.Role.INPUT && slot.alternatives().isEmpty()) continue;
             var groupId = slot.role() == JeiLayout.Role.CATEGORY_CATALYST ? RecipePlanner.CATEGORY_CATALYST_GROUP : "slot-" + slot.index();
             if (slot.role() == JeiLayout.Role.CATEGORY_CATALYST && slot.alternatives().size() > 1) constraints.add("category-catalysts=machines JEI registers for the category; "
                     + "whether they are alternatives or used together is not determined");

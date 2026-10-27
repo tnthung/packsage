@@ -226,10 +226,64 @@ public final class JeiProvider implements KnowledgeProvider {
     }
 
     @Override public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
-        return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "JEI navigation unavailable"));
+        return CompletableFuture.supplyAsync(() -> {
+            if (!scope.equals(currentScope.get())) return null;
+            try {
+                var current = index.get().orElse(null);
+                if (current == null) return null;
+                long generation = current.generation();
+                if (resolveNavigation(current, target).isEmpty() || !scope.equals(currentScope.get())
+                        || index.get().orElse(null) != current || generation != current.generation()) return null;
+                return new Evidence.NavigationTarget(scope, id(), target.sourceHandle(), target.targetId());
+            } catch (RuntimeException failure) { return null; }
+        }, executor);
     }
+
     @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
-        return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI navigation unavailable");
+        if (!id().equals(target.providerId()))
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "target belongs to another provider");
+        if (!scope.equals(target.scope()) || !scope.equals(currentScope.get()))
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "JEI scope changed");
+        try {
+            var current = index.get().orElse(null);
+            if (current == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI runtime unavailable");
+            long generation = current.generation();
+            var ref = resolveNavigation(current, target);
+            var runtime = JeiRuntimeHolder.current();
+            if (ref.isEmpty() || !(current instanceof JeiRuntimeIndex runtimeIndex) || runtime.isEmpty()
+                    || index.get().orElse(null) != current || generation != current.generation())
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI recipe unavailable");
+            if (!scope.equals(currentScope.get()))
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "JEI scope changed");
+            return new JeiViewer(runtime.get().getRecipesGui(), runtimeIndex::resolve).showRecipe(ref.get())
+                    ? new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null)
+                    : new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI recipe unavailable");
+        } catch (RuntimeException failure) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI recipe unavailable");
+        }
+    }
+
+    private Optional<JeiIndex.RecipeRef> resolveNavigation(JeiIndex current, Evidence.NavigationTarget target) {
+        if (!id().equals(target.providerId())) return Optional.empty();
+        var parsed = JeiProjection.parseHandle(target.sourceHandle()).orElse(null);
+        if (parsed == null) return Optional.empty();
+        var category = ResourceLocation.tryParse(parsed.categoryUid());
+        if (category == null || !category.toString().equals(parsed.categoryUid())) return Optional.empty();
+        Optional<JeiIndex.RecipeRef> ref;
+        if (parsed.recipeId() != null) {
+            var recipe = ResourceLocation.tryParse(parsed.recipeId());
+            if (!target.targetId().equals("recipe") || recipe == null || !recipe.toString().equals(parsed.recipeId())) return Optional.empty();
+            ref = current.byRecipeId(parsed.categoryUid(), parsed.recipeId());
+        } else {
+            if (!target.targetId().equals("temporary") || parsed.generation() != current.generation() || parsed.ordinal() < 0)
+                return Optional.empty();
+            ref = Optional.of(new JeiIndex.RecipeRef(parsed.categoryUid(), parsed.ordinal()))
+                    .filter(value -> current.inCategory(parsed.categoryUid()).contains(value));
+        }
+        if (ref.isEmpty()) return Optional.empty();
+        var layout = current.layout(ref.get());
+        return layout != null && layout.readable() && !layout.hidden() && JeiProjection.handle(layout).equals(target.sourceHandle())
+                ? ref : Optional.empty();
     }
 
     private record Cursor(int offset, String signature, Evidence.Scope scope, long generation, long createdAt) { }

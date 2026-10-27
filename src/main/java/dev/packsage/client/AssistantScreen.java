@@ -797,14 +797,9 @@ public final class AssistantScreen extends Screen {
     private int drawAssistantSegment(GuiGraphics graphics, String answer, MessageSegment segment,
                                      ChatContracts.Turn turn, int y, boolean included) {
         MessageLayout prepared = prepareTurn(turn).answers().get(segment);
-        int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 26));
-        int bubbleHeight = Math.max(20, prepared.height() + 8);
-        ModernUi.surface(graphics, readableLeft + 24, y, readableLeft + 24 + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
-        drawInlineLines(graphics, prepared, y + 4, readableLeft + 34, turn);
-        drawAssistantAvatar(graphics, y + Math.max(0, bubbleHeight - 18));
-        graphics.fill(readableLeft + 15, y + bubbleHeight - 3, readableLeft + 18, y + bubbleHeight,
-                included ? 0xff74bf8c : ModernUi.DANGER);
-        return y + bubbleHeight;
+        drawAssistantAvatar(graphics, y);
+        graphics.fill(readableLeft + 15, y + 15, readableLeft + 18, y + 18, included ? 0xff74bf8c : ModernUi.DANGER);
+        return Math.max(y + 18, drawInlineLines(graphics, prepared, y, readableLeft + 26, turn));
     }
 
     private MessageLayout assistantLayout(String answer, MessageSegment segment, ChatContracts.Turn turn,
@@ -880,8 +875,10 @@ public final class AssistantScreen extends Screen {
 
     private PreparedTurn prepareTurn(ChatContracts.Turn turn) {
         int width = Math.max(1, Math.max(1, Math.min(360, readableWidth - 26)) - 20);
+        // Answers are not bubbled: they use the full readable width beside the avatar; the cache key follows it.
+        int answerWidth = Math.max(1, readableWidth - 26);
         PreparedTurn cached = preparedTurns.get(turn.requestId());
-        if (cached != null && cached.turn() == turn && cached.width() == width) return cached;
+        if (cached != null && cached.turn() == turn && cached.width() == answerWidth) return cached;
         userLines(turn.question(), width);
         List<Evidence.NavigationTarget> targets = turnTargets(turn);
         Map<MessageSegment, MessageLayout> answers = new HashMap<>();
@@ -912,9 +909,9 @@ public final class AssistantScreen extends Screen {
         }
         for (MessageSegment segment : answerSegments(turn.answer(), turn.steeringMessages())) {
             if (segment.player()) userLines(segment.text(), width);
-            else answers.put(segment, assistantLayout(turn.answer(), segment, turn, targets, width, models, cards, outputs, items, copy));
+            else answers.put(segment, assistantLayout(turn.answer(), segment, turn, targets, answerWidth, models, cards, outputs, items, copy));
         }
-        PreparedTurn prepared = new PreparedTurn(turn, width, GroundingInstructions.historyTokenCounts(turn), Map.copyOf(answers),
+        PreparedTurn prepared = new PreparedTurn(turn, answerWidth, GroundingInstructions.historyTokenCounts(turn), Map.copyOf(answers),
                 turn.verbosity() == null ? turn.answer() : copy.toString());
         if (turn.verbosity() == null || minecraft != null && minecraft.level != null) preparedTurns.put(turn.requestId(), prepared);
         return prepared;
@@ -1003,7 +1000,7 @@ public final class AssistantScreen extends Screen {
                 int chipTop = top + (run.height() - ModernUi.MESSAGE_LINE_HEIGHT) / 2;
                 ModernUi.surface(graphics, x, chipTop, x + run.width(), chipTop + ModernUi.MESSAGE_LINE_HEIGHT,
                         run.card() != null ? ModernUi.ACCENT_DARK : 0xd03a4552,
-                        run.card() != null ? ModernUi.ACCENT : ModernUi.BORDER);
+                        ModernUi.BORDER);
                 graphics.pose().pushPose();
                 graphics.pose().translate(x + 2, chipTop + 1, 0);
                 graphics.pose().scale(0.625f, 0.625f, 1);

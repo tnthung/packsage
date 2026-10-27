@@ -60,7 +60,7 @@ The mockup below is the reference for the overall chip and card appearance; chip
 
 - **Fixed by the mockup:** the shape of each element and what tells them apart.
   - **Item chip:** rounded, with a lighter neutral fill, a 10 px item render on the left, then the label.
-  - **Result chip:** rounded, with the output item's 10 px icon and label, an accent fill and accent outline.
+  - **Result chip:** rounded, with the output item's 10 px icon and label, the accent fill and the same standard border as the other chat chips (no light outline).
   - **Card:** JEI's light gray panel, JEI's slots, arrow and output slot, and a muted caption below the panel.
   - **Floating panel:** a dark `ModernUi` surface around the card and caption.
 - **Not fixed by the mockup:**
@@ -143,7 +143,7 @@ JEI shows the station in its category header, not in the recipe layout. Every ca
 - **Block elements.** Message layout gains block elements. A card occupies its own row, with height equal to the card's height plus padding, and is aligned to the bubble's text left edge.
 - **Culling and caching.** Cards follow the same culling and scroll clipping as text, and they are cached with the prepared turn.
 - **Width.** Cards are drawn at GUI scale and never scaled down. A card wider than the bubble falls back to a result chip in Normal answers and a source chip in Detailed answers.
-- **Item chips and result chips.** These are rounded and 12 GUI px tall, with a standard item render scaled to 10 px and inset 1 px inside the chip (so it never touches the rounded edge), followed by the label. Item chips have a lighter neutral fill than the bubble; result chips have an accent fill and outline. Lines containing chips use the usual 12 GUI px height. Card slots keep full-size 16 px item renders.
+- **Item chips and result chips.** These are rounded and 12 GUI px tall, with a standard item render scaled to 10 px and inset 1 px inside the chip (so it never touches the rounded edge), followed by the label. Item chips have a lighter neutral fill than the message background; result chips have the accent fill. Both use the standard chip border, like the "Open …" chips. Lines containing chips use the usual 12 GUI px height. Card slots keep full-size 16 px item renders.
 - **Result chip hover.** The card draws as a floating panel near the mouse.
   - Holding Shift freezes it in place, and hovering its slots shows their item tooltips above the panel.
   - The panel closes when Shift is released and the mouse is outside both the chip and the panel.

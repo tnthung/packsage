@@ -1549,7 +1549,8 @@ class AssistantScreenStateTest {
                 SOURCE, null, model, null)));
         var block = new ScreenText.InlineLine(result.spans(), false, model);
         var layout = screen.messageLayout(List.of(plain, item, result, block, plain), 200, java.util.Map.of(model, card),
-                java.util.Map.of(model, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)),
+                java.util.Map.of(model, new dev.packsage.client.recipe.SlotStacks.ResolvedSlot(
+                        List.of(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)), false)),
                 java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
         assertEquals(List.of(0, 12, 30, 48, 119), layout.runs().stream().map(AssistantScreen.MessageRun::y).toList());
         assertEquals(List.of(12, 18, 18, 71, 12), layout.runs().stream().map(AssistantScreen.MessageRun::height).toList());
@@ -1580,7 +1581,8 @@ class AssistantScreenStateTest {
             var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Recipe", null, ModernUi.TEXT, false, false,
                     SOURCE, null, model, null)));
             var layout = screen.messageLayout(List.of(line), 300, java.util.Map.of(model, card),
-                    java.util.Map.of(model, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BARRIER)), java.util.Map.of());
+                    java.util.Map.of(model, dev.packsage.client.recipe.SlotStacks.resolve(output,
+                            net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY))), java.util.Map.of());
             assertEquals(output == missing ? "Missing: missingmod:lost_item" : "Unknown result", layout.runs().getFirst().span().text());
         }
     }

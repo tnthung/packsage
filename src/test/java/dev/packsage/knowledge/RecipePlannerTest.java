@@ -336,6 +336,31 @@ class RecipePlannerTest {
     }
 
     @Test
+    void possibleExtrasListOnlyOutputsOtherThanThePlannedItem() {
+        var torch = dev.packsage.jei.JeiProjection.record(new dev.packsage.jei.JeiLayout("minecraft:crafting", "Crafting", "minecraft:torch", 0, 1,
+                false, true, Evidence.DecodingStatus.VERIFIED, List.of(
+                new dev.packsage.jei.JeiLayout.Slot(0, dev.packsage.jei.JeiLayout.Role.INPUT,
+                        List.of(new dev.packsage.jei.JeiLayout.Ingredient("item", "minecraft:stick", "{}", 1, null)), List.of()),
+                new dev.packsage.jei.JeiLayout.Slot(1, dev.packsage.jei.JeiLayout.Role.OUTPUT,
+                        List.of(new dev.packsage.jei.JeiLayout.Ingredient("item", "minecraft:torch", "{}", 4, null)), List.of())), List.of()),
+                SCOPE, "19.27", Instant.EPOCH);
+        var torches = new RecipePlanner(source(torch, rawRecipe("minecraft:stick"))).plan("minecraft:torch", 4, SCOPE, 4);
+        assertFalse(route(torches, torch.source().sourceHandle()).payload().values().containsKey("possibleExtras"));
+
+        var split = record("mod:split", new Evidence.RecipePayload("mod:split", List.of(slot("slot-0", item("mod:log", 1))),
+                List.of(output("mod:plank", 4), output("mod:bark", 1)), List.of(), List.of(), List.of(), Evidence.DecodingStatus.VERIFIED));
+        var planks = new RecipePlanner(source(split, rawRecipe("mod:log"))).plan("mod:plank", 8, SCOPE, 4);
+        var extras = (Evidence.JsonArray) route(planks, "mod:split").payload().values().get("possibleExtras");
+        assertEquals(List.of(new Evidence.JsonString("mod:bark")),
+                extras.values().stream().map(value -> ((Evidence.JsonObject) value).values().get("comparisonIdentity")).toList());
+
+        var gold = new RecipePlanner(source(grinder(List.of("chance:slot-2=10% Chance")), rawRecipe("minecraft:iron_ore"))).plan("mod:gold_dust", 4, SCOPE, 4);
+        var chanceExtras = (Evidence.JsonArray) route(gold, "mod:grind").payload().values().get("possibleExtras");
+        assertEquals(List.of(new Evidence.JsonString("mod:iron_dust")),
+                chanceExtras.values().stream().map(value -> ((Evidence.JsonObject) value).values().get("comparisonIdentity")).toList());
+    }
+
+    @Test
     void assumedStepsMarked() {
         var result = new RecipePlanner(source(grinder(List.of()), rawRecipe("minecraft:iron_ore"))).plan("mod:iron_dust", 2, SCOPE, 4);
 

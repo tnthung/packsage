@@ -4,6 +4,8 @@
 
 ### 2026-10-27
 
+- The assistant instructions now cover JEI recipes, mod machine plans and bookmarks, as an unvalidated candidate awaiting live acceptance.
+- Recipe plans list `possibleExtras` as a step's outputs other than the planned item for every multi-output step, and JEI recipe search records no longer carry the field.
 - JEI brewing recipes are planned as shared bottle batches like native brewing, so the planner no longer reports one reagent per bottle.
 - Narrow JEI recipe-card fallbacks include an "Open in JEI" link beside the category caption when the recipe has a navigation target and JEI is available.
 - With JEI ready, chat recipe cards for JEI and vanilla recipes are drawn by JEI's own layouts, scaled down to three quarters to fit; narrower columns fall back to native cards or to the usual result or source chips, with the JEI category shown beside the chip. Cards are rebuilt when JEI becomes ready, reloads or goes away, and JEI drawing failures are logged once per category.

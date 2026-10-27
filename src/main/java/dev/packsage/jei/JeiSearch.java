@@ -42,8 +42,8 @@ public final class JeiSearch {
         var records = new ArrayList<Evidence.Record>();
         for (var ref : refs.subList(start, end)) {
             var layout = index.layout(ref);
-            boolean matches = !textFilter || outputItem == null && inputItem == null || categories.contains(ref.categoryUid()) || !layout.readable();
-            if (!matches) {
+            boolean matches = !textFilter || outputItem == null && inputItem == null || categories.contains(ref.categoryUid());
+            if (!matches && layout.readable()) {
                 for (var slot : layout.slots()) {
                     if (slot.role() != JeiLayout.Role.OUTPUT) continue;
                     for (var ingredient : slot.alternatives()) {

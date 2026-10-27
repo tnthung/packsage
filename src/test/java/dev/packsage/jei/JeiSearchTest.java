@@ -154,4 +154,25 @@ class JeiSearchTest {
                 List.of(new JeiLayout.Slot(0, JeiLayout.Role.OUTPUT, List.of(new JeiLayout.Ingredient("item", "mod:item", "{\"b\":2,\"a\":1}", 1, null)), List.of())), List.of()));
         assertEquals(1, JeiSearch.search(index, "mod:item", null, "name", 0, 2, SCOPE, "19.27", NOW).records().size());
     }
+    @Test
+    void combinedTextFilterKeepsOnlyCategoryMatchingUnreadableRecipe() {
+        var index = new Fake();
+        index.add(0, "mod:other", "Other", false);
+        index.add(1, "mod:infusion", "Infusion", false);
+        var refs = List.copyOf(index.layouts.keySet());
+        index.focuses.put("OUTPUT:mod:item", refs);
+        index.focuses.put("INPUT:mod:item", refs);
+        index.categoryMatches.put("infusion", List.of("mod:infusion"));
+        for (boolean input : List.of(false, true)) {
+            var page = JeiSearch.search(index, input ? null : "mod:item", input ? "mod:item" : null,
+                    "infusion", 0, 10, SCOPE, "19.27", NOW);
+            assertEquals(List.of("test:recipe1"), page.records().stream().map(record -> record.recipePayload().canonicalRecipeId()).toList());
+            assertEquals(Evidence.Coverage.OPAQUE, page.records().getFirst().source().coverage());
+        }
+        index.layouts.put(refs.get(0), new JeiLayout("mod:other", "Other", "test:recipe0", 0, 7, false, false, null,
+                List.of(new JeiLayout.Slot(0, JeiLayout.Role.OUTPUT, List.of(new JeiLayout.Ingredient("item", "mod:item", "{}", 1, null)), List.of())), List.of()));
+        index.itemMatches.put("infusion", List.of(new JeiIndex.ItemVariant("mod:item", "{}")));
+        var page = JeiSearch.search(index, "mod:item", null, "infusion", 0, 10, SCOPE, "19.27", NOW);
+        assertEquals(List.of("test:recipe1"), page.records().stream().map(record -> record.recipePayload().canonicalRecipeId()).toList());
+    }
 }

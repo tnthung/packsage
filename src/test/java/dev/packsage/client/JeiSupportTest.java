@@ -24,7 +24,14 @@ class JeiSupportTest {
         var support = new JeiSupport(id -> Optional.empty());
         assertTrue(support.installedVersion().isEmpty());
         assertTrue(support.providers(null, Runnable::run, () -> null).isEmpty());
+        assertTrue(support.viewer().isEmpty());
         assertEquals(0, support.runtimeGeneration());
+    }
+
+    @Test
+    void unsupportedModHasNoViewer() {
+        assertTrue(new JeiSupport(id -> Optional.of("19.26.9")).viewer().isEmpty());
+        assertTrue(new JeiSupport(id -> Optional.of("20.0.0")).viewer().isEmpty());
     }
 
     @Test

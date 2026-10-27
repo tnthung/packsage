@@ -243,6 +243,7 @@ public final class ClientAssistant {
         long startNs = System.nanoTime();
         dev.packsage.PackSageLog.LOGGER.info("PackSage timing phase=client_open_request start_ns={} event_ns={} elapsed_ms=0", startNs, startNs);
         assistantScreen = runtime.openScreen(() -> openSettings(false));
+        assistantScreen.setItemViewer(JEI_SUPPORT.viewer().orElse(null));
         assistantScreen.setContainerScreen(containerScreen);
         assistantScreen.setAdvancedSettingsOpener(() -> openSettings(true));
         assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));

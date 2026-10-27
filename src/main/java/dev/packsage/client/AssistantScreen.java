@@ -89,6 +89,7 @@ public final class AssistantScreen extends Screen {
     private final List<SourceHit> sourceHits = new ArrayList<>();
     private final List<ItemHit> itemHits = new ArrayList<>();
     private final List<CardHit> cardHits = new ArrayList<>();
+    private dev.packsage.client.recipe.ItemViewer itemViewer;
     private PinnedCardState pinnedCard = new PinnedCardState();
     private int drawMouseX;
     private int drawMouseY;
@@ -1650,7 +1651,11 @@ public final class AssistantScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (panelRect != null && mouseX >= panelRect.left() && mouseX < panelRect.right()
-                && mouseY >= panelRect.top() && mouseY < panelRect.bottom()) return true;
+                && mouseY >= panelRect.top() && mouseY < panelRect.bottom()) {
+            viewerClicked(mouseX, mouseY, button);
+            return true;
+        }
+        if (picker == null && viewerClicked(mouseX, mouseY, button)) return true;
         if (picker == null && commandConfirmation.mouseClicked(mouseX, mouseY, button)) return true;
         if (button == 2 && picker == null) {
             int controlY = Math.max(0, height - 32);
@@ -1832,6 +1837,8 @@ public final class AssistantScreen extends Screen {
             if (editingRequest != null) { editingRequest = null; history = null; setInput(""); }
             return true;
         }
+        if (picker == null && (modifiers & (org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL | org.lwjgl.glfw.GLFW.GLFW_MOD_ALT)) == 0
+                && viewerKey(keyCode, scanCode)) return true;
         if (inputEditor != null && inputEditor.isFocused() && inputEditor.keyPressed(keyCode, scanCode, modifiers)) return true;
         if (sessionSearchEditor != null && sessionSearchEditor.isFocused() && sessionSearchEditor.keyPressed(keyCode, scanCode, modifiers)) return true;
         return super.keyPressed(keyCode, scanCode, modifiers);
@@ -2044,6 +2051,49 @@ public final class AssistantScreen extends Screen {
 
     public boolean effectivePause(RuntimeState state) {
         return actions.view().paused() && state != null && state.privateSingleplayer() && state.integratedServer() && !state.published();
+    }
+
+    public void setItemViewer(dev.packsage.client.recipe.ItemViewer itemViewer) { this.itemViewer = itemViewer; }
+
+    /** The item under the mouse in a card slot, panel slot or item chip, or {@link ItemStack#EMPTY}. */
+    private ItemStack viewerItemAt(double mouseX, double mouseY) {
+        if (panelRect != null && panelCard != null && mouseX >= panelRect.left() && mouseX < panelRect.right()
+                && mouseY >= panelRect.top() && mouseY < panelRect.bottom())
+            return panelCard.card().itemAt(panelRect.left() + 8, panelRect.top() + 8, mouseX, mouseY);
+        if (mouseX < readableLeft || mouseX >= readableLeft + readableWidth || mouseY < 40 || mouseY >= toggleY - 8)
+            return ItemStack.EMPTY;
+        for (var hit : cardHits) {
+            if (mouseX < hit.rect().left() || mouseX >= hit.rect().right()
+                    || mouseY < hit.rect().top() || mouseY >= hit.rect().bottom()) continue;
+            ItemStack stack = hit.stack() != null ? hit.stack()
+                    : hit.card().itemAt(hit.rect().left(), hit.rect().top(), mouseX, mouseY);
+            if (!stack.isEmpty()) return stack;
+        }
+        for (var hit : itemHits) {
+            if (mouseX >= hit.rect().left() && mouseX < hit.rect().right()
+                    && mouseY >= hit.rect().top() && mouseY < hit.rect().bottom()) return hit.stack();
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private boolean viewerClicked(double mouseX, double mouseY, int button) {
+        if (itemViewer == null || (button != 0 && button != 1)) return false;
+        ItemStack stack = viewerItemAt(mouseX, mouseY);
+        if (stack.isEmpty()) return false;
+        return button == 1 ? itemViewer.showUses(stack) : itemViewer.showRecipes(stack);
+    }
+
+    private boolean viewerKey(int keyCode, int scanCode) {
+        if (itemViewer == null) return false;
+        boolean recipes = itemViewer.matchesShowRecipes(keyCode, scanCode);
+        boolean uses = itemViewer.matchesShowUses(keyCode, scanCode);
+        boolean bookmark = itemViewer.matchesBookmark(keyCode, scanCode);
+        if (!recipes && !uses && !bookmark) return false;
+        ItemStack stack = viewerItemAt(drawMouseX, drawMouseY);
+        if (stack.isEmpty()) return false;
+        if (recipes) return itemViewer.showRecipes(stack);
+        if (uses) return itemViewer.showUses(stack);
+        return itemViewer.toggleBookmark(stack);
     }
 
     public void navigate(Evidence.NavigationTarget target) {

@@ -711,11 +711,53 @@ class WorldToolsTest {
     }
 
     @Test
+    void byteBoundedEntityPagesDoNotDescribeTheScanLimitAsTheDeliveredCountOrTotal() throws Exception {
+        var world = DenseWorld.create(65);
+        for (var entity : world.entities) entity.setCustomName(net.minecraft.network.chat.Component.literal("\"\\界😀".repeat(800)));
+        var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        var server = (net.minecraft.client.server.IntegratedServer) ((sun.misc.Unsafe) field.get(null))
+                .allocateInstance(net.minecraft.client.server.IntegratedServer.class);
+        world.server = server;
+        var running = net.minecraft.server.MinecraftServer.class.getDeclaredField("running");
+        running.setAccessible(true);
+        running.setBoolean(server, true);
+        var levels = net.minecraft.server.MinecraftServer.class.getDeclaredField("levels");
+        levels.setAccessible(true);
+        levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, world));
+        var work = new ServerWork(() -> 0);
+        var provider = new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE, Runnable::run, work,
+                () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+        var tools = new PackSageTools(request -> provider.areaTools.listEntities(request));
+        var arguments = "{\"center\":{\"type\":\"block\",\"place\":\"minecraft:overworld|8,64,8\"},\"radius\":4,\"filter\":{}}";
+        var seen = new HashSet<String>();
+        int pages = 0;
+        do {
+            var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("entities", "list_entities", arguments), SCOPE).toCompletableFuture();
+            while (!response.isDone()) work.tick();
+            assertFalse(response.join().result().error(), response.join().result().serializedResult());
+            var json = com.google.gson.JsonParser.parseString(response.join().result().serializedResult()).getAsJsonObject();
+            var records = json.getAsJsonArray("records");
+            if (pages == 0) {
+                assertTrue(records.size() < 64, "escaped names must trigger byte trimming");
+                assertTrue(json.has("nextCall"));
+                assertTrue(json.get("detail").getAsString().contains("byte budget"));
+                assertFalse(json.get("detail").getAsString().matches("(?s).*\\b\\d+ matches\\b.*"), json.get("detail").getAsString());
+            }
+            for (var record : records) assertTrue(seen.add(record.getAsJsonObject().getAsJsonObject("payload").get("id").getAsString()));
+            assertTrue(++pages < 20);
+            if (!json.has("nextCall")) break;
+            arguments = json.getAsJsonObject("nextCall").get("arguments").toString();
+        } while (true);
+        assertEquals(65, seen.size());
+    }
+
+    @Test
     void longBlockIdsKeepEveryBlockReachableThroughByteBoundedPages() throws Exception {
         var provider = tools();
         var blocks = new java.util.ArrayList<BlockHandle>();
         for (var i = 0; i < 64; i++) blocks.add(new BlockHandle("test:" + "long_path/".repeat(300), new BlockPlace("minecraft:overworld", i, 64, 0)));
-        var page = new Page<>(blocks, null, Evidence.Coverage.COMPLETE, null);
+        var page = new Page<>(blocks, "1:0", Evidence.Coverage.PARTIAL, AreaScan.PAGE_LIMIT_NOTE);
         var method = WorldAreaTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldAreaTools.Center.class, Page.class, WorldPaging.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
@@ -733,9 +775,10 @@ class WorldToolsTest {
             var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("blocks", "list_blocks", arguments), SCOPE).toCompletableFuture().get();
             assertFalse(response.result().error(), response.result().serializedResult());
             var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+            assertFalse(json.get("detail").getAsString().matches("(?s).*\\b\\d+ matches\\b.*"), json.get("detail").getAsString());
             for (var record : json.getAsJsonArray("records")) assertTrue(seen.add(record.getAsJsonObject().getAsJsonObject("payload").get("place").getAsString()));
             assertTrue(++pages < 20);
-            if (!json.has("nextCall")) break;
+            if (seen.size() == 64) break;
             arguments = json.getAsJsonObject("nextCall").get("arguments").toString();
         } while (true);
         assertEquals(64, seen.size());
@@ -911,7 +954,8 @@ class WorldToolsTest {
         var first = tools.itemTools.entries(request, new WorldItemTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null),
                 Evidence.Coverage.PARTIAL, note);
         assertEquals(64, first.records().size());
-        assertTrue(first.detail().contains("64 entries, the page limit"), first.detail());
+        assertTrue(first.detail().contains("Entry page limit"), first.detail());
+        assertFalse(first.detail().matches("(?s).*\\b\\d+ entries\\b.*"), first.detail());
         assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
         var continued = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE);
@@ -1123,7 +1167,7 @@ class WorldToolsTest {
     void inspectAreaKeepsTheEntityPageNoteWhenItsListIsCut() {
         var blocks = new Page<>(java.util.List.of(new BlockSummary(Map.of(), java.util.List.of(), 0)), null, Evidence.Coverage.COMPLETE, null);
         var entities = AreaScan.page(java.util.List.<EntityHandle>of(), "5:0", 0, 2, java.util.List.of(AreaScan.PAGE_LIMIT_NOTE));
-        assertTrue(entities.note().contains("continue with the cursor"), entities.note());
+        assertTrue(entities.note().contains("follow nextCursor"), entities.note());
 
         var notes = WorldAreaTools.areaNotes(blocks, entities);
 
@@ -1131,6 +1175,19 @@ class WorldToolsTest {
         assertTrue(notes.getFirst().contains("list_entities"), notes.getFirst());
         assertEquals("2 chunks in range did not have their entities loaded yet, so entities there were not read", notes.get(1));
         assertTrue(notes.stream().noneMatch(note -> note.contains("cursor")), notes.toString());
+    }
+
+    @Test
+    void inspectAreaDoesNotTreatAWorkLimitCursorAsProofOfMoreThan64Entities() {
+        var blocks = new Page<>(List.of(new BlockSummary(Map.of(), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null);
+        var entity = new EntityHandle("minecraft:cow", java.util.UUID.fromString(ENTITY), "minecraft:overworld", 8, 64, 8, "Cow");
+        var entities = new Page<>(java.util.Collections.nCopies(64, entity), "0:anchor", Evidence.Coverage.PARTIAL,
+                "Stopped at the per-call work limit while traversing chunk snapshots; continue with the cursor");
+
+        var notes = WorldAreaTools.areaNotes(blocks, entities);
+
+        assertTrue(notes.getFirst().contains("list_entities"), notes.toString());
+        assertFalse(notes.getFirst().contains("More than 64"), notes.toString());
     }
 
     @ParameterizedTest

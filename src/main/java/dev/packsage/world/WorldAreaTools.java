@@ -183,13 +183,12 @@ final class WorldAreaTools {
         }
         // inspect_area returns no cursor, so translate paging instructions and keep concrete omission reasons.
         if (entities.nextCursor() != null) {
-            notes.add(entities.items().size() >= AreaScan.LIST_PAGE
-                    ? "More than " + AreaScan.LIST_PAGE + " entities are in range; use list_entities with a filter for the rest"
-                    : "The entity scan stopped at the per-call work limit; use list_entities for the rest");
+            notes.add("The entity scan has more to read; use list_entities for the rest");
         }
         if (entities.note() != null) {
             for (var part : entities.note().split("; ")) {
-                if (part.equals(AreaScan.PAGE_LIMIT_NOTE.split("; ")[0]) || part.equals("continue with the cursor")
+                if (part.equals(AreaScan.PAGE_LIMIT_NOTE.split("; ")[0]) || part.equals("follow nextCursor if present")
+                        || part.equals("continue with the cursor")
                         || part.startsWith("Stopped at the per-call work limit") || part.startsWith("The read spanned multiple server ticks")
                         || part.startsWith("game-time span:")) continue;
                 notes.add(part);

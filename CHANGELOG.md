@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- World listing page details no longer mistake scan limits for the number of matches delivered or the total.
 - The model and effort pickers and chat tooltips draw above recipe card and chip items instead of under them.
 - The assistant receives the local player's name and UUID and uses that identity for first-person requests and command targets.
 - Opening or marking a revealed chat as read keeps sidebar sessions in their existing order and scroll position.

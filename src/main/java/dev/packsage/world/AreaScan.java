@@ -41,7 +41,7 @@ import java.util.UUID;
 public final class AreaScan {
     public static final int SUMMARY_NOTABLE = 4096;
     public static final int LIST_PAGE = 64;
-    static final String PAGE_LIMIT_NOTE = "This page holds " + LIST_PAGE + " matches, the page limit; continue with the cursor";
+    static final String PAGE_LIMIT_NOTE = "Scan page limit reached; follow nextCursor if present";
     private static final int SECTION_SIZE = 16;
     static final int SNAPSHOT_LIMIT = 4096;
     static final String SNAPSHOT_NOTE = "The read spanned multiple server ticks; game-time span: %s..%s";

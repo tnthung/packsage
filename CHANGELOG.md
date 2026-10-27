@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- The model and effort pickers and chat tooltips draw above recipe card and chip items instead of under them.
 - The assistant receives the local player's name and UUID and uses that identity for first-person requests and command targets.
 - Opening or marking a revealed chat as read keeps sidebar sessions in their existing order and scroll position.
 - Assistant answers are drawn without a bubble again, beside the avatar, while keeping their sent time under the answer. Result chips use the standard chip border instead of a light outline.

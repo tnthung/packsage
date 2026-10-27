@@ -282,9 +282,13 @@ public final class AssistantScreen extends Screen {
         if (view.active() || awaitingRequestView) graphics.blit(
                 ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/stop.png"),
                 stopX + 4, sendY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
+        // Item renders in cards and chips sit at raised z; lift popups above them so items never show through.
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 400);
         drawPicker(graphics, mouseX, mouseY);
         drawToolbarTooltip(graphics, mouseX, mouseY);
         drawSourceTooltip(graphics, mouseX, mouseY);
+        graphics.pose().popPose();
         drawRecipeTooltips(graphics, mouseX, mouseY);
         acknowledgeRenderedUnread(minecraft != null && minecraft.screen == this);
         if (!firstFrameRendered) {

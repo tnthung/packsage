@@ -254,6 +254,26 @@ class RecipePlannerTest {
     }
 
     @Test
+    void containersThatDependOnTheChosenAlternativeAreNotPlanEquipment() {
+        var either = slot("slot-0", item("minecraft:water_bucket", 1), item("mod:water_jar", 1));
+        var mud = machine("mod:mix_mud", List.of(either, slot("slot-1", item("minecraft:dirt", 1))), List.of(output("mod:mud", 1)),
+                List.of("slot-2"), List.of(), List.of("container-returned=minecraft:water_bucket>minecraft:bucket",
+                        "container-returned=mod:water_jar>mod:jar"));
+
+        var result = new RecipePlanner(source(mud, rawRecipe("minecraft:dirt"))).plan("mod:mud", 8, SCOPE, 4);
+
+        assertEquals(new Evidence.JsonArray(List.of(withContainer(choice("contents", "minecraft:water_bucket", 8, "slot-0"), "minecraft:bucket"),
+                withContainer(choice("contents", "mod:water_jar", 8, "slot-0"), "mod:jar"))), route(result, "mod:mix_mud").payload().values().get("unexpandedNeeds"));
+        assertFalse(result.detail().contains("equipment="), result.detail());
+    }
+
+    private static Evidence.JsonObject withContainer(Evidence.JsonObject need, String container) {
+        var values = new java.util.LinkedHashMap<>(need.values());
+        values.put("container", new Evidence.JsonString(container));
+        return new Evidence.JsonObject(values);
+    }
+
+    @Test
     void fluidAlternativesAreListedAsChoices() {
         var clay = machine("mod:wet_clay", List.of(slot("slot-0", new Evidence.RecipeAlternative("fluid", "minecraft:water",
                         new Evidence.JsonObject(Map.of()), 250, Evidence.Consumption.CONSUMED), new Evidence.RecipeAlternative("fluid", "mod:brine",

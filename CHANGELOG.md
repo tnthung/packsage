@@ -4,6 +4,7 @@
 
 ### 2026-10-27
 
+- Recipe plans no longer list every container of alternative inputs as needed equipment; a container that depends on the chosen alternative is named on that choice's need instead.
 - Plan needs that the planner does not expand keep fluid and container contents with different components, such as different potion fluids, apart and list their components.
 - Recipe routes from a JEI plan now draw as JEI cards and open, bookmark and reopen after a restart as the recipe they planned; temporary routes still expire with their runtime.
 - JEI mod machine records include the machines JEI registers for the whole category, such as the Nature's Aura altar, as catalysts, and plans list them once as equipment; a catalyst slot with several machines is listed as "one of [...]".

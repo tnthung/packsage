@@ -242,12 +242,18 @@ public final class RecipePlanner {
                 if (!single && !processedAlternativeSets.add(slot.alternatives())) continue;
                 var multiplier = single ? Long.valueOf(batches) : multiply(batches, candidate.recipePayload().inputs().stream()
                         .filter(other -> other.alternatives().equals(slot.alternatives())).count());
+                // A returned container is plan equipment only when every choice in the slot returns that same container;
+                // otherwise it depends on the choice and stays on that choice's need.
+                var containers = slot.alternatives().stream().map(value -> rules.unexpanded(value) && !value.type().equals("fluid")
+                        ? rules.containers.get(value.comparisonIdentity()) : null).distinct().toList();
+                boolean shared = containers.size() == 1 && containers.getFirst() != null;
                 for (int index = 0; index < slot.alternatives().size(); index++) {
                     var alternative = slot.alternatives().get(index);
                     if (!rules.unexpanded(alternative)) continue;
                     // Required needs aggregate by type, identity and components; each choice keeps its own entry, even when it repeats one.
                     var key = new NeedKey(alternative.type().equals("fluid") ? "fluid" : "contents", alternative.comparisonIdentity(),
-                            alternative.components(), single ? "" : slot.groupId(), single ? "" : Integer.toString(index));
+                            alternative.components(), single ? "" : slot.groupId(), single ? "" : Integer.toString(index),
+                            alternative.type().equals("fluid") || shared ? null : rules.containers.get(alternative.comparisonIdentity()));
                     var amount = multiplier == null ? null : multiply(alternative.quantity(), multiplier);
                     var total = amount == null ? null : needs.containsKey(key) ? needs.get(key) == null ? null : add(needs.get(key), amount) : amount;
                     if (total == null) {
@@ -255,7 +261,7 @@ public final class RecipePlanner {
                         state.reasons.add("input-quantity-overflow:" + candidate.source().sourceHandle() + ":" + slot.groupId());
                     }
                     needs.put(key, total);
-                    if (key.type().equals("contents")) state.equipment.add(rules.containers.get(alternative.comparisonIdentity()));
+                    if (key.type().equals("contents") && shared) state.equipment.add(rules.containers.get(alternative.comparisonIdentity()));
                 }
             }
         }
@@ -268,6 +274,7 @@ public final class RecipePlanner {
             if (!need.getKey().components().values().isEmpty()) fields.put("components", need.getKey().components());
             fields.put("quantity", need.getValue() == null ? new Evidence.JsonNull() : new Evidence.JsonNumber(BigDecimal.valueOf(need.getValue())));
             if (!need.getKey().oneOf().isEmpty()) fields.put("oneOf", new Evidence.JsonString(need.getKey().oneOf()));
+            if (need.getKey().container() != null) fields.put("container", new Evidence.JsonString(need.getKey().container()));
             return (Evidence.JsonValue) new Evidence.JsonObject(fields);
         }).toList()));
         values.put("possibleExtras", possibleExtras(candidate, output));
@@ -345,7 +352,7 @@ public final class RecipePlanner {
         return right > Long.MAX_VALUE - left ? null : left + right;
     }
 
-    private record NeedKey(String type, String identity, Evidence.JsonObject components, String oneOf, String choice) {
+    private record NeedKey(String type, String identity, Evidence.JsonObject components, String oneOf, String choice, String container) {
     }
 
     private record RequirementKey(String type, String identity, Evidence.JsonObject components) {

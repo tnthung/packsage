@@ -236,9 +236,12 @@ public final class RecipePlanner {
                 if (!single && !processedAlternativeSets.add(slot.alternatives())) continue;
                 var multiplier = single ? Long.valueOf(batches) : multiply(batches, candidate.recipePayload().inputs().stream()
                         .filter(other -> other.alternatives().equals(slot.alternatives())).count());
-                for (Evidence.RecipeAlternative alternative : slot.alternatives()) {
+                for (int index = 0; index < slot.alternatives().size(); index++) {
+                    var alternative = slot.alternatives().get(index);
                     if (!rules.unexpanded(alternative)) continue;
-                    var key = List.of(alternative.type().equals("fluid") ? "fluid" : "contents", alternative.comparisonIdentity(), single ? "" : slot.groupId());
+                    // Required needs aggregate by identity; each choice keeps its own entry, even when it repeats an identity.
+                    var key = List.of(alternative.type().equals("fluid") ? "fluid" : "contents", alternative.comparisonIdentity(),
+                            single ? "" : slot.groupId(), single ? "" : Integer.toString(index));
                     var amount = multiplier == null ? null : multiply(alternative.quantity(), multiplier);
                     var total = amount == null ? null : needs.containsKey(key) ? needs.get(key) == null ? null : add(needs.get(key), amount) : amount;
                     if (total == null) {

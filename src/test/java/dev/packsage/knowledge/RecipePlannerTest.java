@@ -251,6 +251,19 @@ class RecipePlannerTest {
     }
 
     @Test
+    void sameFluidAlternativesStaySeparateChoices() {
+        var clay = machine("mod:wet_clay", List.of(slot("slot-0", new Evidence.RecipeAlternative("fluid", "minecraft:water",
+                        new Evidence.JsonObject(Map.of()), 250, Evidence.Consumption.CONSUMED), new Evidence.RecipeAlternative("fluid", "minecraft:water",
+                        new Evidence.JsonObject(Map.of()), 500, Evidence.Consumption.CONSUMED)), slot("slot-1", item("minecraft:dirt", 1))),
+                List.of(output("mod:clay", 1)), List.of("slot-2"), List.of(), List.of());
+
+        var result = new RecipePlanner(source(clay, rawRecipe("minecraft:dirt"))).plan("mod:clay", 3, SCOPE, 4);
+
+        assertEquals(new Evidence.JsonArray(List.of(choice("fluid", "minecraft:water", 750, "slot-0"), choice("fluid", "minecraft:water", 1500, "slot-0"))),
+                route(result, "mod:wet_clay").payload().values().get("unexpandedNeeds"));
+    }
+
+    @Test
     void reusedCatalystCountedOnce() {
         var altar = machine("mod:infuse", List.of(slot("slot-0", item("minecraft:iron_ingot", 1))), List.of(output("mod:infused", 1)),
                 List.of("slot-1"), List.of(new Evidence.RecipeAlternative("item", "naturesaura:altar", new Evidence.JsonObject(Map.of()), 1,

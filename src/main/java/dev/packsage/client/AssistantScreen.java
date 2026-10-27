@@ -902,7 +902,7 @@ public final class AssistantScreen extends Screen {
                     var card = source.card(model).orElse(null);
                     if (card == null) continue;
                     cards.put(model, card);
-                    if (minecraft != null && minecraft.level != null) for (var slot : model.slots()) {
+                    if (turn.verbosity() == PackSageSettings.Verbosity.CONCISE && minecraft != null && minecraft.level != null) for (var slot : model.slots()) {
                         if (!slot.output() || slot.stacks().isEmpty()) continue;
                         var resolved = SlotStacks.resolve(slot.stacks().getFirst(), minecraft.level.registryAccess());
                         outputs.put(model, resolved.stacks().isEmpty() ? new ItemStack(Items.BARRIER) : resolved.stacks().getFirst());
@@ -1569,8 +1569,13 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
-        if (tooltip instanceof RecipeCard.Hover.Item item) graphics.renderTooltip(font, item.stack(), mouseX, mouseY);
-        else if (tooltip instanceof RecipeCard.Hover.Text text) graphics.renderComponentTooltip(font, text.lines(), mouseX, mouseY);
+        if (tooltip != null) {
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, 0, 500);
+            if (tooltip instanceof RecipeCard.Hover.Item item) graphics.renderTooltip(font, item.stack(), mouseX, mouseY);
+            else if (tooltip instanceof RecipeCard.Hover.Text text) graphics.renderComponentTooltip(font, text.lines(), mouseX, mouseY);
+            graphics.pose().popPose();
+        }
     }
 
     private void drawSendIcon(GuiGraphics graphics) {

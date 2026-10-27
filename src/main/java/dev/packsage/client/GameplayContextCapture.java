@@ -55,13 +55,21 @@ public final class GameplayContextCapture {
 
     public record Observation(String hovered, String held, String targeted, String dimension, String position,
                               String biome, String time, String focusKind, String cameraPerspective,
-                              String openedMenu, String openedMenuTitle, String targetedHolder, String ridden) {
+                              String openedMenu, String openedMenuTitle, String targetedHolder, String ridden,
+                              String playerName, String playerUuid) {
         public Observation {
             if ("miss".equals(focusKind)) {
                 hovered = null;
                 targeted = null;
                 targetedHolder = null;
             }
+        }
+
+        public Observation(String hovered, String held, String targeted, String dimension, String position,
+                           String biome, String time, String focusKind, String cameraPerspective,
+                           String openedMenu, String openedMenuTitle, String targetedHolder, String ridden) {
+            this(hovered, held, targeted, dimension, position, biome, time, focusKind, cameraPerspective,
+                    openedMenu, openedMenuTitle, targetedHolder, ridden, null, null);
         }
 
         public Observation(String hovered, String held, String targeted, String dimension, String position,
@@ -158,8 +166,12 @@ public final class GameplayContextCapture {
         ObservationSource observations = () -> {
             var player = minecraft.player;
             var level = minecraft.level;
-            if (player == null || level == null) {
+            if (player == null) {
                 return new Observation(null, null, null, null, null, null, null, "unavailable");
+            }
+            if (level == null) {
+                return new Observation(null, null, null, null, null, null, null, "unavailable", null,
+                        null, null, null, null, player.getGameProfile().getName(), player.getGameProfile().getId().toString());
             }
             String targeted = null;
             String focusKind = "unavailable";
@@ -198,7 +210,8 @@ public final class GameplayContextCapture {
                     Long.toString(level.getGameTime()), focusKind,
                     minecraft.options.getCameraType().name().toLowerCase(Locale.ROOT), openedMenu, openedMenuTitle,
                     targetedHolder(ClientFocus.targetedRoot(hitResult, dimension)),
-                    ridden(vehicle == null ? null : vehicle.getUUID()));
+                    ridden(vehicle == null ? null : vehicle.getUUID()),
+                    player.getGameProfile().getName(), player.getGameProfile().getId().toString());
         };
         AsyncFrameCapture frame = request -> {
             CompletableFuture<CapturedFrame> result = new CompletableFuture<>();
@@ -472,6 +485,8 @@ public final class GameplayContextCapture {
             json.addProperty("world", request.world().worldOrServer());
             json.addProperty("worldLabel", request.world().readableLabel());
         }
+        json.addProperty("playerName", observation.playerName() == null ? "unavailable" : observation.playerName());
+        json.addProperty("playerUuid", observation.playerUuid() == null ? "unavailable" : observation.playerUuid());
         json.addProperty("hovered", observation.hovered() == null ? "unavailable" : observation.hovered());
         json.addProperty("held", observation.held() == null ? "unavailable" : observation.held());
         json.addProperty("targeted", observation.targeted() == null ? "unavailable" : observation.targeted());

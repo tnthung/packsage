@@ -236,6 +236,38 @@ class ContextCaptureTest {
     }
 
     @Test
+    void gameplayContextIncludesLocalPlayerIdentityWithAndWithoutScreenshot() {
+        var capture = new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("hovered", "held", "target", "overworld", "1,2,3", "plains",
+                        "1", "block", "first_person", "none", null, null, null,
+                        "Alex", "12345678-1234-5678-9abc-def012345678"),
+                request -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH),
+                Runnable::run, () -> SCOPE);
+
+        for (boolean screenshot : List.of(false, true)) {
+            var context = capture.capture(new ChatContracts.RequestCapture(
+                    new ChatContracts.RequestId("identity"), WORLD, SCOPE), screenshot).toCompletableFuture().join();
+            var json = JsonParser.parseString(context.context().serializedGameplayContext()).getAsJsonObject();
+            assertEquals("Alex", json.get("playerName").getAsString());
+            assertEquals("12345678-1234-5678-9abc-def012345678", json.get("playerUuid").getAsString());
+        }
+    }
+
+    @Test
+    void gameplayContextIncludesPlayerIdentityEvenWhenUnavailable() {
+        var capture = new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                request -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH),
+                Runnable::run, () -> SCOPE);
+
+        var context = capture.capture(new ChatContracts.RequestCapture(
+                new ChatContracts.RequestId("identity"), WORLD, SCOPE), false).toCompletableFuture().join();
+        var json = JsonParser.parseString(context.context().serializedGameplayContext()).getAsJsonObject();
+        assertEquals("unavailable", json.get("playerName").getAsString());
+        assertEquals("unavailable", json.get("playerUuid").getAsString());
+    }
+
+    @Test
     void screenshotReferenceUsesRequestAssetAndEscapesGameplayValues() {
         Executor direct = Runnable::run;
         GameplayContextCapture capture = new GameplayContextCapture(

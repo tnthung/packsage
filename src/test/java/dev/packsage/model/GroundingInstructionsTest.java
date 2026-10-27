@@ -84,9 +84,16 @@ class GroundingInstructionsTest {
     @Test
     void defaultMatchesCandidateWhenPresent() throws IOException {
         // NeoForge runs tests from build/minecraft-junit.
-        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(Path.of("../prompt-candidates/candidate-18.txt")));
-        assertEquals(Files.readString(Path.of("../prompt-candidates/candidate-18.txt")),
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(Path.of("../prompt-candidates/candidate-19.txt")));
+        assertEquals(Files.readString(Path.of("../prompt-candidates/candidate-19.txt")),
                 GroundingInstructions.defaultInstructions());
+    }
+
+    @Test
+    void firstPersonReferencesUseContextIdentity() {
+        var text = GroundingInstructions.defaultInstructions();
+        assertTrue(text.contains("Resolve first-person references such as me, my and I to the player identity in the gameplay context, never by asking for their name."));
+        assertTrue(text.contains("For a command targeting the player, use playerName from the gameplay context or @s where valid."));
     }
 
     @Test

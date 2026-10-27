@@ -1529,6 +1529,152 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void recipeAndItemRowsUseTheirRequiredHeights() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var model = new dev.packsage.client.recipe.RecipeCardModel(
+                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(), "Furnace", List.of());
+        var card = new dev.packsage.client.recipe.RecipeCard() {
+            @Override public int width() { return 88; }
+            @Override public int height() { return 63; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
+        };
+        var plain = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("plain", null, ModernUi.TEXT, false, false)));
+        var item = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false,
+                null, null, null, "minecraft:glass")));
+        var result = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false,
+                SOURCE, null, model, null)));
+        var block = new ScreenText.InlineLine(result.spans(), false, model);
+        var layout = screen.messageLayout(List.of(plain, item, result, block, plain), 200, java.util.Map.of(model, card),
+                java.util.Map.of(model, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)),
+                java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
+        assertEquals(List.of(0, 12, 30, 48, 119), layout.runs().stream().map(AssistantScreen.MessageRun::y).toList());
+        assertEquals(List.of(12, 18, 18, 71, 12), layout.runs().stream().map(AssistantScreen.MessageRun::height).toList());
+        assertEquals(131, layout.height());
+        assertEquals(71, layout.runs().get(3).height());
+    }
+
+    @Test
+    void panelConsumesClicksBeforeControlsUnderneath() throws Exception {
+        var actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var panel = AssistantScreen.class.getDeclaredField("panelRect");
+        panel.setAccessible(true);
+        panel.set(screen, new dev.packsage.client.recipe.PinnedCardState.Rect(0, 0, 160, 100));
+        assertTrue(screen.mouseClicked(20, 70, 0));
+        assertTrue(screen.mouseClicked(20, 70, 1));
+        assertFalse(actions.calls.contains("newChat"));
+    }
+
+    @Test
+    void turnPreparedWithoutLevelIsNotCached() throws Exception {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var font = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        font.setAccessible(true);
+        font.set(screen, new ScreenPreparationFont());
+        var prior = screen.view().conversation().turns().getFirst();
+        var turn = new ChatContracts.Turn(prior.requestId(), prior.question(), "[Glass](item:minecraft:glass)", List.of(),
+                prior.context(), prior.sources(), List.of(), prior.outcome(), 1, null, List.of(), List.of(), null, null,
+                PackSageSettings.Verbosity.CONCISE);
+        var prepare = AssistantScreen.class.getDeclaredMethod("prepareTurn", ChatContracts.Turn.class);
+        prepare.setAccessible(true);
+        prepare.invoke(screen, turn);
+        var cache = AssistantScreen.class.getDeclaredField("preparedTurns");
+        cache.setAccessible(true);
+        assertFalse(((java.util.Map<?, ?>) cache.get(screen)).containsKey(turn.requestId()));
+    }
+
+    @Test
+    void cardWiderThanBubbleFallsBackToSourceChip() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var model = new dev.packsage.client.recipe.RecipeCardModel(
+                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(), "Furnace", List.of());
+        var card = new dev.packsage.client.recipe.RecipeCard() {
+            @Override public int width() { return 88; }
+            @Override public int height() { return 71; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
+        };
+        var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", TARGET, ModernUi.TEXT, false, false, SOURCE)), false, model);
+        var narrow = screen.messageLayout(List.of(line), 87, java.util.Map.of(model, card), java.util.Map.of(), java.util.Map.of());
+        assertEquals("Source: Glass", narrow.runs().getFirst().span().text());
+        assertNull(narrow.runs().getFirst().card());
+        assertEquals(12, narrow.height());
+        var wide = screen.messageLayout(List.of(line), 88, java.util.Map.of(model, card), java.util.Map.of(), java.util.Map.of());
+        assertSame(card, wide.runs().getFirst().card());
+        assertEquals(79, wide.height());
+    }
+
+    @Test
+    void copyTextUsesLabelsAcrossSteeredAnswerSegments() throws Exception {
+        var actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var font = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        font.setAccessible(true);
+        font.set(screen, new ScreenPreparationFont());
+        var prior = actions.view.conversation().turns().getFirst();
+        var answer = "[Glass](item:minecraft:glass) and [Recipe](native:source)";
+        var turn = new ChatContracts.Turn(prior.requestId(), prior.question(), answer, List.of(), prior.context(),
+                List.of(new Evidence.Source(SCOPE, "native", "1", "source", 1, Instant.EPOCH,
+                        Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of())),
+                List.of(), prior.outcome(), 1, null, List.of(),
+                List.of(new ChatContracts.SteeringMessage("clarify", answer.indexOf("[Recipe]"))), null, null,
+                PackSageSettings.Verbosity.CONCISE);
+        var prepare = AssistantScreen.class.getDeclaredMethod("prepareTurn", ChatContracts.Turn.class);
+        prepare.setAccessible(true);
+        var prepared = prepare.invoke(screen, turn);
+        var copy = prepared.getClass().getDeclaredMethod("copy");
+        copy.setAccessible(true);
+        assertEquals("Glass and Recipe", copy.invoke(prepared));
+    }
+
+    @Test
+    void legacyTurnLayoutUnchanged() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var lines = ScreenText.inlineLines("alpha beta gamma\n[Glass](item:minecraft:glass)", List.of());
+        var layout = screen.messageLayout(lines, 55);
+        assertEquals(12, layout.runs().stream().filter(run -> run.span().text().equals("gamma")).findFirst().orElseThrow().y());
+        assertTrue(layout.runs().stream().noneMatch(run -> run.card() != null || run.stack() != null));
+        assertEquals("[Glass](item:minecraft:glass)", layout.runs().stream().filter(run -> run.y() >= 24)
+                .map(run -> run.span().text()).reduce("", String::concat));
+    }
+
+    @Test
+    void resolvedItemChipOnlyExpandsItsWrappedRow() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var item = new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, null, null, null, "minecraft:glass");
+        var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("hello ", null, ModernUi.TEXT, false, false), item,
+                new ScreenText.InlineSpan(" world", null, ModernUi.TEXT, false, false)));
+        var layout = screen.messageLayout(List.of(line), 55, java.util.Map.of(), java.util.Map.of(),
+                java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
+        var chip = layout.runs().stream().filter(run -> run.stack() != null).findFirst().orElseThrow();
+        assertEquals(12, chip.y());
+        assertEquals(18, chip.height());
+        assertEquals(30, layout.runs().stream().filter(run -> run.span().text().equals("world")).findFirst().orElseThrow().y());
+    }
+
+    @Test
     void messageWrappingKeepsWordsWholeAndChipsWithinTheirRows() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 640;

@@ -1855,7 +1855,7 @@ public final class AssistantRuntime implements ChatActions {
                         }
                         return new ModelBackend.Request(request.modelId(), prepared.submission().verbosity().apply(developerPrompt == null
                                 ? request.instructions() : developerPrompt), request.input(),
-                                PackSageTools.definitions(initializedKnowledge.metadata()), request.searchMode(), request.requestId(),
+                                PackSageTools.definitions(initializedKnowledge.metadata(), initializedKnowledge.optionalTools()), request.searchMode(), request.requestId(),
                                 request.outputBudget(), request.reasoningEffort());
                     }, view -> publishHolderView(holder, view), turn -> recordCompletion(holder, turn));
             synchronized (stateLock) {

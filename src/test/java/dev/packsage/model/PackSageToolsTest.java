@@ -173,6 +173,21 @@ class PackSageToolsTest {
     }
 
     @Test
+    void bookmarkOfferedOnlyWhenReady() {
+        assertTrue(PackSageTools.definitions().stream().noneMatch(value -> value.name().equals("bookmark")));
+        assertTrue(PackSageTools.definitions(List.of(), java.util.Set.of()).stream().noneMatch(value -> value.name().equals("bookmark")));
+        var offered = PackSageTools.definitions(List.of(), java.util.Set.of("bookmark"));
+        var bookmark = offered.stream().filter(value -> value.name().equals("bookmark")).findFirst().orElseThrow();
+        var schema = JsonParser.parseString(bookmark.serializedSchema()).getAsJsonObject();
+        var properties = schema.getAsJsonObject("properties");
+        assertEquals(List.of("add", "remove", "check"), properties.getAsJsonObject("action").getAsJsonArray("enum").asList().stream().map(value -> value.getAsString()).toList());
+        assertEquals("[\"action\"]", schema.getAsJsonArray("required").toString());
+        assertEquals("^[a-z0-9_.-]+:[a-z0-9/._-]+$", properties.getAsJsonObject("item").getAsJsonObject("properties").getAsJsonObject("id").get("pattern").getAsString());
+        assertEquals(1024, properties.getAsJsonObject("recipe").get("maxLength").getAsInt());
+        assertEquals(PackSageTools.definitions().size() + 1, offered.size());
+    }
+
+    @Test
     void searchInventoryIsNoLongerOffered() throws Exception {
         assertTrue(PackSageTools.definitions().stream().noneMatch(value -> value.name().equals("search_inventory")));
         var calls = new AtomicInteger();

@@ -32,3 +32,7 @@ Delegated to Codex gpt-6.1-terra with computer use.
 ## Follow-up: Strip corner geometry
 
 Use a named 4-pixel top inset for the collapsed strip and expanded panel. Compute whole rows from the remaining content height, preserve the card dimensions unless one inset row exceeds its height, and apply the inset to drawing, highlights and hit-testing at both scales. Leave the exposed corner pixels transparent, including the slot sprite, and round the expanded panel on either opening side. Cover geometry and border pixels before implementation, run the full test suite, and leave visual acceptance to the controller without launching Minecraft.
+
+## Follow-up: Match the card border
+
+Use a real 2-pixel border outside each 18-pixel slot, in the measured card colors from the spec. Reserve both vertical borders before choosing whole rows. Include the left border in the collapsed card width and recipe offset, and the exposed right border in over-card panel fitting. Exclude borders from ingredient hits at scale 1 and 0.75, retain transparent exposed corner pixels, and leave joined edges square and open. Run the full test suite; the controller owns live visual acceptance.

@@ -45,74 +45,91 @@ class JeiRecipeCardSourceTest {
         assertEquals(0, JeiRecipeCardSource.scale(200, 149));
     }
 
+    @Test void bordersSitOutsideSlotsAndDoNotReceiveHits() {
+        for (double scale : List.of(1.0, 0.75)) {
+            var strip = JeiRecipeCardSource.strip("mod:altar", 12, 58, true);
+            assertEquals(2, strip.rows());
+            assertEquals(110, strip.width());
+            assertEquals(40, strip.height());
+            assertEquals(-1, strip.at(scale, 3 * scale, scale));
+            assertEquals(-1, strip.at(3 * scale, scale, scale));
+            assertEquals(-1, strip.at(3 * scale, 39 * scale, scale));
+            assertEquals(10, strip.at(3 * scale, 3 * scale, scale));
+            var panel = JeiRecipeCardSource.panel(strip, 0, 20, scale, 400);
+            assertEquals(112, panel.strip().width());
+            assertEquals(-1, panel.at(111 * scale, 20 + 7 * scale));
+            assertEquals(0, panel.at(3 * scale, 20 + 7 * scale));
+        }
+    }
+
     @Test void stripGeometryAndExclusions() {
-        var strip = JeiRecipeCardSource.strip("create:mixing", 5, 58, true);
-        assertEquals(36, strip.width());
+        var strip = JeiRecipeCardSource.strip("create:mixing", 5, 62, true);
+        assertEquals(38, strip.width());
         assertEquals(5, strip.visible());
         assertEquals(0, strip.hidden());
-        assertEquals(54, strip.height());
+        assertEquals(58, strip.height());
         var shortStrip = JeiRecipeCardSource.strip("mod:altar", 5, 12, true);
-        assertEquals(90, shortStrip.width());
+        assertEquals(92, shortStrip.width());
         assertEquals(5, shortStrip.visible());
         assertEquals(0, shortStrip.hidden());
-        assertEquals(18, shortStrip.height());
-        assertEquals(18, JeiRecipeCardSource.strip("mod:altar", 2, 58).width());
-        assertEquals(72, JeiRecipeCardSource.strip("mod:altar", 12, 58, true).width());
-        assertEquals(12, JeiRecipeCardSource.strip("mod:altar", 12, 58, true).visible());
-        assertEquals(0, JeiRecipeCardSource.strip("mod:altar", 12, 58, true).hidden());
+        assertEquals(22, shortStrip.height());
+        assertEquals(20, JeiRecipeCardSource.strip("mod:altar", 2, 62).width());
+        assertEquals(74, JeiRecipeCardSource.strip("mod:altar", 12, 62, true).width());
+        assertEquals(12, JeiRecipeCardSource.strip("mod:altar", 12, 62, true).visible());
+        assertEquals(0, JeiRecipeCardSource.strip("mod:altar", 12, 62, true).hidden());
         var overflow = JeiRecipeCardSource.strip("mod:altar", 20, 53, true);
-        assertEquals(180, overflow.width());
+        assertEquals(182, overflow.width());
         assertEquals(20, overflow.visible());
         assertEquals(0, overflow.hidden());
-        assertEquals(0, JeiRecipeCardSource.strip("minecraft:crafting", 5, 58).width());
-        assertEquals(0, JeiRecipeCardSource.strip("mod:empty", 0, 58).width());
+        assertEquals(0, JeiRecipeCardSource.strip("minecraft:crafting", 5, 62).width());
+        assertEquals(0, JeiRecipeCardSource.strip("mod:empty", 0, 62).width());
     }
 
     @Test void stripRowsLeaveRoomForTheCardCornerInset() {
         for (boolean expanded : List.of(false, true)) {
             assertEquals(2, JeiRecipeCardSource.strip("mod:altar", 5, 54, expanded).rows());
-            assertEquals(36, JeiRecipeCardSource.strip("mod:altar", 5, 54, expanded).height());
-            assertEquals(3, JeiRecipeCardSource.strip("mod:altar", 5, 58, expanded).rows());
+            assertEquals(40, JeiRecipeCardSource.strip("mod:altar", 5, 54, expanded).height());
+            assertEquals(3, JeiRecipeCardSource.strip("mod:altar", 5, 62, expanded).rows());
             assertEquals(1, JeiRecipeCardSource.strip("mod:altar", 5, 18, expanded).rows());
         }
     }
 
     @Test void catalystPanelsUseWholeRowsIncludingEmptySlots() {
         for (boolean expanded : List.of(false, true)) {
-            assertEquals(54, JeiRecipeCardSource.strip("mod:altar", 1, 63, expanded).height());
-            assertEquals(54, JeiRecipeCardSource.strip("mod:altar", 2, 63, expanded).height());
-            assertEquals(54, JeiRecipeCardSource.strip("mod:altar", 8, 63, expanded).height());
+            assertEquals(58, JeiRecipeCardSource.strip("mod:altar", 1, 63, expanded).height());
+            assertEquals(58, JeiRecipeCardSource.strip("mod:altar", 2, 63, expanded).height());
+            assertEquals(58, JeiRecipeCardSource.strip("mod:altar", 8, 63, expanded).height());
             assertEquals(3, JeiRecipeCardSource.strip("mod:altar", 1, 63, expanded).rows());
-            assertEquals(18, JeiRecipeCardSource.strip("mod:altar", 1, 63).width());
+            assertEquals(20, JeiRecipeCardSource.strip("mod:altar", 1, 63).width());
         }
     }
 
     @Test void stripWidthParticipatesInScaleAndFallback() {
-        int width = 102 + JeiRecipeCardSource.strip("minecraft:smelting", 5, 58).width();
+        int width = 100 + JeiRecipeCardSource.strip("minecraft:smelting", 5, 62).width();
         assertEquals(1, JeiRecipeCardSource.scale(width, 120));
         assertEquals(0.75, JeiRecipeCardSource.scale(width, 90));
         assertEquals(0, JeiRecipeCardSource.scale(width, 89));
     }
 
     @Test void stripHitTestingAtFullAndMinimumScale() {
-        var strip = JeiRecipeCardSource.strip("mod:altar", 12, 58, true);
+        var strip = JeiRecipeCardSource.strip("mod:altar", 12, 62, true);
         for (double scale : List.of(1.0, 0.75)) {
-            assertEquals(0, strip.at(55 * scale, 1 * scale, scale));
-            assertEquals(2, strip.at(55 * scale, 37 * scale, scale));
-            assertEquals(3, strip.at(37 * scale, 1 * scale, scale));
-            assertEquals(6, strip.at(19 * scale, 1 * scale, scale));
-            assertEquals(9, strip.at(1 * scale, 1 * scale, scale));
-            assertEquals(11, strip.at(1 * scale, 37 * scale, scale));
+            assertEquals(0, strip.at(57 * scale, 3 * scale, scale));
+            assertEquals(2, strip.at(57 * scale, 39 * scale, scale));
+            assertEquals(3, strip.at(39 * scale, 3 * scale, scale));
+            assertEquals(6, strip.at(21 * scale, 3 * scale, scale));
+            assertEquals(9, strip.at(3 * scale, 3 * scale, scale));
+            assertEquals(11, strip.at(3 * scale, 39 * scale, scale));
             assertEquals(-1, strip.at(72 * scale, 0, scale));
             assertEquals(-1, strip.at(0, 54 * scale, scale));
             assertEquals(-1, strip.at(-1, 0, scale));
-            assertEquals(-1, JeiRecipeCardSource.strip("mod:altar", 5, 58, true).at(1, 37 * scale, scale));
+            assertEquals(-1, JeiRecipeCardSource.strip("mod:altar", 5, 62, true).at(3 * scale, 39 * scale, scale));
         }
     }
 
     @Test void collapsedColumnCountsAllHiddenMachines() {
-        var collapsed = JeiRecipeCardSource.strip("mod:altar", 25, 58);
-        assertEquals(18, collapsed.width());
+        var collapsed = JeiRecipeCardSource.strip("mod:altar", 25, 62);
+        assertEquals(20, collapsed.width());
         assertEquals(2, collapsed.visible());
         assertEquals(23, collapsed.hidden());
         var shortCard = JeiRecipeCardSource.strip("mod:altar", 5, 12);
@@ -121,34 +138,34 @@ class JeiRecipeCardSourceTest {
     }
 
     @Test void expandedPanelGrowsLeftOrOverTheCardAndUsesTheCardScale() {
-        var strip = JeiRecipeCardSource.strip("mod:altar", 12, 58, true);
+        var strip = JeiRecipeCardSource.strip("mod:altar", 12, 62, true);
         for (double scale : List.of(1.0, 0.75)) {
             var left = JeiRecipeCardSource.panel(strip, 100, 20, scale, 400);
             assertEquals(100 - 54 * scale, left.left());
             assertEquals(20 + 4 * scale, left.top());
             assertFalse(left.contains(left.left() + scale, 20 + 3 * scale));
-            assertEquals(0, left.at(100 + scale, 20 + 5 * scale));
-            assertEquals(9, left.at(left.left() + scale, 20 + 5 * scale));
-            assertEquals(11, left.at(left.left() + scale, 20 + 41 * scale));
+            assertEquals(0, left.at(100 + 3 * scale, 20 + 7 * scale));
+            assertEquals(9, left.at(left.left() + 3 * scale, 20 + 7 * scale));
+            assertEquals(11, left.at(left.left() + 3 * scale, 20 + 43 * scale));
             var right = JeiRecipeCardSource.panel(strip, 0, 20, scale, 400);
             assertEquals(0, right.left());
-            assertEquals(0, right.at(scale, 20 + 5 * scale));
-            assertEquals(9, right.at(55 * scale, 20 + 5 * scale));
+            assertEquals(0, right.at(3 * scale, 20 + 7 * scale));
+            assertEquals(9, right.at(57 * scale, 20 + 7 * scale));
             assertEquals(-1, right.at(72 * scale, 20));
         }
     }
 
     @Test void expandedPanelAddsRowsUntilEveryCatalystFitsOnScreen() {
-        var expanded = JeiRecipeCardSource.strip("mod:altar", 25, 58, true);
+        var expanded = JeiRecipeCardSource.strip("mod:altar", 25, 62, true);
         assertEquals(9, expanded.columns());
         assertEquals(0, expanded.hidden());
         var panel = JeiRecipeCardSource.panel(expanded, 10, 20, 1, 100);
-        assertEquals(5, panel.strip().rows());
-        assertEquals(5, panel.strip().columns());
+        assertEquals(7, panel.strip().rows());
+        assertEquals(4, panel.strip().columns());
         assertEquals(25, panel.strip().visible());
         assertEquals(0, panel.strip().hidden());
         assertTrue(panel.left() + panel.strip().width() <= 100);
-        assertEquals(24, panel.at(99, 109));
+        assertEquals(24, panel.at(67, 81));
         var scaled = JeiRecipeCardSource.panel(expanded, 10, 20, 0.75, 100);
         assertEquals(5, scaled.strip().rows());
         assertTrue(scaled.left() + scaled.strip().width() * 0.75 <= 100);

@@ -27,6 +27,7 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
     static final double MIN_SCALE = 0.75;
     static final int CACHE_SIZE = 64;
     static final int STRIP_TOP_INSET = 4;
+    static final int STRIP_BORDER = 2;
     private static final int TICK_MS = 50;
     private static final ResourceLocation SLOT = ResourceLocation.fromNamespaceAndPath("packsage", "jei/slot");
 
@@ -108,15 +109,21 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
         return ref(index, model).map(ref -> new JeiViewer(JeiRuntimeHolder.snapshot().runtime().getRecipesGui(), index::resolveVisible).showRecipe(ref)).orElse(false);
     }
 
-    record Strip(int columns, int rows, int visible, int hidden, int height) {
-        int width() { return columns * 18; }
+    record Strip(int columns, int rows, int visible, int hidden, int height, boolean rightBorder) {
+        Strip(int columns, int rows, int visible, int hidden, int height) {
+            this(columns, rows, visible, hidden, height, false);
+        }
+
+        int width() { return columns == 0 ? 0 : columns * 18 + STRIP_BORDER * (rightBorder ? 2 : 1); }
 
         int at(double x, double y, double scale) { return at(x, y, scale, false); }
 
         int at(double x, double y, double scale, boolean rightward) {
-            if (x < 0 || x >= width() * scale || y < 0 || y >= rows * 18 * scale) return -1;
-            int column = (int) Math.floor(x / scale / 18);
-            int index = (rightward ? column : columns - 1 - column) * rows + (int) Math.floor(y / scale / 18);
+            x = x / scale - STRIP_BORDER;
+            y = y / scale - STRIP_BORDER;
+            if (x < 0 || x >= columns * 18 || y < 0 || y >= rows * 18) return -1;
+            int column = (int) Math.floor(x / 18);
+            int index = (rightward ? column : columns - 1 - column) * rows + (int) Math.floor(y / 18);
             return index < visible + (hidden > 0 ? 1 : 0) ? index : -1;
         }
     }
@@ -131,19 +138,19 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
     static Panel panel(Strip strip, int x, int y, double scale, int screenWidth) {
         double extraWidth = (strip.columns() - 1) * 18 * scale;
         if (x >= extraWidth) return new Panel(strip, x - extraWidth, y + STRIP_TOP_INSET * scale, scale, false);
-        int columns = Math.max(1, (int) Math.floor((screenWidth - x) / (18 * scale)));
+        int columns = Math.max(1, (int) Math.floor(((screenWidth - x) / scale - STRIP_BORDER * 2) / 18));
         int rows = Math.max(strip.rows(), (strip.visible() + columns - 1) / columns);
-        return new Panel(new Strip((strip.visible() + rows - 1) / rows, rows, strip.visible(), 0, rows * 18), x, y + STRIP_TOP_INSET * scale, scale, true);
+        return new Panel(new Strip((strip.visible() + rows - 1) / rows, rows, strip.visible(), 0, rows * 18 + STRIP_BORDER * 2, true), x, y + STRIP_TOP_INSET * scale, scale, true);
     }
 
     static Strip strip(String category, int count, int height) { return strip(category, count, height, false); }
 
     static Strip strip(String category, int count, int height, boolean expanded) {
-        int rows = Math.max(1, (height - STRIP_TOP_INSET) / 18);
+        int rows = Math.max(1, (height - STRIP_TOP_INSET - STRIP_BORDER * 2) / 18);
         if (category.equals("minecraft:crafting") || count == 0) return new Strip(0, rows, 0, 0, height);
         int columns = expanded ? (count + rows - 1) / rows : 1;
         int visible = count > rows * columns ? rows * columns - 1 : count;
-        return new Strip(columns, rows, visible, count - visible, rows * 18);
+        return new Strip(columns, rows, visible, count - visible, rows * 18 + STRIP_BORDER * 2);
     }
 
     @SuppressWarnings("removal")
@@ -300,7 +307,7 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
             graphics.pose().scale((float) scale, (float) scale, 1);
             graphics.pose().pushPose();
             graphics.pose().translate(0, STRIP_TOP_INSET, 0);
-            drawStrip(graphics, layout.strip, true, false, localX, localY - STRIP_TOP_INSET);
+            drawStrip(graphics, layout.strip, true, localX, localY - STRIP_TOP_INSET);
             graphics.pose().popPose();
             drawable.setPosition(layout.offsetX, layout.offsetY);
             drawable.drawRecipe(graphics, localX, localY);
@@ -317,20 +324,16 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
             graphics.drawString(Minecraft.getInstance().font, caption, x, y + areaHeight + 4, ModernUi.MUTED, false);
         }
 
-        private void drawStrip(GuiGraphics graphics, Strip strip, boolean rightward, boolean expanded, int mouseX, int mouseY) {
+        private void drawStrip(GuiGraphics graphics, Strip strip, boolean rightward, int mouseX, int mouseY) {
             if (strip.width() == 0) return;
-            graphics.fill(0, 1, strip.width(), strip.height() - 1, 0xffc6c6c6);
+            int width = strip.width();
+            int height = strip.height();
+            int right = strip.rightBorder() ? STRIP_BORDER : 0;
+            graphics.fill(1, 1, width - (right > 0 ? 1 : 0), height - 1, 0xffc6c6c6);
             for (int i = 0; i < strip.visible() + (strip.hidden() > 0 ? 1 : 0); i++) {
-                int x = (rightward ? i / strip.rows() : strip.columns() - 1 - i / strip.rows()) * 18;
-                int y = i % strip.rows() * 18;
-                int topLeft = x == 0 && y == 0 ? 1 : 0;
-                int bottomLeft = x == 0 && y + 18 == strip.height() ? 1 : 0;
-                // Crop the slot's opaque corner pixels too, so they cannot fill the rounded outline.
-                graphics.blitSprite(SLOT, 18, 18, 0, 1, x, y + 1, 18, 16);
-                graphics.blitSprite(SLOT, 18, 18, topLeft, 0, x + topLeft, y,
-                        18 - topLeft - (expanded && x + 18 == strip.width() && y == 0 ? 1 : 0), 1);
-                graphics.blitSprite(SLOT, 18, 18, bottomLeft, 17, x + bottomLeft, y + 17,
-                        18 - bottomLeft - (expanded && x + 18 == strip.width() && y + 18 == strip.height() ? 1 : 0), 1);
+                int x = STRIP_BORDER + (rightward ? i / strip.rows() : strip.columns() - 1 - i / strip.rows()) * 18;
+                int y = STRIP_BORDER + i % strip.rows() * 18;
+                graphics.blitSprite(SLOT, x, y, 18, 18);
                 if (i < strip.visible()) {
                     graphics.pose().pushPose();
                     graphics.pose().translate(x + 1, y + 1, 0);
@@ -352,11 +355,16 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
                     graphics.pose().popPose();
                 }
             }
-            // The 18-pixel slots already include padding; keep the tab bevel inside that footprint.
-            graphics.fill(1, 0, strip.width() - (expanded ? 1 : 0), 1, 0xffffffff);
-            graphics.fill(0, 1, 1, strip.height() - 1, 0xffffffff);
-            graphics.fill(1, strip.height() - 1, strip.width() - (expanded ? 1 : 0), strip.height(), 0xff555555);
-            if (expanded) graphics.fill(strip.width() - 1, 1, strip.width(), strip.height() - 1, 0xff555555);
+            graphics.fill(1, 0, width - (right > 0 ? 1 : 0), 1, 0xff999999);
+            graphics.fill(0, 1, 1, height - 1, 0xff999999);
+            graphics.fill(1, height - 1, width - (right > 0 ? 1 : 0), height, 0xff999999);
+            graphics.fill(1, 1, width - (right > 0 ? 1 : 0), 2, 0xffd8d8d8);
+            graphics.fill(1, 2, 2, height - 2, 0xffd8d8d8);
+            graphics.fill(1, height - 2, width - (right > 0 ? 1 : 0), height - 1, 0xffb3b3b3);
+            if (right > 0) {
+                graphics.fill(width - 1, 1, width, height - 1, 0xff999999);
+                graphics.fill(width - 2, 2, width - 1, height - 2, 0xffb3b3b3);
+            }
         }
 
         void updatePanel(int x, int y, double mouseX, double mouseY, int screenWidth) {
@@ -385,7 +393,7 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
             graphics.pose().pushPose();
             graphics.pose().translate(panel.left(), panel.top(), 0);
             graphics.pose().scale((float) scale, (float) scale, 1);
-            drawStrip(graphics, panel.strip(), panel.rightward(), true, (int) Math.floor((mouseX - panel.left()) / scale), (int) Math.floor((mouseY - panel.top()) / scale));
+            drawStrip(graphics, panel.strip(), panel.rightward(), (int) Math.floor((mouseX - panel.left()) / scale), (int) Math.floor((mouseY - panel.top()) / scale));
             graphics.pose().popPose();
             return overlayContains(mouseX, mouseY);
         }

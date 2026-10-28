@@ -21,3 +21,12 @@ Date: 2026-10-28. These checks follow the [test procedure](../testing/2026-10-28
 - Right-click and U on the altar strip left chat visible; the test did not establish an available JEI use for that item. The same actions opened uses from the furnace strip. Machine-chip right-click/U were not verified.
 - No overflowing category was found in the inspected Packsage examples. The altar and furnace each have one category machine; JEI's Ritual of the Forest side panel has two. This is not an exhaustive survey of every category. Collapsed `+N`, expanded multi-column interaction and the capped fallback tooltip remain unverified here.
 - ATM10 Create mixer/basin, Mekanism or Immersive Engineering and many-furnace overflow checks remain pending. No expanded-panel screenshot was captured.
+
+## Recheck after review fixes, 2026-10-28
+
+The recheck ran on the build of `56906a22` plus `261d1678`, on the hidden desktop in the Packsage `New World (1)` world with JEI 19.64. The developer override was cleared.
+
+- **Strip border and height PASS.** Request `ebcf6c56-b149-42f2-a3ac-2d2c422d8b81` drew the altar strip with a top, left and bottom border. Its height snaps to whole slots and leaves the remainder below uncovered ([zoomed image](assets/2026-10-28-jei-catalysts-border.png)). The strip's top edge sits about 3 pixels above the card's top border.
+- **Machine uses FIXED.** U on the altar strip icon and right-click on the inline Natural Altar chip both left chat unchanged, while JEI's own U on the altar opened nine pages of Natural Altar Infusion recipes. The viewer sent only an INPUT focus, but JEI's U also sends CATALYST. `261d1678` sends both. Afterwards, U on the strip altar and right-click on the altar chip both opened the nine-page altar view. The earlier furnace U pass only matched the furnace's ingredient uses.
+- **Strip hover PASS.** Hovering the strip altar showed its JEI tooltip.
+- **Still open:** the expanded panel and the review's clipped-strip and over-card cases need a category with more than one column of machines. No Packsage category has one, so these move to ATM10.

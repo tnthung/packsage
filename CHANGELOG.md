@@ -4,6 +4,7 @@
 
 ### 2026-10-28
 
+- Show JEI category machines beside chat recipe cards and in narrow fallback chips, with bounded overflow tooltips and recipe navigation.
 - Recorded component-bearing container, hidden JEI category and temporary-link live checks, including the vanilla water-potion fixture limitation.
 - Run the non-JEI test suite without JEI on the runtime classpath, including optional loading and native recipe discovery, whenever tests run.
 

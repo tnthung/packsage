@@ -1903,6 +1903,30 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void narrowFallbackPlacesMachineChipsAfterTheResult() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var model = new dev.packsage.client.recipe.RecipeCardModel(
+                dev.packsage.client.recipe.RecipeCardModel.Category.VIEWER, 0, 0, List.of(), "Mixing", List.of(), 0, null, "create:mixing|create:brass");
+        var machine = new dev.packsage.client.recipe.RecipeCardSource.Machine(
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.FURNACE), List.of(net.minecraft.network.chat.Component.literal("Furnace")));
+        screen.setRecipeCardSource(new dev.packsage.client.recipe.RecipeCardSource() {
+            @Override public java.util.Optional<dev.packsage.client.recipe.RecipeCard> card(dev.packsage.client.recipe.RecipeCardModel value) { return java.util.Optional.empty(); }
+            @Override public List<Machine> machines(dev.packsage.client.recipe.RecipeCardModel value) { return List.of(machine, machine, machine, machine, machine); }
+        });
+        var source = new Evidence.Source(SCOPE, "jei", "1", "create:brass", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var span = new ScreenText.InlineSpan("Result", null, ModernUi.TEXT, false, false, source, null, model, null);
+        var layout = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(span), false, model)), 200);
+        assertEquals(3, layout.runs().stream().filter(run -> run.machine() != null && run.machine().stack() != null).count());
+        assertTrue(layout.runs().stream().anyMatch(run -> run.span().text().equals("+2")));
+        assertNull(layout.runs().getFirst().machine());
+        assertSame(machine, layout.runs().get(1).machine());
+    }
+
+    @Test
     void copyTextUsesLabelsAcrossSteeredAnswerSegments() throws Exception {
         var actions = new FakeActions();
         var screen = new AssistantScreen(actions);

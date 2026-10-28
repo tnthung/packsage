@@ -89,6 +89,43 @@ class JeiCardHoverTest {
     }
 
     @Test
+    void expandedCatalystItemsHitTestAtBothScales() {
+        var layout = new JeiRecipeCardSource.Layout(new Drawable(new Slot(List.of())), 18, 0, 118, 54);
+        layout.strip = JeiRecipeCardSource.strip("mod:altar", 25, 54);
+        layout.expandedStrip = JeiRecipeCardSource.strip("mod:altar", 25, 54, true);
+        layout.machines = java.util.stream.IntStream.range(0, 25).mapToObj(i -> new dev.packsage.client.recipe.RecipeCardSource.Machine(
+                new ItemStack(Items.FURNACE), List.of(Component.literal("Machine " + i)))).toList();
+        for (double scale : List.of(1.0, 0.75)) {
+            var card = new JeiRecipeCardSource.JeiCard(layout, "Altar", scale, JeiRuntimeHolder.generation());
+            card.updatePanel(10, 20, 10 + scale, 20 + scale, 400);
+            assertEquals(Items.FURNACE, card.itemAt(10, 20, 10 + scale, 20 + scale).getItem());
+            // The collapsed +N spot is a real catalyst in the expanded panel, including over the recipe area.
+            assertEquals(Items.FURNACE, card.itemAt(10, 20, 10 + 55 * scale, 20 + 37 * scale).getItem());
+            assertEquals(Items.FURNACE, card.itemAt(10, 20, 10 + 145 * scale, 20 + scale).getItem());
+        }
+        JeiRuntimeHolder.unavailable();
+        var stale = new JeiRecipeCardSource.JeiCard(layout, "Altar", 1, JeiRuntimeHolder.generation() - 1);
+        assertTrue(stale.itemAt(10, 20, 11, 57).isEmpty());
+    }
+
+    @Test
+    void catalystPanelStaysOpenUntilThePointerLeavesIt() {
+        var layout = new JeiRecipeCardSource.Layout(null, 18, 0, 118, 54);
+        layout.strip = JeiRecipeCardSource.strip("mod:altar", 25, 54);
+        layout.expandedStrip = JeiRecipeCardSource.strip("mod:altar", 25, 54, true);
+        var card = new JeiRecipeCardSource.JeiCard(layout, "Altar", 0.75, JeiRuntimeHolder.generation());
+        card.updatePanel(100, 20, 101, 21, 400);
+        assertTrue(card.overlayContains(101, 21));
+        // The same prepared card can appear at another citation; that draw must not move an open panel.
+        card.updatePanel(300, 20, 101, 21, 400);
+        assertTrue(card.overlayContains(101, 21));
+        card.updatePanel(100, 20, 101, 21, 400);
+        assertTrue(card.overlayContains(101, 21));
+        card.updatePanel(100, 20, 300, 200, 400);
+        assertFalse(card.overlayContains(101, 21));
+    }
+
+    @Test
     void slotHoverKeepsJeiLinesSuchAsOutputChance() {
         var lines = List.<Component>of(Component.literal("Iron Ingot"), Component.literal("25% chance"));
         var card = card(lines);

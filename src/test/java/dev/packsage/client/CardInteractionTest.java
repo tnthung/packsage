@@ -126,6 +126,39 @@ class CardInteractionTest {
     }
 
     @Test
+    void expandedPanelTakesPriorityOverCoveredItemsAndNavigation() throws Exception {
+        for (boolean foreign : List.of(false, true)) for (boolean item : List.of(false, true)) {
+            var h = new Harness(true, foreign);
+            h.sourceChip();
+            h.hit("itemHits", "ItemHit", GLASS, new PinnedCardState.Rect(320, 60, 360, 72));
+            var card = new RecipeCard() {
+                @Override public int width() { return 40; }
+                @Override public int height() { return 30; }
+                @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+                @Override public Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return Optional.empty(); }
+                @Override public boolean overlayContains(double mouseX, double mouseY) { return mouseX >= 320 && mouseX < 360 && mouseY >= 60 && mouseY < 72; }
+                @Override public ItemStack itemAt(int x, int y, double mouseX, double mouseY) { return item ? new ItemStack(Items.FURNACE) : ItemStack.EMPTY; }
+            };
+            var field = AssistantScreen.class.getDeclaredField("catalystPanel");
+            field.setAccessible(true);
+            var constructor = field.getType().getDeclaredConstructors()[0];
+            constructor.setAccessible(true);
+            field.set(h.screen, constructor.newInstance(card, null, new PinnedCardState.Rect(50, 60, 90, 90)));
+            var tooltip = AssistantScreen.class.getDeclaredMethod("drawSourceTooltip", net.minecraft.client.gui.GuiGraphics.class, int.class, int.class);
+            tooltip.setAccessible(true);
+            // A null graphics sentinel proves the covered navigation tooltip is not rendered.
+            org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> tooltip.invoke(h.screen, null, 330, 66));
+            assertTrue(h.screen.mouseClicked(330, 66, 0));
+            assertTrue(h.screen.mouseClicked(330, 66, 1));
+            h.mouse(330, 66);
+            for (int key : new int[] {GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_U, GLFW.GLFW_KEY_A}) h.key(key);
+            assertEquals(List.of(), h.actions.navigated);
+            assertEquals(!foreign && item ? List.of("recipes:" + Items.FURNACE, "uses:" + Items.FURNACE,
+                    "recipes:" + Items.FURNACE, "uses:" + Items.FURNACE, "bookmark:" + Items.FURNACE) : List.of(), h.viewer.calls);
+        }
+    }
+
+    @Test
     void rOverCardSlotShowsRecipes() throws Exception {
         var h = new Harness(true);
         h.card();

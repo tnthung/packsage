@@ -20,10 +20,25 @@ public final class RecipeCardSources {
             @Override
             public Optional<RecipeCard> card(RecipeCardModel model, int maxWidth) {
                 for (var source : ordered) {
-                    var card = source.card(model, maxWidth);
+                    var card = source.card(model, maxWidth).or(() -> source.card(model));
                     if (card.isPresent()) return card;
                 }
                 return Optional.empty();
+            }
+
+            @Override
+            public List<Machine> machines(RecipeCardModel model) {
+                for (var source : ordered) {
+                    var machines = source.machines(model);
+                    if (!machines.isEmpty()) return machines;
+                }
+                return List.of();
+            }
+
+            @Override
+            public boolean open(RecipeCardModel model) {
+                for (var source : ordered) if (source.open(model)) return true;
+                return false;
             }
 
             @Override

@@ -1626,7 +1626,7 @@ class AssistantScreenStateTest {
     }
 
     @Test
-    void theGapAfterAnItemChipStandsInForTheFollowingSpace() {
+    void chipsAreSpacedByTheirTextAndTouchingChipsGetOneSpace() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 640;
         screen.height = 480;
@@ -1640,21 +1640,29 @@ class AssistantScreenStateTest {
         var runs = layout.runs();
         var chip = runs.stream().filter(run -> run.stack() != null).findFirst().orElseThrow();
         var next = runs.get(runs.indexOf(chip) + 1);
-        // The fixed gap after the chip replaces the space that follows it instead of adding to it.
-        assertEquals("as", next.span().text());
-        assertEquals(chip.x() + chip.width() + 4, next.x());
+        // No padding after the chip: the reply's own space follows it directly.
+        assertEquals(" ", next.span().text());
+        assertEquals(chip.x() + chip.width(), next.x());
 
         var punctuated = new ScreenText.InlineLine(List.of(
                 new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, null, null, null, "minecraft:glass"),
                 new ScreenText.InlineSpan(", both", null, ModernUi.TEXT, false, false)));
         var punctuatedRuns = screen.messageLayout(List.of(punctuated), 300, java.util.Map.of(), java.util.Map.of(),
                 java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS))).runs();
-        // Closing punctuation hugs the chip like it would hug a word.
+        // Punctuation written right after the chip stays right after it.
         assertEquals(",", punctuatedRuns.get(1).span().text());
-        assertEquals(punctuatedRuns.get(0).x() + punctuatedRuns.get(0).width() + 1, punctuatedRuns.get(1).x());
-        // The space after that punctuation is ordinary text again.
-        assertEquals(" ", punctuatedRuns.get(2).span().text());
-        assertEquals("both", punctuatedRuns.get(3).span().text());
+        assertEquals(punctuatedRuns.get(0).x() + punctuatedRuns.get(0).width(), punctuatedRuns.get(1).x());
+
+        var touching = new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, null, null, null, "minecraft:glass"),
+                new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, null, null, null, "minecraft:glass")));
+        var touchingRuns = screen.messageLayout(List.of(touching), 300, java.util.Map.of(), java.util.Map.of(),
+                java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS))).runs();
+        // Two chips with nothing between them get one space so they do not touch.
+        int space = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("a b", null, ModernUi.TEXT, false, false)))), 300)
+                .runs().get(1).width();
+        assertTrue(space > 0);
+        assertEquals(touchingRuns.get(0).x() + touchingRuns.get(0).width() + space, touchingRuns.get(1).x());
     }
 
     @Test

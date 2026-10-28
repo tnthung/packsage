@@ -1071,6 +1071,7 @@ public final class AssistantScreen extends Screen {
                                 Map<RecipeCardModel, RecipeCard> cards, Map<RecipeCardModel, SlotStacks.ResolvedSlot> outputs,
                                 Map<String, ItemStack> items) {
         int width = Math.max(1, maxWidth);
+        int chipSpace = font.width(Component.literal(" ").withStyle(style -> style.withFont(ModernUi.FONT)));
         List<MessageRun> runs = new ArrayList<>();
         int y = 0;
         for (ScreenText.InlineLine line : lines) {
@@ -1082,8 +1083,8 @@ public final class AssistantScreen extends Screen {
                 continue;
             }
             int x = indent;
-            // Where the gap after the last chip ends; a space there would double it.
-            int afterChipX = -1, afterChipY = -1;
+            // Where the last chip ended: chips are spaced by the text around them, and only touching chips get one space.
+            int chipEndX = -1, chipEndY = -1;
             int rowHeight = ModernUi.MESSAGE_LINE_HEIGHT;
             if (line.spans().isEmpty() && line.quote()) runs.add(new MessageRun(
                     new ScreenText.InlineSpan("", null, ModernUi.TEXT, false, false), x, y, 0, true, null, null, rowHeight));
@@ -1107,6 +1108,7 @@ public final class AssistantScreen extends Screen {
                     boolean bold = navigation;
                     Component label = Component.literal(labelText).withStyle(style -> style.withFont(bold ? ModernUi.BOLD_FONT : ModernUi.FONT));
                     int padding = item ? 18 : 12;
+                    if (x == chipEndX && y == chipEndY) x += chipSpace;
                     int chipWidth = Math.min(Math.max(1, width - indent), font.width(label) + padding);
                     if (x > indent && x + chipWidth > width) {
                         x = indent; y += rowHeight;
@@ -1115,11 +1117,12 @@ public final class AssistantScreen extends Screen {
                     runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, item || line.card() != null ? null : span.target(),
                             navigation ? ModernUi.ACCENT : ModernUi.TEXT, bold, false, item ? null : span.source(),
                             item || line.card() != null ? null : span.externalUrl()), x, y, chipWidth, line.quote(), item ? result : null, stack, rowHeight));
-                    x += chipWidth + 4;
+                    x += chipWidth;
                     var machineModel = span.resultCard() != null ? span.resultCard() : span.source() != null ? line.card() : null;
                     if (machineModel != null) for (var machine : recipeCardSource.machineChips(machineModel)) {
                         boolean icon = machine.stack() != null && !machine.stack().isEmpty();
                         Component machineLabel = Component.literal(machine.label()).withStyle(style -> style.withFont(ModernUi.FONT));
+                        x += chipSpace;
                         int machineWidth = Math.min(Math.max(1, width - indent), font.width(machineLabel) + (icon ? 18 : 8));
                         if (x > indent && x + machineWidth > width) {
                             x = indent; y += rowHeight;
@@ -1127,46 +1130,43 @@ public final class AssistantScreen extends Screen {
                         runs.add(new MessageRun(new ScreenText.InlineSpan(font.substrByWidth(machineLabel, Math.max(1, machineWidth - (icon ? 18 : 8))).getString(),
                                 null, ModernUi.TEXT, false, false), x, y, machineWidth, line.quote(), null,
                                 icon ? machine.stack() : null, rowHeight, machine, machineModel));
-                        x += machineWidth + 4;
+                        x += machineWidth;
                     }
                     // A viewer recipe shown as a chip instead of an inline card names its category beside the chip.
                     var viewer = span.resultCard() != null ? span.resultCard() : span.source() != null ? line.card() : null;
                     if (viewer != null && viewer.category() == RecipeCardModel.Category.VIEWER && !viewer.caption().isEmpty()) {
                         Component caption = Component.literal(viewer.caption()).withStyle(style -> style.withFont(ModernUi.FONT));
+                        x += chipSpace;
                         int captionWidth = Math.min(Math.max(1, width - indent), font.width(caption));
                         if (x > indent && x + captionWidth > width) {
                             x = indent; y += rowHeight;
                         }
                         runs.add(new MessageRun(new ScreenText.InlineSpan(font.substrByWidth(caption, captionWidth).getString(), null,
                                 ModernUi.MUTED, false, false), x, y, captionWidth, line.quote(), null, null, rowHeight));
-                        x += captionWidth + 4;
+                        x += captionWidth;
                     }
                     if (viewer != null && viewer.category() == RecipeCardModel.Category.VIEWER
                             && span.target() != null && span.target().providerId().equals("jei")
                             && (span.target().targetId().equals("recipe") || span.target().targetId().equals("temporary"))
                             && actions.adapterAvailability().getOrDefault("jei", false)) {
                         Component link = Component.literal("Open in JEI").withStyle(style -> style.withFont(ModernUi.BOLD_FONT));
+                        x += chipSpace;
                         int linkWidth = Math.min(Math.max(1, width - indent), font.width(link) + 12);
                         if (x > indent && x + linkWidth > width) {
                             x = indent; y += rowHeight;
                         }
                         runs.add(new MessageRun(new ScreenText.InlineSpan(font.substrByWidth(link, Math.max(1, linkWidth - 12)).getString(),
                                 span.target(), ModernUi.ACCENT, true, false), x, y, linkWidth, line.quote(), null, null, rowHeight));
-                        x += linkWidth + 4;
+                        x += linkWidth;
                     }
-                    afterChipX = x;
-                    afterChipY = y;
+                    chipEndX = x;
+                    chipEndY = y;
                     continue;
                 }
                 for (String token : span.text().split("(?<=\\s)(?=\\S)|(?<=\\S)(?=\\s)")) {
                     if (token.isEmpty()) continue;
                     boolean space = token.codePoints().allMatch(Character::isWhitespace);
-                    if (space && (x == indent || x == afterChipX && y == afterChipY)) continue;
-                    // Closing punctuation hugs a chip as it would a word, one pixel off its edge.
-                    if (x == afterChipX && y == afterChipY && ",.;:!?)]".indexOf(token.charAt(0)) >= 0) {
-                        x -= 3;
-                        afterChipX = -1;
-                    }
+                    if (space && x == indent) continue;
                     int tokenWidth = font.width(Component.literal(token).withStyle(style ->
                             style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)));
                     if (x > indent && x + tokenWidth > width) {

@@ -4,6 +4,7 @@
 
 ### 2026-10-28
 
+- Round the exposed JEI card machine strip and panel corners, and inset them below the card corner with matching scaled hover and click geometry.
 - Showing an item's uses from a chat card, chip or machine strip now also lists the categories it is a machine for, as JEI's own U key does, so U and right-click on a machine such as the Natural Altar open its recipes instead of doing nothing.
 - Recorded partial Packsage live checks for JEI card catalyst strips and fallback chips, with the altar expectation and ATM10 checks still open.
 - Fix JEI catalyst panel viewport ownership, covered-card hover, stale panels, ingredient tooltip failures, machine chip alignment and input shielding; snap catalyst tabs to whole slot rows and draw their outer borders.

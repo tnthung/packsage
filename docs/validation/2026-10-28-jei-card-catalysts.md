@@ -30,3 +30,13 @@ The recheck ran on the build of `56906a22` plus `261d1678`, on the hidden deskto
 - **Machine uses FIXED.** U on the altar strip icon and right-click on the inline Natural Altar chip both left chat unchanged, while JEI's own U on the altar opened nine pages of Natural Altar Infusion recipes. The viewer sent only an INPUT focus, but JEI's U also sends CATALYST. `261d1678` sends both. Afterwards, U on the strip altar and right-click on the altar chip both opened the nine-page altar view. The earlier furnace U pass only matched the furnace's ingredient uses.
 - **Strip hover PASS.** Hovering the strip altar showed its JEI tooltip.
 - **Still open:** the expanded panel and the review's clipped-strip and over-card cases need a category with more than one column of machines. No Packsage category has one, so these move to ATM10.
+
+## Strip corner correction, 2026-10-28
+
+The annotated player screenshot and the earlier border image showed a notch at the card join and square exposed corners. The correction uses a named 4-pixel inset, calculates whole rows from the reduced content height, and applies the same placement to collapsed and expanded drawing, highlights and hit-testing. The background, border and slot sprite leave the outer corner pixels clear; the expanded panel rounds both outer sides.
+
+Test-first evidence: the focused pair ran 24 tests, with four expected failures for the missing inset, reduced row count and transparent corners. Those checks passed after implementation. Geometry covers scales 1 and 0.75, left and over-card expansion, and the clear area above the strip. The existing fill-recording seam checks corner transparency and border continuity in both directions.
+
+Visual acceptance remains pending with the controller. Minecraft was not launched for this correction.
+
+Full verification: `JAVA_HOME=C:\Users\hung1\.gradle\jdks\eclipse_adoptium-21-amd64-windows.2 ./gradlew test` passed. `test`: 1539 tests, 5 skipped, 0 failures and 0 errors; `testWithoutJei`: 1428 tests, 5 skipped, 0 failures and 0 errors. `git diff --check` passed. An earlier overlapping Gradle invocation caused a test-output file lock; the final full run completed successfully after it finished.

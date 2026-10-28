@@ -28,3 +28,7 @@ Delegated to Codex gpt-6.1-terra with computer use.
 - Record them in `docs/validation/2026-10-28-jei-card-catalysts.md` and `docs/testing/2026-10-28-jei-card-catalysts.md`. Include screenshots of the altar, mixing and fallback cards under `docs/validation/assets/`.
 - Update the roadmap entries.
 - Commit `[Chg] record JEI card catalyst acceptance`.
+
+## Follow-up: Strip corner geometry
+
+Use a named 4-pixel top inset for the collapsed strip and expanded panel. Compute whole rows from the remaining content height, preserve the card dimensions unless one inset row exceeds its height, and apply the inset to drawing, highlights and hit-testing at both scales. Leave the exposed corner pixels transparent, including the slot sprite, and round the expanded panel on either opening side. Cover geometry and border pixels before implementation, run the full test suite, and leave visual acceptance to the controller without launching Minecraft.

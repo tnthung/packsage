@@ -60,14 +60,16 @@ class JeiCardHoverTest {
 
     private static final class Drawable implements IRecipeLayoutDrawable<Object> {
         final Slot slot;
+        int x;
+        int y;
         Drawable(Slot slot) { this.slot = slot; }
         @Override public Optional<ItemStack> getItemStackUnderMouse(int mouseX, int mouseY) {
-            return slot.isMouseOver(mouseX, mouseY) ? Optional.of(new ItemStack(Items.IRON_INGOT)) : Optional.empty();
+            return slot.isMouseOver(mouseX - x, mouseY - y) ? Optional.of(new ItemStack(Items.IRON_INGOT)) : Optional.empty();
         }
         @Override public Optional<IRecipeSlotDrawable> getRecipeSlotUnderMouse(double mouseX, double mouseY) {
-            return slot.isMouseOver(mouseX, mouseY) ? Optional.of(slot) : Optional.empty();
+            return slot.isMouseOver(mouseX - x, mouseY - y) ? Optional.of(slot) : Optional.empty();
         }
-        @Override public void setPosition(int x, int y) { }
+        @Override public void setPosition(int x, int y) { this.x = x; this.y = y; }
         @Override public void drawRecipe(GuiGraphics graphics, int mouseX, int mouseY) { }
         @Override public void drawOverlays(GuiGraphics graphics, int mouseX, int mouseY) { }
         @Override public boolean isMouseOver(double mouseX, double mouseY) { return true; }
@@ -90,18 +92,22 @@ class JeiCardHoverTest {
 
     @Test
     void expandedCatalystItemsHitTestAtBothScales() {
-        var layout = new JeiRecipeCardSource.Layout(new Drawable(new Slot(List.of())), 18, 0, 118, 54);
-        layout.strip = JeiRecipeCardSource.strip("mod:altar", 25, 54);
-        layout.expandedStrip = JeiRecipeCardSource.strip("mod:altar", 25, 54, true);
+        var layout = new JeiRecipeCardSource.Layout(new Drawable(new Slot(List.of())), 18, 0, 118, 58);
+        layout.strip = JeiRecipeCardSource.strip("mod:altar", 25, 58);
+        layout.expandedStrip = JeiRecipeCardSource.strip("mod:altar", 25, 58, true);
         layout.machines = java.util.stream.IntStream.range(0, 25).mapToObj(i -> new dev.packsage.client.recipe.RecipeCardSource.Machine(
                 new ItemStack(Items.FURNACE), List.of(Component.literal("Machine " + i)))).toList();
         for (double scale : List.of(1.0, 0.75)) {
             var card = new JeiRecipeCardSource.JeiCard(layout, "Altar", scale, JeiRuntimeHolder.generation());
-            card.updatePanel(10, 20, 10 + scale, 20 + scale, 400);
-            assertEquals(Items.FURNACE, card.itemAt(10, 20, 10 + scale, 20 + scale).getItem());
+            assertTrue(card.itemAt(10, 20, 10 + scale, 20 + 3 * scale).isEmpty());
+            assertTrue(card.hoverAt(10, 20, 10 + scale, 20 + 3 * scale).isEmpty());
+            card.updatePanel(10, 20, 10 + scale, 20 + 3 * scale, 400);
+            assertFalse(card.overlayContains(10 + scale, 20 + 3 * scale));
+            card.updatePanel(10, 20, 10 + scale, 20 + 5 * scale, 400);
+            assertEquals(Items.FURNACE, card.itemAt(10, 20, 10 + scale, 20 + 5 * scale).getItem());
             // The collapsed +N spot is a real catalyst in the expanded panel, including over the recipe area.
-            assertEquals(Items.FURNACE, card.itemAt(10, 20, 10 + 55 * scale, 20 + 37 * scale).getItem());
-            assertEquals(Items.FURNACE, card.itemAt(10, 20, 10 + 145 * scale, 20 + scale).getItem());
+            assertEquals(Items.FURNACE, card.itemAt(10, 20, 10 + 55 * scale, 20 + 41 * scale).getItem());
+            assertEquals(Items.FURNACE, card.itemAt(10, 20, 10 + 145 * scale, 20 + 5 * scale).getItem());
         }
         JeiRuntimeHolder.unavailable();
         var stale = new JeiRecipeCardSource.JeiCard(layout, "Altar", 1, JeiRuntimeHolder.generation() - 1);
@@ -110,36 +116,36 @@ class JeiCardHoverTest {
 
     @Test
     void catalystPanelStaysOpenUntilThePointerLeavesIt() {
-        var layout = new JeiRecipeCardSource.Layout(null, 18, 0, 118, 54);
-        layout.strip = JeiRecipeCardSource.strip("mod:altar", 25, 54);
-        layout.expandedStrip = JeiRecipeCardSource.strip("mod:altar", 25, 54, true);
+        var layout = new JeiRecipeCardSource.Layout(null, 18, 0, 118, 58);
+        layout.strip = JeiRecipeCardSource.strip("mod:altar", 25, 58);
+        layout.expandedStrip = JeiRecipeCardSource.strip("mod:altar", 25, 58, true);
         var card = new JeiRecipeCardSource.JeiCard(layout, "Altar", 0.75, JeiRuntimeHolder.generation());
-        card.updatePanel(100, 20, 101, 21, 400);
-        assertTrue(card.overlayContains(101, 21));
+        card.updatePanel(100, 20, 101, 25, 400);
+        assertTrue(card.overlayContains(101, 25));
         // The same prepared card can appear at another citation; that draw must not move an open panel.
-        card.updatePanel(300, 20, 101, 21, 400);
-        assertTrue(card.overlayContains(101, 21));
-        card.updatePanel(100, 20, 101, 21, 400);
-        assertTrue(card.overlayContains(101, 21));
+        card.updatePanel(300, 20, 101, 25, 400);
+        assertTrue(card.overlayContains(101, 25));
+        card.updatePanel(100, 20, 101, 25, 400);
+        assertTrue(card.overlayContains(101, 25));
         card.updatePanel(100, 20, 300, 200, 400);
-        assertFalse(card.overlayContains(101, 21));
+        assertFalse(card.overlayContains(101, 25));
     }
 
     @Test
     void panelOwnsCoveredMouseAndOldPositionDoesNotSupplyItems() throws Exception {
-        var layout = new JeiRecipeCardSource.Layout(new Drawable(new Slot(List.of())), 18, 0, 118, 54);
-        layout.strip = JeiRecipeCardSource.strip("mod:altar", 12, 54);
-        layout.expandedStrip = JeiRecipeCardSource.strip("mod:altar", 12, 54, true);
+        var layout = new JeiRecipeCardSource.Layout(new Drawable(new Slot(List.of())), 18, 0, 118, 58);
+        layout.strip = JeiRecipeCardSource.strip("mod:altar", 12, 58);
+        layout.expandedStrip = JeiRecipeCardSource.strip("mod:altar", 12, 58, true);
         layout.machines = java.util.stream.IntStream.range(0, 12).mapToObj(i -> new dev.packsage.client.recipe.RecipeCardSource.Machine(
                 new ItemStack(i == 9 || i == 1 ? Items.GLASS : Items.FURNACE), List.of(Component.literal("Machine " + i)))).toList();
         var inside = JeiRecipeCardSource.JeiCard.class.getDeclaredMethod("inside", int.class, int.class, double.class, double.class);
         inside.setAccessible(true);
         for (double scale : List.of(1.0, 0.75)) for (int x : new int[] {10, 100}) {
             var card = new JeiRecipeCardSource.JeiCard(layout, "Altar", scale, JeiRuntimeHolder.generation());
-            card.updatePanel(x, 20, x + 1, 21, 400);
-            assertFalse((boolean) inside.invoke(card, x, 20, x + 1.0, 21.0));
-            if (x == 100) assertEquals(Items.GLASS, card.itemAt(x, 20, x - 54 * scale + 1, 21).getItem());
-            assertEquals(Items.FURNACE, card.itemAt(x, 38, x + 1, 39).getItem());
+            card.updatePanel(x, 20, x + 1, 25, 400);
+            assertFalse((boolean) inside.invoke(card, x, 20, x + 1.0, 25.0));
+            if (x == 100) assertEquals(Items.GLASS, card.itemAt(x, 20, x - 54 * scale + 1, 25).getItem());
+            assertEquals(Items.FURNACE, card.itemAt(x, 38, x + 1, 43).getItem());
         }
     }
 
@@ -179,12 +185,16 @@ class JeiCardHoverTest {
                 JeiRecipeCardSource.Strip.class, boolean.class, boolean.class, int.class, int.class);
         draw.setAccessible(true);
         var card = card(List.of());
-        for (boolean expanded : List.of(false, true)) {
+        for (boolean expanded : List.of(false, true)) for (boolean rightward : List.of(false, true)) {
             graphics.fills.clear();
-            draw.invoke(card, graphics, new JeiRecipeCardSource.Strip(1, 3, 0, 0, 54), true, expanded, -1000, -1000);
-            assertTrue(graphics.fills.contains(List.of(0, 0, 18, 1, 0xffffffff)));
+            draw.invoke(card, graphics, new JeiRecipeCardSource.Strip(1, 3, 0, 0, 54), rightward, expanded, -1000, -1000);
+            for (int y : new int[] {0, 53}) {
+                assertFalse(graphics.fills.stream().anyMatch(fill -> fill.get(0) <= 0 && fill.get(2) > 0 && fill.get(1) <= y && fill.get(3) > y));
+                assertEquals(!expanded, graphics.fills.stream().anyMatch(fill -> fill.get(0) <= 17 && fill.get(2) > 17 && fill.get(1) <= y && fill.get(3) > y));
+            }
+            assertTrue(graphics.fills.contains(List.of(1, 0, expanded ? 17 : 18, 1, 0xffffffff)));
             assertTrue(graphics.fills.contains(List.of(0, 1, 1, 53, 0xffffffff)));
-            assertTrue(graphics.fills.contains(List.of(0, 53, 18, 54, 0xff555555)));
+            assertTrue(graphics.fills.contains(List.of(1, 53, expanded ? 17 : 18, 54, 0xff555555)));
             assertEquals(expanded, graphics.fills.contains(List.of(17, 1, 18, 53, 0xff555555)));
         }
     }

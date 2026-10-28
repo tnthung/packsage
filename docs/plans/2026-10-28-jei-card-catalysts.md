@@ -10,10 +10,10 @@ Spec: [JEI card catalysts](../specs/2026-10-28-jei-card-catalysts.md). Branch `t
 - Tests: `JeiRecipeCardSourceTest`, plus the fallback/chip tests next to the code you change.
 
 Steps:
-1. Write failing tests for strip geometry: width, height and wrapping. Cover the `minecraft:crafting` and no-catalyst exclusions, scale and fallback with the strip width included, and strip hit-testing at scale 1 and 0.75. Then add a failing test for fallback machine chips, skipped for crafting.
+1. Write failing tests for strip geometry: one column, the visible count by card height, the overflow tile and its count, and the short-card minimum. Cover the `minecraft:crafting` and no-catalyst exclusions, scale and fallback with the strip width included, and strip hit-testing at scale 1 and 0.75. Then add a failing test for fallback machine chips (at most three plus "+N"), skipped for crafting.
 2. Implement the strip.
    - Each catalyst is an 18-pixel slot with JEI's slot background or the native card's slot look, inside a panel drawn like JEI's catalyst tab.
-   - The strip is the same height as the layout and wraps into another column when it overflows. The layout is drawn to its right.
+   - The strip is one column, the height of the layout; it shows the catalysts that fit and turns the last spot into a "+N" overflow tile (hover lists the rest, click opens the recipe in JEI); a short card keeps one catalyst plus the tile. The layout is drawn to its right.
    - Render items and other ingredient types with `IIngredientManager#getIngredientRenderer(type)`.
    - `itemAt` returns the item stack for item catalysts. `hoverAt` returns the JEI tooltip lines: `IIngredientRenderer#getTooltip` with the current tooltip flag, the same way slot tooltips work.
    - Highlight the hovered catalyst like a slot.

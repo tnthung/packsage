@@ -1082,6 +1082,8 @@ public final class AssistantScreen extends Screen {
                 continue;
             }
             int x = indent;
+            // Where the gap after the last chip ends; a space there would double it.
+            int afterChipX = -1, afterChipY = -1;
             int rowHeight = ModernUi.MESSAGE_LINE_HEIGHT;
             if (line.spans().isEmpty() && line.quote()) runs.add(new MessageRun(
                     new ScreenText.InlineSpan("", null, ModernUi.TEXT, false, false), x, y, 0, true, null, null, rowHeight));
@@ -1152,12 +1154,19 @@ public final class AssistantScreen extends Screen {
                                 span.target(), ModernUi.ACCENT, true, false), x, y, linkWidth, line.quote(), null, null, rowHeight));
                         x += linkWidth + 4;
                     }
+                    afterChipX = x;
+                    afterChipY = y;
                     continue;
                 }
                 for (String token : span.text().split("(?<=\\s)(?=\\S)|(?<=\\S)(?=\\s)")) {
                     if (token.isEmpty()) continue;
                     boolean space = token.codePoints().allMatch(Character::isWhitespace);
-                    if (space && x == indent) continue;
+                    if (space && (x == indent || x == afterChipX && y == afterChipY)) continue;
+                    // Closing punctuation hugs a chip as it would a word, one pixel off its edge.
+                    if (x == afterChipX && y == afterChipY && ",.;:!?)]".indexOf(token.charAt(0)) >= 0) {
+                        x -= 3;
+                        afterChipX = -1;
+                    }
                     int tokenWidth = font.width(Component.literal(token).withStyle(style ->
                             style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)));
                     if (x > indent && x + tokenWidth > width) {

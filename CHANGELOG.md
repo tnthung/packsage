@@ -4,6 +4,7 @@
 
 ### 2026-10-28
 
+- Text after an inline chip no longer gets a double gap: the chip's own gap replaces the following space, and closing punctuation sits right after the chip.
 - Match the JEI card machine strip to the card's two-pixel border, with rounded exposed corners and border-aware scaled layout and hit-testing.
 - Round the exposed JEI card machine strip and panel corners, and inset them below the card corner with matching scaled hover and click geometry.
 - Showing an item's uses from a chat card, chip or machine strip now also lists the categories it is a machine for, as JEI's own U key does, so U and right-click on a machine such as the Natural Altar open its recipes instead of doing nothing.

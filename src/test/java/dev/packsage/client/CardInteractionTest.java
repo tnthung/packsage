@@ -131,10 +131,11 @@ class CardInteractionTest {
             var h = new Harness(true, foreign);
             h.sourceChip();
             h.hit("itemHits", "ItemHit", GLASS, new PinnedCardState.Rect(320, 60, 360, 72));
+            var coveredMouse = new int[2];
             var card = new RecipeCard() {
                 @Override public int width() { return 40; }
                 @Override public int height() { return 30; }
-                @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+                @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { coveredMouse[0] = mouseX; coveredMouse[1] = mouseY; }
                 @Override public Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return Optional.empty(); }
                 @Override public boolean overlayContains(double mouseX, double mouseY) { return mouseX >= 320 && mouseX < 360 && mouseY >= 60 && mouseY < 72; }
                 @Override public ItemStack itemAt(int x, int y, double mouseX, double mouseY) { return item ? new ItemStack(Items.FURNACE) : ItemStack.EMPTY; }
@@ -144,17 +145,118 @@ class CardInteractionTest {
             var constructor = field.getType().getDeclaredConstructors()[0];
             constructor.setAccessible(true);
             field.set(h.screen, constructor.newInstance(card, null, new PinnedCardState.Rect(50, 60, 90, 90)));
+            h.mouse(330, 66);
+            var draw = AssistantScreen.class.getDeclaredMethod("drawInlineLines", net.minecraft.client.gui.GuiGraphics.class,
+                    AssistantScreen.MessageLayout.class, int.class, int.class, ChatContracts.Turn.class);
+            draw.setAccessible(true);
+            draw.invoke(h.screen, null, new AssistantScreen.MessageLayout(List.of(new AssistantScreen.MessageRun(
+                    null, 0, 0, 40, false, card, null, 30)), 30), 60, 320, null);
+            assertEquals(-1, coveredMouse[0]);
+            assertEquals(-1, coveredMouse[1]);
             var tooltip = AssistantScreen.class.getDeclaredMethod("drawSourceTooltip", net.minecraft.client.gui.GuiGraphics.class, int.class, int.class);
             tooltip.setAccessible(true);
             // A null graphics sentinel proves the covered navigation tooltip is not rendered.
             org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> tooltip.invoke(h.screen, null, 330, 66));
             assertTrue(h.screen.mouseClicked(330, 66, 0));
             assertTrue(h.screen.mouseClicked(330, 66, 1));
+            assertTrue(h.screen.mouseDragged(330, 66, 0, 4, 4));
+            assertTrue(h.screen.mouseReleased(330, 66, 0));
+            h.set("scrollOffset", 100);
+            assertTrue(h.screen.mouseScrolled(330, 66, 0, -1));
+            var offset = AssistantScreen.class.getDeclaredField("scrollOffset");
+            offset.setAccessible(true);
+            assertEquals(100, offset.getInt(h.screen));
             h.mouse(330, 66);
             for (int key : new int[] {GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_U, GLFW.GLFW_KEY_A}) h.key(key);
             assertEquals(List.of(), h.actions.navigated);
             assertEquals(!foreign && item ? List.of("recipes:" + Items.FURNACE, "uses:" + Items.FURNACE,
                     "recipes:" + Items.FURNACE, "uses:" + Items.FURNACE, "bookmark:" + Items.FURNACE) : List.of(), h.viewer.calls);
+        }
+    }
+
+    @Test
+    void clippedStripsOnlyReceiveThePointerInsideTheViewport() throws Exception {
+        var h = new Harness(true);
+        var pointer = new int[2];
+        var open = new boolean[1];
+        var card = new RecipeCard() {
+            @Override public int width() { return 40; }
+            @Override public int height() { return 54; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return Optional.empty(); }
+            @Override public boolean drawOverlay(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int width, int mouseX, int mouseY) {
+                pointer[0] = mouseX; pointer[1] = mouseY;
+                open[0] = mouseX >= 0;
+                return open[0];
+            }
+            @Override public boolean overlayContains(double mouseX, double mouseY) { return open[0]; }
+        };
+        h.hit("cardHits", "CardHit", card, null, new PinnedCardState.Rect(50, 20, 90, 74));
+        h.hit("cardHits", "CardHit", card, null, new PinnedCardState.Rect(50, 380, 90, 434));
+        var method = AssistantScreen.class.getDeclaredMethod("drawRecipeTooltips", net.minecraft.client.gui.GuiGraphics.class, int.class, int.class);
+        method.setAccessible(true);
+        var unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var graphics = (net.minecraft.client.gui.GuiGraphics) ((sun.misc.Unsafe) unsafeField.get(null))
+                .allocateInstance(net.minecraft.client.gui.GuiGraphics.class);
+        var pose = net.minecraft.client.gui.GuiGraphics.class.getDeclaredField("pose");
+        pose.setAccessible(true);
+        pose.set(graphics, new com.mojang.blaze3d.vertex.PoseStack());
+        for (int[] mouse : new int[][] {{55, 30}, {55, 400}, {10, 60}, {430, 60}}) {
+            method.invoke(h.screen, graphics, mouse[0], mouse[1]);
+            assertEquals(-1000, pointer[0]);
+            assertEquals(-1000, pointer[1]);
+        }
+        method.invoke(h.screen, graphics, 55, 60);
+        assertEquals(55, pointer[0]);
+        assertEquals(60, pointer[1]);
+        var hits = AssistantScreen.class.getDeclaredField("cardHits");
+        hits.setAccessible(true);
+        ((List<?>) hits.get(h.screen)).clear();
+        method.invoke(h.screen, graphics, 55, 60);
+        assertFalse(card.overlayContains(55, 60));
+    }
+
+    private static final class TextGraphics extends net.minecraft.client.gui.GuiGraphics {
+        int textX;
+        private TextGraphics() { super(null, null); }
+        @Override public int drawString(net.minecraft.client.gui.Font font, net.minecraft.network.chat.Component text, int x, int y, int color, boolean shadow) {
+            textX = x;
+            return x;
+        }
+    }
+
+    @Test
+    void machineLabelWithoutAnIconHasLeftPadding() throws Exception {
+        var h = new Harness(true);
+        var unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var graphics = (TextGraphics) ((sun.misc.Unsafe) unsafeField.get(null)).allocateInstance(TextGraphics.class);
+        var method = AssistantScreen.class.getDeclaredMethod("drawInlineLines", net.minecraft.client.gui.GuiGraphics.class,
+                AssistantScreen.MessageLayout.class, int.class, int.class, ChatContracts.Turn.class);
+        method.setAccessible(true);
+        // A zero-width clipped chip skips the surface draw; text placement is independent of chip width.
+        method.invoke(h.screen, graphics, new AssistantScreen.MessageLayout(List.of(new AssistantScreen.MessageRun(
+                new ScreenText.InlineSpan("+4", null, 0, false, false), 0, 0, 0, false, null, null, 14,
+                new dev.packsage.client.recipe.RecipeCardSource.Machine(null, List.of(), "+4"), null)), 14), 60, 100, null);
+        assertEquals(104, graphics.textX);
+    }
+
+    @Test
+    void nonItemMachineChipOpensItsRecipe() throws Exception {
+        for (ItemStack stack : new ItemStack[] {null, ItemStack.EMPTY}) {
+            var h = new Harness(true);
+            var opened = new ArrayList<dev.packsage.client.recipe.RecipeCardModel>();
+            var model = new dev.packsage.client.recipe.RecipeCardModel(dev.packsage.client.recipe.RecipeCardModel.Category.VIEWER,
+                    0, 0, List.of(), "Altar", List.of(), 0, null, "mod:altar|mod:recipe");
+            h.screen.setRecipeCardSource(new dev.packsage.client.recipe.RecipeCardSource() {
+                @Override public Optional<RecipeCard> card(dev.packsage.client.recipe.RecipeCardModel value) { return Optional.empty(); }
+                @Override public boolean open(dev.packsage.client.recipe.RecipeCardModel value) { opened.add(value); return true; }
+            });
+            h.hit("machineHits", "MachineHit", new dev.packsage.client.recipe.RecipeCardSource.Machine(stack, List.of(), "Altar"),
+                    model, new PinnedCardState.Rect(320, 100, 360, 112));
+            assertTrue(h.screen.mouseClicked(330, 106, 0));
+            assertEquals(List.of(model), opened);
         }
     }
 

@@ -68,6 +68,16 @@ class JeiRecipeCardSourceTest {
         assertEquals(0, JeiRecipeCardSource.strip("mod:empty", 0, 54).width());
     }
 
+    @Test void catalystPanelsUseWholeRowsIncludingEmptySlots() {
+        for (boolean expanded : List.of(false, true)) {
+            assertEquals(54, JeiRecipeCardSource.strip("mod:altar", 1, 63, expanded).height());
+            assertEquals(54, JeiRecipeCardSource.strip("mod:altar", 2, 63, expanded).height());
+            assertEquals(54, JeiRecipeCardSource.strip("mod:altar", 8, 63, expanded).height());
+            assertEquals(3, JeiRecipeCardSource.strip("mod:altar", 1, 63, expanded).rows());
+            assertEquals(18, JeiRecipeCardSource.strip("mod:altar", 1, 63).width());
+        }
+    }
+
     @Test void stripWidthParticipatesInScaleAndFallback() {
         int width = 102 + JeiRecipeCardSource.strip("minecraft:smelting", 5, 54).width();
         assertEquals(1, JeiRecipeCardSource.scale(width, 120));
@@ -188,6 +198,33 @@ class JeiRecipeCardSourceTest {
             generation.setAccessible(true);
             generation.setLong(source, JeiRuntimeHolder.generation());
             assertFalse(source.open(model(RecipeCardModel.Category.VIEWER, null, "mod:hidden_machine|mod:secret")));
+        } finally {
+            JeiRuntimeHolder.unavailable();
+        }
+    }
+
+    @Test void fallbackOpeningShowsVisibleRecipes() throws Exception {
+        var fake = new FakeJeiRuntime();
+        var recipe = new Object();
+        fake.category("mod:hidden_machine", false, recipe);
+        fake.registryNames.put(recipe, net.minecraft.resources.ResourceLocation.parse("mod:secret"));
+        var shown = new java.util.ArrayList<Object>();
+        var gui = proxy(mezz.jei.api.runtime.IRecipesGui.class, (self, method, args) -> {
+            if (method.getName().equals("showRecipes")) shown.addAll((List<?>) args[1]);
+            return null;
+        });
+        var runtime = proxy(mezz.jei.api.runtime.IJeiRuntime.class, (self, method, args) -> method.getName().equals("getRecipesGui") ? gui : null);
+        try {
+            JeiRuntimeHolder.available(runtime);
+            var source = new JeiRecipeCardSource(new java.util.HashSet<>());
+            var index = JeiRecipeCardSource.class.getDeclaredField("index");
+            index.setAccessible(true);
+            index.set(source, fake.index());
+            var generation = JeiRecipeCardSource.class.getDeclaredField("indexGeneration");
+            generation.setAccessible(true);
+            generation.setLong(source, JeiRuntimeHolder.generation());
+            assertTrue(source.open(model(RecipeCardModel.Category.VIEWER, null, "mod:hidden_machine|mod:secret")));
+            assertEquals(List.of(recipe), shown);
         } finally {
             JeiRuntimeHolder.unavailable();
         }

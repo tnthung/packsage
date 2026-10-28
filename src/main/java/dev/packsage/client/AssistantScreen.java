@@ -1001,8 +1001,10 @@ public final class AssistantScreen extends Screen {
                 quoteY = run.y();
             }
             if (run.card() != null && run.stack() == null) {
-                run.card().draw(graphics, x, top + 4, drawMouseY >= 40 && drawMouseY < toggleY - 8 ? drawMouseX : -1,
-                        drawMouseY >= 40 && drawMouseY < toggleY - 8 ? drawMouseY : -1);
+                boolean pointer = drawMouseX >= readableLeft && drawMouseX < readableLeft + readableWidth
+                        && drawMouseY >= 40 && drawMouseY < toggleY - 8
+                        && (catalystPanel == null || !catalystPanel.card().overlayContains(drawMouseX, drawMouseY));
+                run.card().draw(graphics, x, top + 4, pointer ? drawMouseX : -1, pointer ? drawMouseY : -1);
                 cardHits.add(new CardHit(run.card(), null, new PinnedCardState.Rect(x, top + 4,
                         x + run.card().width(), top + 4 + run.card().height())));
                 continue;
@@ -1048,7 +1050,7 @@ public final class AssistantScreen extends Screen {
             }
             graphics.drawString(font, Component.literal(span.text()).withStyle(style -> style
                             .withFont(span.bold() || span.target() != null || span.externalUrl() != null ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
-                    x + (item ? 14 : reference ? 6 : 0), top + (run.height() - font.lineHeight) / 2 + 1, span.color(), false);
+                    x + (item ? 14 : run.machine() != null ? 4 : reference ? 6 : 0), top + (run.height() - font.lineHeight) / 2 + 1, span.color(), false);
         }
         return y + layout.height();
     }
@@ -1565,6 +1567,7 @@ public final class AssistantScreen extends Screen {
 
     private void drawRecipeTooltips(GuiGraphics graphics, int mouseX, int mouseY) {
         if (picker != null) {
+            if (catalystPanel != null) catalystPanel.card().drawOverlay(graphics, catalystPanel.rect().left(), catalystPanel.rect().top(), width, -1000, -1000);
             catalystPanel = null;
             pinnedCard = new PinnedCardState();
             panelCard = null;
@@ -1607,7 +1610,7 @@ public final class AssistantScreen extends Screen {
         }
         var visibility = catalystPanel != null && panelCard != null && catalystPanel.card() == panelCard.card()
                 && catalystPanel.card().overlayContains(mouseX, mouseY) ? PinnedCardState.Visibility.HOVER
-                : pinnedCard.update(mouseX, mouseY, hasShiftDown(), panelCard == null ? null : panelCard.rect(), panelRect);
+                : pinnedCard.update(mouseX, mouseY, panelCard != null && hasShiftDown(), panelCard == null ? null : panelCard.rect(), panelRect);
         RecipeCard.Hover tooltip = null;
         if (visibility != PinnedCardState.Visibility.HIDDEN && panelCard != null) {
             if (panelRect == null) {
@@ -1621,7 +1624,9 @@ public final class AssistantScreen extends Screen {
             graphics.pose().pushPose();
             graphics.pose().translate(0, 0, 400);
             ModernUi.surface(graphics, panelRect.left(), panelRect.top(), panelRect.right(), panelRect.bottom(), ModernUi.SURFACE);
-            panelCard.card().draw(graphics, panelRect.left() + 8, panelRect.top() + 8, mouseX, mouseY);
+            panelCard.card().draw(graphics, panelRect.left() + 8, panelRect.top() + 8,
+                    catalystPanel != null && catalystPanel.card().overlayContains(mouseX, mouseY) ? -1 : mouseX,
+                    catalystPanel != null && catalystPanel.card().overlayContains(mouseX, mouseY) ? -1 : mouseY);
             tooltip = panelCard.card().hoverAt(panelRect.left() + 8, panelRect.top() + 8, mouseX, mouseY).orElse(null);
             graphics.pose().popPose();
         } else {
@@ -1645,13 +1650,15 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
+        var oldPanel = catalystPanel;
         var previousPanel = catalystPanel != null && catalystPanel.card().overlayContains(mouseX, mouseY) ? catalystPanel : null;
         catalystPanel = null;
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 400);
         for (var hit : cardHits) if (hit.stack() == null && hit.rect().bottom() > 40 && hit.rect().top() < toggleY - 8
                 && hit.rect().right() > readableLeft && hit.rect().left() < readableLeft + readableWidth) {
-            boolean pointer = previousPanel == null || previousPanel.card() == hit.card() && previousPanel.rect().equals(hit.rect());
+            boolean pointer = previousPanel != null ? previousPanel.card() == hit.card() && previousPanel.rect().equals(hit.rect())
+                    : mouseX >= readableLeft && mouseX < readableLeft + readableWidth && mouseY >= 40 && mouseY < toggleY - 8;
             if (hit.card().drawOverlay(graphics, hit.rect().left(), hit.rect().top(), width, pointer ? mouseX : -1000,
                     pointer ? mouseY : -1000)) catalystPanel = hit;
         }
@@ -1662,6 +1669,8 @@ public final class AssistantScreen extends Screen {
                     pointer ? mouseY : -1000)) catalystPanel = new CardHit(panelCard.card(), null,
                     new PinnedCardState.Rect(panelRect.left() + 8, panelRect.top() + 8, panelRect.right() - 8, panelRect.bottom() - 8));
         }
+        if (oldPanel != null && (catalystPanel == null || oldPanel.card() != catalystPanel.card()))
+            oldPanel.card().drawOverlay(graphics, oldPanel.rect().left(), oldPanel.rect().top(), width, -1000, -1000);
         graphics.pose().popPose();
         if (catalystPanel != null) tooltip = catalystPanel.card().hoverAt(catalystPanel.rect().left(), catalystPanel.rect().top(), mouseX, mouseY).orElse(null);
         if (tooltip != null) {
@@ -1699,6 +1708,7 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (picker == null && catalystPanel != null && catalystPanel.card().overlayContains(mouseX, mouseY)) return true;
         if (panelRect != null && mouseX >= panelRect.left() && mouseX < panelRect.right()
                 && mouseY >= panelRect.top() && mouseY < panelRect.bottom()) return true;
         if (picker != null) {
@@ -1912,6 +1922,7 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (picker == null && catalystPanel != null && catalystPanel.card().overlayContains(mouseX, mouseY)) return true;
         if (panelRect != null && mouseX >= panelRect.left() && mouseX < panelRect.right()
                 && mouseY >= panelRect.top() && mouseY < panelRect.bottom()) return true;
         if (inputEditor != null && inputEditor.isFocused()) return inputEditor.mouseDragged(mouseX, mouseY, button, dragX, dragY);
@@ -1921,6 +1932,7 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (picker == null && catalystPanel != null && catalystPanel.card().overlayContains(mouseX, mouseY)) return true;
         if (panelRect != null && mouseX >= panelRect.left() && mouseX < panelRect.right()
                 && mouseY >= panelRect.top() && mouseY < panelRect.bottom()) return true;
         if (inputEditor != null && inputEditor.isFocused()) return inputEditor.mouseReleased(mouseX, mouseY, button);
@@ -2193,7 +2205,7 @@ public final class AssistantScreen extends Screen {
         if ((button != 0 && button != 1) || !viewerActsHere()) return false;
         if (button == 0 && (catalystPanel == null || !catalystPanel.card().overlayContains(mouseX, mouseY))) {
             if (mouseX >= readableLeft && mouseX < readableLeft + readableWidth && mouseY >= 40 && mouseY < toggleY - 8) {
-                for (var hit : machineHits) if (hit.machine().stack() == null && mouseX >= hit.rect().left() && mouseX < hit.rect().right()
+                for (var hit : machineHits) if ((hit.machine().stack() == null || hit.machine().stack().isEmpty()) && mouseX >= hit.rect().left() && mouseX < hit.rect().right()
                         && mouseY >= hit.rect().top() && mouseY < hit.rect().bottom()) return recipeCardSource.open(hit.model());
             }
         }

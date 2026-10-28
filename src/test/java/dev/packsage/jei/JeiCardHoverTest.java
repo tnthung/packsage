@@ -126,6 +126,70 @@ class JeiCardHoverTest {
     }
 
     @Test
+    void panelOwnsCoveredMouseAndOldPositionDoesNotSupplyItems() throws Exception {
+        var layout = new JeiRecipeCardSource.Layout(new Drawable(new Slot(List.of())), 18, 0, 118, 54);
+        layout.strip = JeiRecipeCardSource.strip("mod:altar", 12, 54);
+        layout.expandedStrip = JeiRecipeCardSource.strip("mod:altar", 12, 54, true);
+        layout.machines = java.util.stream.IntStream.range(0, 12).mapToObj(i -> new dev.packsage.client.recipe.RecipeCardSource.Machine(
+                new ItemStack(i == 9 || i == 1 ? Items.GLASS : Items.FURNACE), List.of(Component.literal("Machine " + i)))).toList();
+        var inside = JeiRecipeCardSource.JeiCard.class.getDeclaredMethod("inside", int.class, int.class, double.class, double.class);
+        inside.setAccessible(true);
+        for (double scale : List.of(1.0, 0.75)) for (int x : new int[] {10, 100}) {
+            var card = new JeiRecipeCardSource.JeiCard(layout, "Altar", scale, JeiRuntimeHolder.generation());
+            card.updatePanel(x, 20, x + 1, 21, 400);
+            assertFalse((boolean) inside.invoke(card, x, 20, x + 1.0, 21.0));
+            if (x == 100) assertEquals(Items.GLASS, card.itemAt(x, 20, x - 54 * scale + 1, 21).getItem());
+            assertEquals(Items.FURNACE, card.itemAt(x, 38, x + 1, 39).getItem());
+        }
+    }
+
+    @Test
+    void throwingCatalystTooltipFallsBackInsteadOfEscapingToTheCardLoader() {
+        var ingredient = (ITypedIngredient<?>) java.lang.reflect.Proxy.newProxyInstance(ITypedIngredient.class.getClassLoader(),
+                new Class<?>[] {ITypedIngredient.class}, (self, method, args) -> switch (method.getName()) {
+                    case "getItemStack" -> Optional.of(new ItemStack(Items.FURNACE));
+                    default -> null;
+                });
+        var manager = (mezz.jei.api.runtime.IIngredientManager) java.lang.reflect.Proxy.newProxyInstance(
+                mezz.jei.api.runtime.IIngredientManager.class.getClassLoader(), new Class<?>[] {mezz.jei.api.runtime.IIngredientManager.class},
+                (self, method, args) -> { throw new IllegalStateException("broken renderer"); });
+        var tooltip = assertDoesNotThrow(() -> JeiRecipeCardSource.class.getDeclaredMethod("tooltip", mezz.jei.api.runtime.IIngredientManager.class, ITypedIngredient.class));
+        tooltip.setAccessible(true);
+        var lines = (List<?>) assertDoesNotThrow(() -> tooltip.invoke(null, manager, ingredient));
+        assertFalse(lines.isEmpty());
+    }
+
+    private static final class BorderGraphics extends GuiGraphics {
+        final java.util.ArrayList<List<Integer>> fills = new java.util.ArrayList<>();
+        private BorderGraphics() { super(null, null); }
+        @Override public void fill(int left, int top, int right, int bottom, int color) {
+            fills.add(List.of(left, top, right, bottom, color));
+        }
+    }
+
+    @Test
+    void catalystBordersLeaveTheJoinedEdgeOpenAndEncloseTheExpandedPanel() throws Exception {
+        var unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var graphics = (BorderGraphics) ((sun.misc.Unsafe) unsafeField.get(null)).allocateInstance(BorderGraphics.class);
+        var fills = BorderGraphics.class.getDeclaredField("fills");
+        fills.setAccessible(true);
+        fills.set(graphics, new java.util.ArrayList<>());
+        var draw = JeiRecipeCardSource.JeiCard.class.getDeclaredMethod("drawStrip", GuiGraphics.class,
+                JeiRecipeCardSource.Strip.class, boolean.class, boolean.class, int.class, int.class);
+        draw.setAccessible(true);
+        var card = card(List.of());
+        for (boolean expanded : List.of(false, true)) {
+            graphics.fills.clear();
+            draw.invoke(card, graphics, new JeiRecipeCardSource.Strip(1, 3, 0, 0, 54), true, expanded, -1000, -1000);
+            assertTrue(graphics.fills.contains(List.of(0, 0, 18, 1, 0xffffffff)));
+            assertTrue(graphics.fills.contains(List.of(0, 1, 1, 53, 0xffffffff)));
+            assertTrue(graphics.fills.contains(List.of(0, 53, 18, 54, 0xff555555)));
+            assertEquals(expanded, graphics.fills.contains(List.of(17, 1, 18, 53, 0xff555555)));
+        }
+    }
+
+    @Test
     void slotHoverKeepsJeiLinesSuchAsOutputChance() {
         var lines = List.<Component>of(Component.literal("Iron Ingot"), Component.literal("25% chance"));
         var card = card(lines);

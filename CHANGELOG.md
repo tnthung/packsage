@@ -4,6 +4,7 @@
 
 ### 2026-10-28
 
+- Fix JEI catalyst panel viewport ownership, covered-card hover, stale panels, ingredient tooltip failures, machine chip alignment and input shielding; snap catalyst tabs to whole slot rows and draw their outer borders.
 - Show JEI category machines beside chat recipe cards and in narrow fallback chips, with bounded overflow tooltips and recipe navigation.
 - Recorded component-bearing container, hidden JEI category and temporary-link live checks, including the vanilla water-potion fixture limitation.
 - Run the non-JEI test suite without JEI on the runtime classpath, including optional loading and native recipe discovery, whenever tests run.

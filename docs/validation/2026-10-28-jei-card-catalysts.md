@@ -1,6 +1,6 @@
 # JEI card catalyst validation
 
-Date: 2026-10-28. These checks follow the [test procedure](../testing/2026-10-28-jei-card-catalysts.md) and [specification](../specs/2026-10-28-jei-card-catalysts.md). Packsage checks are partial; ATM10 acceptance remains pending.
+Date: 2026-10-28. These checks follow the [test procedure](../testing/2026-10-28-jei-card-catalysts.md) and [specification](../specs/2026-10-28-jei-card-catalysts.md). Live acceptance in Packsage and ATM10 is complete.
 
 ## Setup
 
@@ -50,3 +50,16 @@ The build of `a3018465` ran on the hidden desktop in the ATM10 world `OoO - Pack
 - **Collapsed overflow PASS.** Request for the raw iron smelting recipe: the JEI smelting card showed a collapsed strip of the Furnace plus "+31", for 32 smelting machines in two rows ([image](assets/2026-10-28-jei-catalysts-atm10-collapsed.png)).
 - **Expanded panel PASS.** Hovering the strip opened every machine at the same two-row count, 16 columns with no "+N". There was no room to the left of the card, so the panel opened over the card to the right ([image](assets/2026-10-28-jei-catalysts-atm10-expanded.png)). It stayed open while the pointer moved across it, each machine showed its JEI tooltip, for example Railcraft's Steam Oven ([image](assets/2026-10-28-jei-catalysts-atm10-expanded-tooltip.png)), and it closed when the pointer left.
 - **Still open:** the Create mixer and basin card, a Mekanism or Immersive Engineering card, clicks and R/U/A inside the expanded panel, the narrow fallback's "+N" machine chip, and the review's clipped-strip case.
+
+## ATM10 acceptance, 2026-10-28
+
+The build of `a3018465` (installed and build JAR SHA-256 `58633aa9821930f68d9b106c5c61ab1924376190de2a83470e80899524050586`) ran on the hidden desktop in `OoO - PackSage Trial`, with the developer override cleared, GPT-6.1-Sol high. Request `6bf69b7e-ea1f-4867-9156-5277ba5d0c6e` asked for the Create brass mixing and Mekanism osmium enriching cards. The override and the bridge setting were restored afterwards, the window was returned to 1024×768, and the bookmark added below was removed.
+
+- **Create mixing PASS.** The mixing card's strip shows the Mechanical Mixer and the Basin ([image](assets/2026-10-28-jei-catalysts-atm10-mixing.png)).
+- **Mekanism enriching PASS.** The enriching card shows the Enrichment Chamber plus "+4". Hovering it opened all five machines to the left of the card, in 3 columns of 2 rows with no "+N" ([image](assets/2026-10-28-jei-catalysts-atm10-enriching-expanded.png)).
+- **Expanded-panel interaction PASS.** On the Ultimate Enriching Factory in the expanded panel, R and left-click opened its crafting recipe, and U and right-click opened its uses, including the enriching category. A added it to JEI's bookmarks and a second A removed it. Escape returned to chat each time.
+- **Clipped cards PASS.** With the mixing card partly scrolled under the chat top, hovering its visible strip showed the Basin tooltip ([image](assets/2026-10-28-jei-catalysts-atm10-clipped.png)). With the enriching card cut off at the bottom, hovering its visible strip opened the panel. Expanded panels draw as floating overlays, like tooltips, so they can extend over the area above the chat or the model row below it. The pointer is accepted only inside the chat viewport.
+- **Fallback chips PASS.** At a 244×768 client area, the mixing reply fell back to a Brass Ingot chip followed by Mechanical Mixer and Basin machine chips. The enriching reply showed three machine chips and "+2". Its tooltip named the two hidden factories ([image](assets/2026-10-28-jei-catalysts-atm10-fallback-plus.png)), and clicking it opened the Enrichment Chamber recipe in JEI. The smelting reply showed three machine chips and "+29". Its tooltip listed eight names, then "… and 21 more" ([image](assets/2026-10-28-jei-catalysts-atm10-fallback-cap.png)).
+- **Observation:** the smelting "+29" tooltip lists a second "Furnace" after the Furnace chip. JEI registers two catalysts with that display name. The strip and chips show JEI's list unchanged, as the specification requires.
+
+All live acceptance in the specification is now met.

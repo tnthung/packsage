@@ -4,6 +4,7 @@
 
 ### 2026-10-28
 
+- Recorded ATM10 acceptance for JEI card catalysts: Create mixing, Mekanism enriching, expanded-panel clicks and R/U/A, clipped cards and capped fallback "+N" chips.
 - Inline chips no longer add their own padding after them: the reply's spaces and punctuation space them like words, and one space is added only between two chips written with nothing between them.
 - Match the JEI card machine strip to the card's two-pixel border, with rounded exposed corners and border-aware scaled layout and hit-testing.
 - Round the exposed JEI card machine strip and panel corners, and inset them below the card corner with matching scaled hover and click geometry.

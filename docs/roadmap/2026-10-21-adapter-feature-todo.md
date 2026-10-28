@@ -206,6 +206,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 ### Recipe cards and navigation
 
 - [x] JEI — saved torch and Natural Altar plan links reopened after restart; Create plan navigation, foreign-world read-only refusal, temporary-link restart refusal and hidden-category refusal passed. Cards, clicks, R/U, tooltips, chips and narrow layouts also passed ([validation](../validation/2026-10-27-jei-adapter.md)).
+- [ ] JEI — category machines (catalyst strip and fallback machine chips) on JEI-drawn chat cards; specified, not implemented ([spec](../specs/2026-10-28-jei-card-catalysts.md)).
 
 ### JEI bookmarks
 

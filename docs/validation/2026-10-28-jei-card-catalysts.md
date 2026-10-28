@@ -40,3 +40,4 @@ Test-first evidence: the focused pair ran 24 tests, with four expected failures 
 Visual acceptance remains pending with the controller. Minecraft was not launched for this correction.
 
 Full verification: `JAVA_HOME=C:\Users\hung1\.gradle\jdks\eclipse_adoptium-21-amd64-windows.2 ./gradlew test` passed. `test`: 1539 tests, 5 skipped, 0 failures and 0 errors; `testWithoutJei`: 1428 tests, 5 skipped, 0 failures and 0 errors. `git diff --check` passed. An earlier overlapping Gradle invocation caused a test-output file lock; the final full run completed successfully after it finished.
+- **Corners and inset PASS (`4f916d7b`).** The strip starts 4 px below the card's top, clear of the card's rounded corner. Its exposed top-left and bottom-left corners are rounded, and the side that meets the card is square. U on the moved altar icon still opened JEI ([zoomed image](assets/2026-10-28-jei-catalysts-rounded.png)).

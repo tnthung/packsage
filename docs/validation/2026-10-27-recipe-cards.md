@@ -230,7 +230,7 @@ The player used this build in game and reported that everything works as intende
 **Still open:**
 
 - **Missing and custom ingredient tooltips.** These have no live evidence; only unit tests cover them.
-- **Cold-opening timings.** Cold openings remain recorded exceptions to the warm 11–50 ms target.
+- **Cold-opening timings.** Cold openings remain recorded exceptions to the warm 11–50 ms target. Accepted by the player on 2026-10-29: the first opening after launch is a one-time warm-up, and the target applies to warm openings.
 
 ## 2026-10-27 sidebar and popup retest
 

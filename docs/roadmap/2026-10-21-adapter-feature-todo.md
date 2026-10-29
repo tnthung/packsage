@@ -12,7 +12,7 @@ On this v2 branch, Minecraft and JEI have adapters. Other mod entries describe `
 
 ### Recipe cards and inline chips (v2)
 
-- [ ] Minecraft — all eleven native recipe layouts pass JEI comparison; prompt candidate 18 passes all nine questions before promotion and on the installed default. The follow-up installed build passes JEI loading/R, compact 12-pixel chips, hover, beacon/glass cards, verbosity source visibility, retained links/legacy sources, and Normal-result/Detailed-source narrow fallbacks. The follow-up fixes are installed, and the player confirmed the final build works as intended. The player also saw missing and custom ingredient slots in game and they looked correct. Still open: cold-opening timing exceptions. See the [acceptance record](../validation/2026-10-27-recipe-cards.md).
+- [x] Minecraft — all eleven native recipe layouts pass JEI comparison; prompt candidate 18 passes all nine questions before promotion and on the installed default. The follow-up installed build passes JEI loading/R, compact 12-pixel chips, hover, beacon/glass cards, verbosity source visibility, retained links/legacy sources, and Normal-result/Detailed-source narrow fallbacks. The follow-up fixes are installed, and the player confirmed the final build works as intended. The player also saw missing and custom ingredient slots in game and they looked correct. Cold first openings after launch are accepted by the player as a one-time warm-up. See the [acceptance record](../validation/2026-10-27-recipe-cards.md).
 
 ### Journal recording and search (v2)
 

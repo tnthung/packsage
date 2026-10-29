@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### 2026-10-29
+
+- Accepted cold first openings of the chat after launch as a one-time warm-up, completing recipe card acceptance.
+
 ### 2026-10-28
 
 - Recorded ATM10 acceptance for JEI card catalysts: Create mixing, Mekanism enriching, expanded-panel clicks and R/U/A, clipped cards and capped fallback "+N" chips.

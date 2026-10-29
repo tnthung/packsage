@@ -12,17 +12,24 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 
 /** Recipe cards drawn by JEI's own recipe layouts, for JEI records and for native records JEI also shows. */
 public final class JeiRecipeCardSource implements RecipeCardSource {
     static final double MIN_SCALE = 0.75;
     static final int CACHE_SIZE = 64;
+    static final int STRIP_TOP_INSET = 4;
+    static final int STRIP_BORDER = 2;
     private static final int TICK_MS = 50;
+    private static final ResourceLocation SLOT = ResourceLocation.fromNamespaceAndPath("packsage", "jei/slot");
 
     record Key(String handle, long generation) { }
 
@@ -69,7 +76,10 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
             layout = cache.get(key);
             if (layout == null) {
                 var resolved = ref(index, model).flatMap(index::resolve);
-                layout = resolved.flatMap(value -> drawable(snapshot.runtime(), value)).map(Layout::new);
+                layout = resolved.flatMap(value -> drawable(snapshot.runtime(), value).map(drawable -> new Layout(drawable,
+                        value.category().getRecipeType().getUid().toString(),
+                        snapshot.runtime().getRecipeManager().createRecipeCatalystLookup(value.category().getRecipeType()).get().toList(),
+                        snapshot.runtime().getIngredientManager())));
                 cache.put(key, layout);
             }
         } catch (RuntimeException | LinkageError failure) {
@@ -84,6 +94,73 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
         double scale = scale(layout.get().width, maxWidth);
         if (scale == 0) return Optional.empty();
         return Optional.of(new JeiCard(layout.get(), model.caption(), scale, generation));
+    }
+
+    @Override
+    public List<Machine> machines(RecipeCardModel model) {
+        card(model);
+        var layout = cache.get(new Key(handle(model), generation()));
+        return layout == null || layout.isEmpty() ? List.of() : layout.get().machines;
+    }
+
+    @Override
+    public boolean open(RecipeCardModel model) {
+        if (index == null || indexGeneration != generation() || JeiRuntimeHolder.snapshot().runtime() == null) return false;
+        return ref(index, model).map(ref -> new JeiViewer(JeiRuntimeHolder.snapshot().runtime().getRecipesGui(), index::resolveVisible).showRecipe(ref)).orElse(false);
+    }
+
+    record Strip(int columns, int rows, int visible, int hidden, int height, boolean rightBorder) {
+        Strip(int columns, int rows, int visible, int hidden, int height) {
+            this(columns, rows, visible, hidden, height, false);
+        }
+
+        int width() { return columns == 0 ? 0 : columns * 18 + STRIP_BORDER * (rightBorder ? 2 : 1); }
+
+        int at(double x, double y, double scale) { return at(x, y, scale, false); }
+
+        int at(double x, double y, double scale, boolean rightward) {
+            x = x / scale - STRIP_BORDER;
+            y = y / scale - STRIP_BORDER;
+            if (x < 0 || x >= columns * 18 || y < 0 || y >= rows * 18) return -1;
+            int column = (int) Math.floor(x / 18);
+            int index = (rightward ? column : columns - 1 - column) * rows + (int) Math.floor(y / 18);
+            return index < visible + (hidden > 0 ? 1 : 0) ? index : -1;
+        }
+    }
+
+    record Panel(Strip strip, double left, double top, double scale, boolean rightward) {
+        boolean contains(double x, double y) {
+            return x >= left && x < left + strip.width() * scale && y >= top && y < top + strip.height() * scale;
+        }
+        int at(double x, double y) { return strip.at(x - left, y - top, scale, rightward); }
+    }
+
+    static Panel panel(Strip strip, int x, int y, double scale, int screenWidth) {
+        double extraWidth = (strip.columns() - 1) * 18 * scale;
+        if (x >= extraWidth) return new Panel(strip, x - extraWidth, y + STRIP_TOP_INSET * scale, scale, false);
+        int columns = Math.max(1, (int) Math.floor(((screenWidth - x) / scale - STRIP_BORDER * 2) / 18));
+        int rows = Math.max(strip.rows(), (strip.visible() + columns - 1) / columns);
+        return new Panel(new Strip((strip.visible() + rows - 1) / rows, rows, strip.visible(), 0, rows * 18 + STRIP_BORDER * 2, true), x, y + STRIP_TOP_INSET * scale, scale, true);
+    }
+
+    static Strip strip(String category, int count, int height) { return strip(category, count, height, false); }
+
+    static Strip strip(String category, int count, int height, boolean expanded) {
+        int rows = Math.max(1, (height - STRIP_TOP_INSET - STRIP_BORDER * 2) / 18);
+        if (category.equals("minecraft:crafting") || count == 0) return new Strip(0, rows, 0, 0, height);
+        int columns = expanded ? (count + rows - 1) / rows : 1;
+        int visible = count > rows * columns ? rows * columns - 1 : count;
+        return new Strip(columns, rows, visible, count - visible, rows * 18 + STRIP_BORDER * 2);
+    }
+
+    @SuppressWarnings("removal")
+    private static <T> List<Component> tooltip(IIngredientManager manager, ITypedIngredient<T> ingredient) {
+        try {
+            return manager.getIngredientRenderer(ingredient.getType()).getTooltip(ingredient.getIngredient(),
+                    Minecraft.getInstance().options.advancedItemTooltips ? TooltipFlag.ADVANCED : TooltipFlag.NORMAL);
+        } catch (RuntimeException | LinkageError failure) {
+            return List.of(ingredient.getItemStack().orElse(ItemStack.EMPTY).getHoverName());
+        }
     }
 
     /** The JEI runtime generation: cards made under another generation no longer draw. */
@@ -147,15 +224,12 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
         final int offsetY;
         final int width;
         final int height;
+        List<ITypedIngredient<?>> catalysts = List.of();
+        List<Machine> machines = List.of();
+        IIngredientManager ingredients;
+        Strip strip;
+        Strip expandedStrip;
         long lastTick = System.currentTimeMillis();
-
-        Layout(IRecipeLayoutDrawable<?> drawable) {
-            // The border JEI draws around getRect() belongs to the card, matching the native card's padding.
-            this(drawable, drawable.getRect().getX() - drawable.getRectWithBorder().getX(),
-                    drawable.getRect().getY() - drawable.getRectWithBorder().getY(),
-                    drawable.getRectWithBorder().getWidth(), drawable.getRectWithBorder().getHeight());
-            drawable.setPosition(offsetX, offsetY);
-        }
 
         Layout(IRecipeLayoutDrawable<?> drawable, int offsetX, int offsetY, int width, int height) {
             this.drawable = drawable;
@@ -163,6 +237,22 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
             this.offsetY = offsetY;
             this.width = width;
             this.height = height;
+            this.strip = new Strip(0, 1, 0, 0, height);
+        }
+
+        Layout(IRecipeLayoutDrawable<?> drawable, String category, List<ITypedIngredient<?>> catalysts,
+               IIngredientManager ingredients) {
+            this.drawable = drawable;
+            this.strip = strip(category, catalysts.size(), drawable.getRect().getHeight());
+            this.expandedStrip = strip(category, catalysts.size(), drawable.getRect().getHeight(), true);
+            this.offsetX = drawable.getRect().getX() - drawable.getRectWithBorder().getX() + strip.width();
+            this.offsetY = drawable.getRect().getY() - drawable.getRectWithBorder().getY();
+            this.width = drawable.getRectWithBorder().getWidth() + strip.width();
+            this.height = Math.max(drawable.getRectWithBorder().getHeight(), strip.width() == 0 ? 0 : STRIP_TOP_INSET + strip.height());
+            this.catalysts = strip.width() == 0 ? List.of() : List.copyOf(catalysts);
+            this.ingredients = ingredients;
+            this.machines = this.catalysts.stream().map(ingredient -> new Machine(ingredient.getItemStack().orElse(ItemStack.EMPTY), tooltip(ingredients, ingredient))).toList();
+            drawable.setPosition(offsetX, offsetY);
         }
 
         void tick() {
@@ -180,6 +270,9 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
         private final long generation;
         private final int areaWidth;
         private final int areaHeight;
+        private Panel panel;
+        private int panelX;
+        private int panelY;
 
         JeiCard(Layout layout, String caption, double scale, long generation) {
             this.layout = layout;
@@ -212,6 +305,10 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
             graphics.pose().pushPose();
             graphics.pose().translate(x, y, 0);
             graphics.pose().scale((float) scale, (float) scale, 1);
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, STRIP_TOP_INSET, 0);
+            drawStrip(graphics, layout.strip, true, localX, localY - STRIP_TOP_INSET);
+            graphics.pose().popPose();
             drawable.setPosition(layout.offsetX, layout.offsetY);
             drawable.drawRecipe(graphics, localX, localY);
             if (drawable.getItemStackUnderMouse(localX, localY).isPresent()) {
@@ -227,10 +324,94 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
             graphics.drawString(Minecraft.getInstance().font, caption, x, y + areaHeight + 4, ModernUi.MUTED, false);
         }
 
+        private void drawStrip(GuiGraphics graphics, Strip strip, boolean rightward, int mouseX, int mouseY) {
+            if (strip.width() == 0) return;
+            int width = strip.width();
+            int height = strip.height();
+            int right = strip.rightBorder() ? STRIP_BORDER : 0;
+            graphics.fill(1, 1, width - (right > 0 ? 1 : 0), height - 1, 0xffc6c6c6);
+            for (int i = 0; i < strip.visible() + (strip.hidden() > 0 ? 1 : 0); i++) {
+                int x = STRIP_BORDER + (rightward ? i / strip.rows() : strip.columns() - 1 - i / strip.rows()) * 18;
+                int y = STRIP_BORDER + i % strip.rows() * 18;
+                graphics.blitSprite(SLOT, x, y, 18, 18);
+                if (i < strip.visible()) {
+                    graphics.pose().pushPose();
+                    graphics.pose().translate(x + 1, y + 1, 0);
+                    drawIngredient(graphics, layout.ingredients, layout.catalysts.get(i));
+                    graphics.pose().popPose();
+                } else {
+                    String label = "+" + strip.hidden();
+                    float textScale = Math.min(1, 16f / Minecraft.getInstance().font.width(label));
+                    graphics.pose().pushPose();
+                    graphics.pose().translate(x + 1, y + 5, 0);
+                    graphics.pose().scale(textScale, textScale, 1);
+                    graphics.drawString(Minecraft.getInstance().font, label, 0, 0, 0xff404040, false);
+                    graphics.pose().popPose();
+                }
+                if (strip.at(mouseX, mouseY, 1, rightward) == i) {
+                    graphics.pose().pushPose();
+                    graphics.pose().translate(0, 0, 200);
+                    graphics.fill(x + 1, y + 1, x + 17, y + 17, 0x80ffffff);
+                    graphics.pose().popPose();
+                }
+            }
+            graphics.fill(1, 0, width - (right > 0 ? 1 : 0), 1, 0xff999999);
+            graphics.fill(0, 1, 1, height - 1, 0xff999999);
+            graphics.fill(1, height - 1, width - (right > 0 ? 1 : 0), height, 0xff999999);
+            graphics.fill(1, 1, width - (right > 0 ? 1 : 0), 2, 0xffd8d8d8);
+            graphics.fill(1, 2, 2, height - 2, 0xffd8d8d8);
+            graphics.fill(1, height - 2, width - (right > 0 ? 1 : 0), height - 1, 0xffb3b3b3);
+            if (right > 0) {
+                graphics.fill(width - 1, 1, width, height - 1, 0xff999999);
+                graphics.fill(width - 2, 2, width - 1, height - 2, 0xffb3b3b3);
+            }
+        }
+
+        void updatePanel(int x, int y, double mouseX, double mouseY, int screenWidth) {
+            if (!current() || layout.expandedStrip == null || layout.strip.width() == 0) {
+                panel = null;
+                return;
+            }
+            if (layout.strip.at(mouseX - x, mouseY - y - STRIP_TOP_INSET * scale, scale) >= 0) {
+                panelX = x;
+                panelY = y;
+                panel = panel(layout.expandedStrip, x, y, scale, screenWidth);
+            } else if (panel != null && panelX == x && panelY == y) {
+                panel = panel.contains(mouseX, mouseY) ? panel(layout.expandedStrip, x, y, scale, screenWidth) : null;
+            }
+        }
+
+        @Override
+        public boolean overlayContains(double mouseX, double mouseY) {
+            return current() && panel != null && panel.contains(mouseX, mouseY);
+        }
+
+        @Override
+        public boolean drawOverlay(GuiGraphics graphics, int x, int y, int screenWidth, int mouseX, int mouseY) {
+            updatePanel(x, y, mouseX, mouseY, screenWidth);
+            if (panel == null || panelX != x || panelY != y) return false;
+            graphics.pose().pushPose();
+            graphics.pose().translate(panel.left(), panel.top(), 0);
+            graphics.pose().scale((float) scale, (float) scale, 1);
+            drawStrip(graphics, panel.strip(), panel.rightward(), (int) Math.floor((mouseX - panel.left()) / scale), (int) Math.floor((mouseY - panel.top()) / scale));
+            graphics.pose().popPose();
+            return overlayContains(mouseX, mouseY);
+        }
+
+        private static <T> void drawIngredient(GuiGraphics graphics, IIngredientManager manager, ITypedIngredient<T> ingredient) {
+            manager.getIngredientRenderer(ingredient.getType()).render(graphics, ingredient.getIngredient());
+        }
+
         // IRecipeSlotDrawable.getTooltip() is the 19.27 way to read a slot's complete tooltip.
         @SuppressWarnings({"deprecation", "removal"})
         @Override
         public Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) {
+            boolean overlay = panelX == x && panelY == y && overlayContains(mouseX, mouseY);
+            if (!current() || !inside(x, y, mouseX, mouseY) && !overlay) return Optional.empty();
+            var strip = overlay ? panel.strip() : layout.strip;
+            int catalyst = overlay ? panel.at(mouseX, mouseY) : strip.at(mouseX - x, mouseY - y - STRIP_TOP_INSET * scale, scale);
+            if (catalyst >= 0) return catalyst < strip.visible()
+                    ? Optional.of(new Hover.Text(tooltip(layout.ingredients, layout.catalysts.get(catalyst)))) : Optional.empty();
             var stack = itemAt(x, y, mouseX, mouseY);
             if (stack.isEmpty()) return Optional.empty();
             // The slot's whole JEI tooltip keeps lines the plain item tooltip lacks, such as an output's chance; the screen draws it above chat.
@@ -240,13 +421,18 @@ public final class JeiRecipeCardSource implements RecipeCardSource {
 
         @Override
         public ItemStack itemAt(int x, int y, double mouseX, double mouseY) {
-            if (!current() || !inside(x, y, mouseX, mouseY)) return ItemStack.EMPTY;
+            boolean overlay = panelX == x && panelY == y && overlayContains(mouseX, mouseY);
+            if (!current() || !inside(x, y, mouseX, mouseY) && !overlay) return ItemStack.EMPTY;
+            var strip = overlay ? panel.strip() : layout.strip;
+            int catalyst = overlay ? panel.at(mouseX, mouseY) : strip.at(mouseX - x, mouseY - y - STRIP_TOP_INSET * scale, scale);
+            if (catalyst >= 0) return catalyst < strip.visible() ? layout.machines.get(catalyst).stack() : ItemStack.EMPTY;
+            if (overlay) return ItemStack.EMPTY;
             layout.drawable.setPosition(layout.offsetX, layout.offsetY);
             return layout.drawable.getItemStackUnderMouse(local(mouseX, x), local(mouseY, y)).orElse(ItemStack.EMPTY);
         }
 
         private boolean inside(int x, int y, double mouseX, double mouseY) {
-            return mouseX >= x && mouseX < x + areaWidth && mouseY >= y && mouseY < y + areaHeight;
+            return !(panelX == x && panelY == y && overlayContains(mouseX, mouseY)) && mouseX >= x && mouseX < x + areaWidth && mouseY >= y && mouseY < y + areaHeight;
         }
 
         private int local(double mouse, int origin) {

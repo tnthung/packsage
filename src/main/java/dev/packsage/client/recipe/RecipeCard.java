@@ -19,6 +19,11 @@ public interface RecipeCard {
                 .orElse(ItemStack.EMPTY);
     }
 
+    /** Draws this card's floating panel and reports whether it owns the pointer at this position. */
+    default boolean drawOverlay(GuiGraphics graphics, int x, int y, int screenWidth, int mouseX, int mouseY) { return false; }
+
+    default boolean overlayContains(double mouseX, double mouseY) { return false; }
+
     sealed interface Hover permits Hover.Item, Hover.Text {
         record Item(ItemStack stack) implements Hover { }
         record Text(List<Component> lines) implements Hover { }

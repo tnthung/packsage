@@ -4,6 +4,14 @@
 
 ### 2026-10-28
 
+- Recorded ATM10 acceptance for JEI card catalysts: Create mixing, Mekanism enriching, expanded-panel clicks and R/U/A, clipped cards and capped fallback "+N" chips.
+- Inline chips no longer add their own padding after them: the reply's spaces and punctuation space them like words, and one space is added only between two chips written with nothing between them.
+- Match the JEI card machine strip to the card's two-pixel border, with rounded exposed corners and border-aware scaled layout and hit-testing.
+- Round the exposed JEI card machine strip and panel corners, and inset them below the card corner with matching scaled hover and click geometry.
+- Showing an item's uses from a chat card, chip or machine strip now also lists the categories it is a machine for, as JEI's own U key does, so U and right-click on a machine such as the Natural Altar open its recipes instead of doing nothing.
+- Recorded partial Packsage live checks for JEI card catalyst strips and fallback chips, with the altar expectation and ATM10 checks still open.
+- Fix JEI catalyst panel viewport ownership, covered-card hover, stale panels, ingredient tooltip failures, machine chip alignment and input shielding; snap catalyst tabs to whole slot rows and draw their outer borders.
+- Show JEI category machines beside chat recipe cards and in narrow fallback chips, with bounded overflow tooltips and recipe navigation.
 - Recorded component-bearing container, hidden JEI category and temporary-link live checks, including the vanilla water-potion fixture limitation.
 - Run the non-JEI test suite without JEI on the runtime classpath, including optional loading and native recipe discovery, whenever tests run.
 

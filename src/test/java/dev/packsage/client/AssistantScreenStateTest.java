@@ -1626,6 +1626,46 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void chipsAreSpacedByTheirTextAndTouchingChipsGetOneSpace() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var line = new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("1 ", null, ModernUi.TEXT, false, false),
+                new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, null, null, null, "minecraft:glass"),
+                new ScreenText.InlineSpan(" as the ingredient", null, ModernUi.TEXT, false, false)));
+        var layout = screen.messageLayout(List.of(line), 300, java.util.Map.of(), java.util.Map.of(),
+                java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS)));
+        var runs = layout.runs();
+        var chip = runs.stream().filter(run -> run.stack() != null).findFirst().orElseThrow();
+        var next = runs.get(runs.indexOf(chip) + 1);
+        // No padding after the chip: the reply's own space follows it directly.
+        assertEquals(" ", next.span().text());
+        assertEquals(chip.x() + chip.width(), next.x());
+
+        var punctuated = new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, null, null, null, "minecraft:glass"),
+                new ScreenText.InlineSpan(", both", null, ModernUi.TEXT, false, false)));
+        var punctuatedRuns = screen.messageLayout(List.of(punctuated), 300, java.util.Map.of(), java.util.Map.of(),
+                java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS))).runs();
+        // Punctuation written right after the chip stays right after it.
+        assertEquals(",", punctuatedRuns.get(1).span().text());
+        assertEquals(punctuatedRuns.get(0).x() + punctuatedRuns.get(0).width(), punctuatedRuns.get(1).x());
+
+        var touching = new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, null, null, null, "minecraft:glass"),
+                new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, null, null, null, "minecraft:glass")));
+        var touchingRuns = screen.messageLayout(List.of(touching), 300, java.util.Map.of(), java.util.Map.of(),
+                java.util.Map.of("minecraft:glass", new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GLASS))).runs();
+        // Two chips with nothing between them get one space so they do not touch.
+        int space = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("a b", null, ModernUi.TEXT, false, false)))), 300)
+                .runs().get(1).width();
+        assertTrue(space > 0);
+        assertEquals(touchingRuns.get(0).x() + touchingRuns.get(0).width() + space, touchingRuns.get(1).x());
+    }
+
+    @Test
     void resultChipsNameMissingAndUnknownOutputsInsteadOfTheBarrier() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 640;
@@ -1900,6 +1940,30 @@ class AssistantScreenStateTest {
         assertSame(card, narrow.runs().getFirst().card());
         assertSame(stack, narrow.runs().getFirst().stack());
         assertEquals(12, narrow.height());
+    }
+
+    @Test
+    void narrowFallbackPlacesMachineChipsAfterTheResult() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var model = new dev.packsage.client.recipe.RecipeCardModel(
+                dev.packsage.client.recipe.RecipeCardModel.Category.VIEWER, 0, 0, List.of(), "Mixing", List.of(), 0, null, "create:mixing|create:brass");
+        var machine = new dev.packsage.client.recipe.RecipeCardSource.Machine(
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.FURNACE), List.of(net.minecraft.network.chat.Component.literal("Furnace")));
+        screen.setRecipeCardSource(new dev.packsage.client.recipe.RecipeCardSource() {
+            @Override public java.util.Optional<dev.packsage.client.recipe.RecipeCard> card(dev.packsage.client.recipe.RecipeCardModel value) { return java.util.Optional.empty(); }
+            @Override public List<Machine> machines(dev.packsage.client.recipe.RecipeCardModel value) { return List.of(machine, machine, machine, machine, machine); }
+        });
+        var source = new Evidence.Source(SCOPE, "jei", "1", "create:brass", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var span = new ScreenText.InlineSpan("Result", null, ModernUi.TEXT, false, false, source, null, model, null);
+        var layout = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(span), false, model)), 200);
+        assertEquals(3, layout.runs().stream().filter(run -> run.machine() != null && run.machine().stack() != null).count());
+        assertTrue(layout.runs().stream().anyMatch(run -> run.span().text().equals("+2")));
+        assertNull(layout.runs().getFirst().machine());
+        assertSame(machine, layout.runs().get(1).machine());
     }
 
     @Test

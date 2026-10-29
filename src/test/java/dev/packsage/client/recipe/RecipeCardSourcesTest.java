@@ -1,5 +1,6 @@
 package dev.packsage.client.recipe;
 
+import dev.packsage.client.ModernUi;
 import net.minecraft.client.gui.GuiGraphics;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +22,30 @@ class RecipeCardSourcesTest {
         @Override public Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return Optional.empty(); }
     }
 
+    @Test void machineFallbackCapsChipsAndOverflowNames() {
+        var machines = java.util.stream.IntStream.range(0, 15).mapToObj(i -> new RecipeCardSource.Machine(
+                net.minecraft.world.item.ItemStack.EMPTY, List.of(net.minecraft.network.chat.Component.literal("Machine " + i)))).toList();
+        RecipeCardSource source = new RecipeCardSource() {
+            @Override public Optional<RecipeCard> card(RecipeCardModel model) { return Optional.empty(); }
+            @Override public List<Machine> machines(RecipeCardModel model) { return machines; }
+        };
+        var combined = RecipeCardSources.first(List.of(source));
+        assertEquals(machines, combined.machines(VIEWER));
+        var chips = combined.machineChips(VIEWER);
+        assertEquals(4, chips.size());
+        assertEquals(machines.subList(0, 3), chips.subList(0, 3));
+        assertEquals("+12", chips.getLast().label());
+        assertEquals(10, chips.getLast().tooltip().size());
+        assertEquals("Machine 3", chips.getLast().tooltip().getFirst().getString());
+        assertEquals("Machine 10", chips.getLast().tooltip().get(7).getString());
+        assertEquals("\u2026 and 4 more", chips.getLast().tooltip().get(8).getString());
+        assertEquals("Click to open in JEI", chips.getLast().tooltip().getLast().getString());
+        assertEquals(ModernUi.MUTED & 0xffffff, chips.getLast().tooltip().getLast().getStyle().getColor().getValue());
+        var crafting = new RecipeCardModel(RecipeCardModel.Category.CRAFTING_SHAPED, 0, 0, List.of(), "", List.of());
+        assertTrue(combined.machineChips(crafting).isEmpty());
+        assertTrue(((RecipeCardSource) model -> Optional.empty()).machines(VIEWER).isEmpty());
+    }
+
     @Test void firstNonEmptyWins() {
         var widths = new ArrayList<Integer>();
         RecipeCardSource empty = model -> Optional.empty();
@@ -37,6 +62,15 @@ class RecipeCardSourcesTest {
         assertEquals(List.of(120), widths);
         assertEquals(1, source.card(NATIVE).orElseThrow().width());
         assertTrue(RecipeCardSources.first(List.of(empty)).card(NATIVE, 120).isEmpty());
+    }
+
+    @Test void tooWideViewerRetainsItsFullCardForTheFallbackHover() {
+        RecipeCardSource viewer = new RecipeCardSource() {
+            @Override public Optional<RecipeCard> card(RecipeCardModel model) { return Optional.of(new Card(200)); }
+            @Override public Optional<RecipeCard> card(RecipeCardModel model, int maxWidth) { return Optional.empty(); }
+        };
+        RecipeCardSource nativeSource = model -> Optional.of(new Card(80));
+        assertEquals(200, RecipeCardSources.first(List.of(viewer, nativeSource)).card(NATIVE, 100).orElseThrow().width());
     }
 
     @Test void generationChangesWithAnySource() {
